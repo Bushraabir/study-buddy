@@ -1,8 +1,8 @@
 [
-    {
-      "origin": ["*"],
-      "method": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-      "maxAgeSeconds": 3600
-    }
-  ]
-  
+  {
+    "origin": ["https://bushraabir.github.io"],
+    "method": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    "responseHeader": ["Content-Type"],
+    "maxAgeSeconds": 3600
+  }
+]

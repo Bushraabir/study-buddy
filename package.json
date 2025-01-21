@@ -3,7 +3,7 @@
     "private": true,
     "version": "1.0.0",
     "type": "module",
-    "description": "Study Buddy - An AI-powered application to assist with study material creation and management.",
+    "description": "Study Buddy - An application to assist with study material creation and management.",
     "main": "server/server.js",
     "scripts": {
         "dev": "vite",

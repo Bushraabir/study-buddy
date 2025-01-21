@@ -8,7 +8,7 @@ const firebaseConfig = {
     apiKey: "AIzaSyBpMXV2vq9ZljbOZx3CCvaZXneXV2fEU8k",
     authDomain: "study-buddy-study-assiatant.firebaseapp.com",
     projectId: "study-buddy-study-assiatant",
-    storageBucket: "study-buddy-study-assiatant.firebasestorage.app",
+    storageBucket: "study-buddy-study-assiatant.appspot.com", 
     messagingSenderId: "725712157464",
     appId: "1:725712157464:web:ecb7f93694fcafbbd3bc6d",
 };
