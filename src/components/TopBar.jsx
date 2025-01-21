@@ -47,26 +47,26 @@ function TopBar() {
       {/* Navigation Menu (Desktop) */}
       <nav className="items-center hidden space-x-6 nav-menu md:flex">
       {user && (
-          <Link to="/session" className="nav-link">
+          <Link to="/study-buddy/session" className="nav-link">
             Study Session
           </Link>
         )}
 
-        <Link to="/flash-cards" className="nav-link">
+        <Link to="/study-buddy/flash-cards" className="nav-link">
           Flashcards
         </Link>
-        <Link to="/notes" className="nav-link">
+        <Link to="/study-buddy/notes" className="nav-link">
           Notes
         </Link>
-        <Link to="/plot-graph" className="nav-link">
+        <Link to="/study-buddy/plot-graph" className="nav-link">
           Sketch Curves
         </Link>
-        <Link to="/3d-graph" className="nav-link">
+        <Link to="/study-buddy/3d-graph" className="nav-link">
           3D
         </Link>
         {/* Show Profile button only if the user is logged in */}
         {user && (
-          <Link to="/profile" className="nav-link">
+          <Link to="/study-buddy/profile" className="nav-link">
             Profile
           </Link>
         )}
@@ -96,38 +96,32 @@ function TopBar() {
           exit={{ opacity: 0 }}
         >
           <Link
-            to="/dashboard"
+            to="/study-buddy/dashboard"
             className="mb-4 text-xl text-gray-300"
             onClick={() => setMobileMenuOpen(false)}
           >
             Dashboard
           </Link>
           <Link
-            to="/flash-cards"
+            to="/study-buddy/flash-cards"
             className="mb-4 text-xl text-gray-300"
             onClick={() => setMobileMenuOpen(false)}
           >
             Flashcards
           </Link>
           <Link
-            to="/notes"
+            to="/study-buddy/notes"
             className="mb-4 text-xl text-gray-300"
             onClick={() => setMobileMenuOpen(false)}
           >
             Notes
           </Link>
-          <Link
-            to="/ask-ai"
-            className="mb-4 text-xl text-gray-300"
-            onClick={() => setMobileMenuOpen(false)}
-          >
-            Ask AI
-          </Link>
+ 
 
           {/* Show Profile button in mobile menu if user is logged in */}
           {user && (
             <Link
-              to="/profile"
+              to="/study-buddy/profile"
               className="text-xl text-gray-300"
               onClick={() => setMobileMenuOpen(false)}
             >
@@ -148,7 +142,7 @@ function TopBar() {
           </button>
         ) : (
           <Link
-            to="/login"
+            to="/study-buddy/login"
             className="px-4 py-2 text-white bg-blue-500 rounded-md login-button hover:bg-blue-600"
           >
             Login

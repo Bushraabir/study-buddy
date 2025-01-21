@@ -6,14 +6,13 @@ import { Toaster } from "react-hot-toast"; // For notifications
 import Home from "./pages/Home";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
-import StartSession from "./pages/StartSession";
 
 import FlashCards from "./pages/FlashCards";
 import Notes from "./pages/Notes";
 import Profile from "./pages/Profile";
 import TopBar from "./components/TopBar";
 import { auth } from "./components/firebase";
-import Session from "./pages/Session";
+import StartSession from "./pages/Session";
 import PlotGraph from "./pages/PlotGraph";
 import AdvancedEquationVisualizer from "./pages/3D";
 
@@ -50,30 +49,23 @@ function App() {
 
           <div className="flex-1 p-6 overflow-y-auto">
             <Routes>
-              <Route path="/" element={<Home />} />
-              <Route path="/login" element={<Login />} />
-              <Route path="/register" element={<Register />} />
+              <Route path="/study-buddy/" element={<Home />} />
+              <Route path="/study-buddy/login" element={<Login />} />
+              <Route path="/study-buddy/register" element={<Register />} />
 
               {/* Protected Routes */}
               <Route
-                path="/profile"
+                path="/study-buddy/profile"
                 element={
                   <ProtectedRoute>
                     <Profile />
                   </ProtectedRoute>
                 }
               />
-              <Route
-                path="/start-session"
-                element={
-                  <ProtectedRoute>
-                    <StartSession />
-                  </ProtectedRoute>
-                }
-              />
+
 
               <Route
-                path="/flash-cards"
+                path="/study-buddy/flash-cards"
                 element={
                   <ProtectedRoute>
                     
@@ -82,7 +74,7 @@ function App() {
                 }
               />
               <Route
-                path="/notes"
+                path="/study-buddy/notes"
                 element={
                   <ProtectedRoute>
                     <Notes />
@@ -90,7 +82,7 @@ function App() {
                 }
               />
               <Route
-                path="/plot-graph"
+                path="/study-buddy/plot-graph"
                 element={
                   <ProtectedRoute>
                     <PlotGraph />
@@ -98,7 +90,7 @@ function App() {
                 }
               />
               <Route
-                path="/3d-graph"
+                path="/study-buddy/3d-graph"
                 element={
                   <ProtectedRoute>
                     <AdvancedEquationVisualizer />
@@ -106,10 +98,10 @@ function App() {
                 }
               />
                             <Route
-                path="/session"
+                path="/study-buddy/session"
                 element={
                   <ProtectedRoute>
-                    <Session />
+                    <StartSession />
                   </ProtectedRoute>
                 }
               />

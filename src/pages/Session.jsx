@@ -14,7 +14,7 @@ import clockAnimation from "../assets/3d-clock-animation.json";
 import "./Session.css";
 import "@fortawesome/fontawesome-free/css/all.min.css";
 
-function Session() {
+function StartSession() {
   // State variables for user, time, tasks, and study fields
   const [user, setUser] = useState(null);
   const [time, setTime] = useState(0);
@@ -504,4 +504,4 @@ function Session() {
   );
 }
 
-export default Session;
+export default StartSession;

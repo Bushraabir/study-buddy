@@ -30,7 +30,7 @@ function Login() {
     try {
       await signInWithEmailAndPassword(auth, values.email, values.password);
       toast.success("Login successful!", { position: "top-center" });
-      navigate("/session"); // Redirect to Profile.jsx
+      navigate("/study-buddy/session"); // Redirect to Profile.jsx
     } catch (error) {
       console.error("Login error:", error.message);
       toast.error("Invalid login. Please check your credentials.", {
@@ -149,7 +149,7 @@ function Login() {
         <div className="login-footer">
           <p>
             Don’t have an account?{" "}
-            <a href="/register" className="signup-link">
+            <a href="/study-buddy/register" className="signup-link">
               Sign up here
             </a>
           </p>
