@@ -24,7 +24,7 @@ function TopBar() {
   const handleLogout = async () => {
     try {
       await auth.signOut();
-      navigate("/login"); // Redirect to login after logout
+      navigate("/study-buddy/login"); // Redirect to login after logout
     } catch (error) {
       console.error("Error logging out:", error.message);
     }
@@ -39,7 +39,7 @@ function TopBar() {
     >
       {/* Logo */}
       <div className="logo">
-        <Link to="/" className="text-2xl font-bold text-indigo-500">
+        <Link to="/study-buddy/" className="text-2xl font-bold text-indigo-500">
           Study<span className="text-white">Buddy</span>
         </Link>
       </div>
