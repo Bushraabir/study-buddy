@@ -1,0 +1,324 @@
+/* General Container */
+
+.flashcards-container {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 30px;
+    background: #2c2c3e;
+    color: #e4e4e7;
+    border-radius: 18px;
+    box-shadow: 0 8px 50px rgba(0, 0, 0, 0.4);
+    overflow: hidden;
+    transition: all 0.5s ease-in-out;
+}
+
+.flashcards-container:hover {
+    box-shadow: 0 12px 70px rgba(0, 0, 0, 0.5);
+}
+
+
+/* Header */
+
+.header {
+    text-align: center;
+    margin-bottom: 30px;
+    transition: opacity 0.5s ease;
+}
+
+.header h1 {
+    font-size: 3rem;
+    color: #7f89e5;
+    margin-bottom: 10px;
+    text-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+}
+
+.header p {
+    font-size: 1.2rem;
+    color: #a8a8b3;
+    opacity: 0.9;
+}
+
+
+/* Form Section */
+
+.form-section {
+    margin-bottom: 40px;
+}
+
+.form-section h2 {
+    font-size: 1.8rem;
+    color: #e4e4e7;
+    margin-bottom: 15px;
+    text-transform: uppercase;
+    font-weight: 600;
+}
+
+.flashcard-form {
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+    transition: all 0.3s ease;
+}
+
+.flashcard-form input {
+    padding: 12px;
+    font-size: 1.1rem;
+    border: 1px solid #5a67d8;
+    border-radius: 8px;
+    background: #2a2a3e;
+    color: #ffffff;
+    transition: all 0.4s ease;
+}
+
+.flashcard-form input:focus {
+    outline: none;
+    border-color: #7f89e5;
+    box-shadow: 0 0 8px rgba(127, 137, 229, 0.7);
+}
+
+.add-button {
+    padding: 14px 20px;
+    font-size: 1.1rem;
+    font-weight: bold;
+    background: linear-gradient(135deg, #5a67d8, #7f89e5);
+    border: none;
+    border-radius: 8px;
+    color: #ffffff;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
+}
+
+.add-button:hover {
+    transform: translateY(-4px);
+    background: linear-gradient(135deg, #7f89e5, #5a67d8);
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.3);
+}
+
+
+/* Filter Section */
+
+.filter-section {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 20px;
+    margin-bottom: 40px;
+}
+
+.search-bar,
+.filter-dropdown {
+    padding: 12px;
+    font-size: 1.1rem;
+    border: 1px solid #5a67d8;
+    border-radius: 8px;
+    background: #2a2a3e;
+    color: #ffffff;
+    transition: all 0.4s ease;
+}
+
+.search-bar:focus,
+.filter-dropdown:focus {
+    outline: none;
+    border-color: #7f89e5;
+    box-shadow: 0 0 8px rgba(127, 137, 229, 0.7);
+}
+
+
+/* Flashcard List */
+
+.flashcard-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 30px;
+    justify-content: center;
+    margin-top: 20px;
+    transition: opacity 0.5s ease;
+}
+
+.flashcard {
+    background: #272727;
+    color: #e4e4e7;
+    border-radius: 12px;
+    width: 280px;
+    height: 200px;
+    perspective: 1000px;
+    position: relative;
+    cursor: pointer;
+    transition: transform 0.4s ease-in-out, box-shadow 0.3s ease;
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.3);
+}
+
+.flashcard:hover {
+    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.4);
+}
+
+.flashcard.flipped .flashcard-front {
+    transform: rotateY(180deg);
+}
+
+.flashcard.flipped .flashcard-back {
+    transform: rotateY(0deg);
+}
+
+.flashcard-front,
+.flashcard-back {
+    width: 100%;
+    height: 100%;
+    border-radius: 12px;
+    position: absolute;
+    backface-visibility: hidden;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    padding: 20px;
+    font-size: 1.2rem;
+    font-weight: 500;
+    color: #ffffff;
+    text-align: center;
+    transition: transform 0.5s ease;
+}
+
+.flashcard-front {
+    background: #2a2a3e;
+    transform: rotateY(0deg);
+}
+
+.flashcard-back {
+    background: #33334c;
+    transform: rotateY(180deg);
+    display: flex;
+    flex-direction: column;
+    /* Stack the elements vertically */
+    justify-content: flex-start;
+    align-items: center;
+    padding: 20px;
+    gap: 10px;
+    font-size: 1.2rem;
+    color: #ffffff;
+}
+
+.flashcard-back .tags {
+    margin-top: 15px;
+    font-size: 1rem;
+    color: #7f89e5;
+}
+
+.delete-button {
+    margin-top: 15px;
+    padding: 10px 15px;
+    font-size: 1rem;
+    background: #e53e3e;
+    color: white;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.delete-button:hover {
+    background: #c53030;
+    transform: translateY(-3px);
+}
+
+
+/* Quiz Section */
+
+.quiz-container {
+    margin-top: 50px;
+    padding: 30px;
+    background: #272727;
+    border-radius: 12px;
+    box-shadow: 0 8px 30px rgba(0, 0, 0, 0.4);
+    text-align: center;
+}
+
+.quiz-container h2 {
+    font-size: 1.8rem;
+    color: #e4e4e7;
+    margin-bottom: 20px;
+    font-weight: 600;
+    letter-spacing: 1px;
+}
+
+.quiz-question {
+    font-size: 1.4rem;
+    color: #7f89e5;
+    margin-bottom: 20px;
+    text-transform: capitalize;
+}
+
+.quiz-options {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+    align-items: center;
+}
+
+.quiz-option {
+    padding: 12px 25px;
+    font-size: 1.1rem;
+    font-weight: bold;
+    background: linear-gradient(135deg, #5a67d8, #7f89e5);
+    color: white;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    box-shadow: 0 6px 15px rgba(0, 0, 0, 0.3);
+}
+
+.quiz-option:hover {
+    transform: translateY(-3px);
+    background: linear-gradient(135deg, #7f89e5, #5a67d8);
+    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.4);
+}
+
+.quiz-progress {
+    margin-top: 20px;
+    font-size: 1.1rem;
+    color: #e4e4e7;
+    font-weight: bold;
+}
+
+.progress-bar {
+    width: 100%;
+    height: 14px;
+    background: #444;
+    border-radius: 8px;
+    overflow: hidden;
+    margin-top: 15px;
+}
+
+.progress {
+    height: 100%;
+    background: #7f89e5;
+    transition: width 0.5s ease-in-out;
+}
+
+
+/* Quiz Start Button */
+
+.quiz-section {
+    text-align: center;
+    margin-top: 30px;
+}
+
+.start-quiz-button {
+    padding: 12px 30px;
+    font-size: 1.2rem;
+    font-weight: bold;
+    background: linear-gradient(135deg, #5a67d8, #7f89e5);
+    color: white;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+.start-quiz-button:hover {
+    transform: translateY(-3px);
+    background: linear-gradient(135deg, #7f89e5, #5a67d8);
+    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.4);
+}

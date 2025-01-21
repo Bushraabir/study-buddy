@@ -1,0 +1,81 @@
+/* Global Styles */
+
+body {
+    margin: 0;
+    font-family: 'Inter', sans-serif;
+    background: linear-gradient(145deg, #1a1a1a, #2d2d3a);
+    color: #e4e4e7;
+    scroll-behavior: smooth;
+    overflow-x: hidden;
+    overflow-y: auto;
+    min-height: 100vh;
+}
+
+/* Graph Section */
+.plot-graph-container {
+    width: 100%;
+    min-height: 100vh;
+    padding: 2rem;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+}
+
+.graph-section {
+    width: 100%;
+    height: 500px;
+    margin-top: 2rem;
+    position: relative;
+    border-radius: 12px;
+    overflow: hidden;
+    background-color: #2d2d3a; /* Same background as the page */
+}
+
+canvas {
+    width: 100%;
+    height: 100%;
+    display: block;
+    background-color: #1a1a1a; /* Dark background for the canvas */
+    border-radius: 12px;
+}
+
+/* MathJax Output */
+.parsed-output {
+    margin-top: 2rem;
+    text-align: center;
+    font-size: 1.5rem;
+    color: #e4e4e7;
+}
+
+.mathjax-node {
+    display: inline-block;
+    font-size: 1.25rem;
+    margin-top: 1rem;
+}
+
+/* Orbit Controls (3D Navigation) */
+.orbit-controls {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    z-index: 10;
+    background-color: rgba(0, 0, 0, 0.5);
+    padding: 5px;
+    border-radius: 8px;
+    cursor: pointer;
+}
+
+/* Mobile Responsiveness */
+@media (max-width: 768px) {
+    .plot-graph-container {
+        padding: 1rem;
+    }
+    .graph-section {
+        height: 400px;
+    }
+    .parsed-output {
+        font-size: 1rem;
+    }
+}

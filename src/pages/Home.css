@@ -1,0 +1,317 @@
+/* Import Fonts */
+@import url('https://fonts.googleapis.com/css2?family=Dancing+Script:wght@500;700&family=Inter:wght@400;500;600;700&display=swap');
+
+/* Global Styles */
+body {
+    margin: 0;
+    font-family: 'Inter', sans-serif;
+    background: linear-gradient(145deg, #1a1a1a, #2d2d3a);
+    color: #e4e4e7;
+    scroll-behavior: smooth;
+    overflow-x: hidden;
+    overflow-y: auto;
+    min-height: 100vh;
+  }
+
+.home-container {
+    width: 100%;
+    min-height: 100vh; 
+}
+
+/* Scrollbar Styles */
+body::-webkit-scrollbar {
+  width: 12px;
+}
+
+body::-webkit-scrollbar-track {
+  background: #2d2d3a;
+  border-radius: 8px;
+}
+
+body::-webkit-scrollbar-thumb {
+  background: #5a67d8;
+  border-radius: 8px;
+  border: 3px solid #2d2d3a;
+}
+
+body::-webkit-scrollbar-thumb:hover {
+  background: #7f89e5;
+}
+
+/* Hero Section */
+.hero-section {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  min-height: 100vh;
+  padding: 2rem;
+  background: linear-gradient(145deg, #2d2d3a, #1a1a1a); /* Darker hero section */
+  position: relative;
+  overflow: hidden;
+}
+
+.hero-section::before {
+  content: '';
+  position: absolute;
+  top: -50%;
+  left: -50%;
+  width: 200%;
+  height: 200%;
+  background: radial-gradient(circle, rgba(255, 255, 255, 0.1), transparent 60%);
+  transform: rotate(45deg);
+  animation: gradient-spin 20s linear infinite;
+  z-index: 0;
+}
+
+@keyframes gradient-spin {
+  0% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(360deg);
+  }
+}
+
+.hero-content {
+  z-index: 1;
+}
+
+.hero-title {
+  font-family: 'Dancing Script', cursive;
+  font-size: 4rem;
+  color: #ffffff;
+  margin-bottom: 1rem;
+}
+
+.hero-title span {
+  color: #5a67d8; /* Premium indigo */
+}
+
+.hero-subtitle {
+  font-size: 1.25rem;
+  color: #a8a8b3;
+  margin-bottom: 1.5rem;
+}
+
+.hero-buttons {
+  display: flex;
+  justify-content: center;
+  gap: 1rem;
+}
+
+.primary-button,
+.secondary-button {
+  font-size: 1rem;
+  font-weight: 600;
+  padding: 0.75rem 1.5rem;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.3s ease-in-out;
+}
+
+.primary-button {
+  background: #5a67d8;
+  color: #ffffff;
+}
+
+.primary-button:hover {
+  transform: scale(1.1);
+  box-shadow: 0 8px 20px rgba(90, 103, 216, 0.5);
+}
+
+.secondary-button {
+  background: #2d2d3a;
+  color: #a8a8b3;
+}
+
+.secondary-button:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 8px 20px rgba(100, 100, 100, 0.4);
+}
+
+.hero-image {
+  margin-top: 2rem;
+  max-width: 100%;
+  text-align: center;
+  z-index: 1;
+}
+
+.hero-image img {
+  max-width: 100%;
+  height: auto;
+}
+
+/* Quotes Section */
+.quotes-section {
+  padding: 4rem 2rem;
+  background: linear-gradient(145deg, #1a1a1a, #2d2d3a);
+  position: relative;
+}
+
+.quotes-section::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: url('../assets/pattern.svg') repeat;
+  opacity: 0.05;
+  z-index: 0;
+}
+
+.section-title {
+  font-family: 'Dancing Script', cursive;
+  font-size: 2.5rem;
+  color: #ffffff;
+  margin-bottom: 2rem;
+  text-align: center;
+}
+
+.quote-card {
+  margin: 1rem auto;
+  max-width: 600px;
+  padding: 2rem;
+  background: #2d2d3a;
+  border-radius: 12px;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.2);
+  position: relative;
+  z-index: 1;
+}
+
+.quote-card:hover {
+  transform: scale(1.05);
+  box-shadow: 0 12px 24px rgba(255, 255, 255, 0.1);
+}
+
+.quote-text {
+  font-size: 1.25rem;
+  color: #e4e4e7;
+  margin-bottom: 0.5rem;
+  font-style: italic;
+}
+
+.quote-author {
+  font-size: 1rem;
+  font-weight: 600;
+  color: #5a67d8;
+}
+
+/* Features Section */
+.features-section {
+  padding: 4rem 2rem;
+  background: #1a1a1a;
+}
+
+.features-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 2rem;
+}
+
+.feature-card {
+  padding: 2rem;
+  background: #2d2d3a;
+  border-radius: 12px;
+  text-align: center;
+  transition: all 0.3s ease-in-out;
+  position: relative;
+  overflow: hidden;
+}
+
+.feature-card:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 8px 20px rgba(255, 255, 255, 0.1);
+}
+
+.feature-title {
+  font-size: 1.5rem;
+  font-weight: 600;
+  color: #ffffff;
+  margin-top: 1rem;
+}
+
+.feature-description {
+  font-size: 1rem;
+  color: #a8a8b3;
+  margin-top: 0.5rem;
+}
+
+/* CTA Section */
+.cta-section {
+  text-align: center;
+  padding: 4rem 2rem;
+  background: linear-gradient(145deg, #5a67d8, #6b76f0);
+  color: #ffffff;
+}
+
+.cta-title {
+  font-size: 2.5rem;
+  font-weight: 700;
+  margin-bottom: 1rem;
+}
+
+.cta-text {
+  font-size: 1.25rem;
+  margin-bottom: 2rem;
+}
+
+.cta-button {
+  font-size: 1rem;
+  font-weight: 600;
+  padding: 0.75rem 1.5rem;
+  background: #ffffff;
+  color: #5a67d8;
+  border-radius: 8px;
+  transition: all 0.3s ease-in-out;
+}
+
+.cta-button:hover {
+  transform: scale(1.1);
+  background: #e2e8f0;
+}
+
+/* Floating Scroll Button */
+.scroll-button {
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+  background: #5a67d8;
+  color: #ffffff;
+  padding: 0.75rem 1rem;
+  border-radius: 50%;
+  font-size: 1.5rem;
+  box-shadow: 0 4px 12px rgba(90, 103, 216, 0.5);
+  cursor: pointer;
+  z-index: 1000;
+  transition: transform 0.3s ease-in-out;
+}
+
+.scroll-button:hover {
+  transform: scale(1.2);
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+  .hero-title {
+    font-size: 2.5rem;
+  }
+
+  .hero-subtitle {
+    font-size: 1rem;
+  }
+
+  .features-grid {
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  }
+
+  .cta-title {
+    font-size: 2rem;
+  }
+
+  .cta-text {
+    font-size: 1rem;
+  }
+}
