@@ -1,0 +1,238 @@
+/* Import Premium Fonts */
+@import url('https://fonts.googleapis.com/css2?family=Dancing+Script:wght@500;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
+/* General Container Styles */
+body {
+  font-family: 'Inter', sans-serif;
+  margin: 0;
+  padding: 0;
+  background: linear-gradient(145deg, #1a1a1a, #2d2d3a); /* Premium dark gradient */
+  color: #e4e4e7;
+
+}
+
+.login-container {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100vh;
+  padding: 2rem;
+  position: relative;
+  background: radial-gradient(circle at bottom left, #2d2d3a, #1a1a1a);
+}
+
+/* Animation Section */
+.login-animation-container {
+  flex: 1;
+  display: none;
+  align-items: center;
+  justify-content: center;
+}
+
+.login-animation {
+  max-width: 80%;
+  height: auto;
+}
+
+@media (min-width: 768px) {
+  .login-animation-container {
+    display: flex;
+  }
+}
+
+/* Card Section */
+.login-card {
+  flex: 2;
+  background-color: #1f1f2e;
+  border-radius: 20px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
+  padding: 3rem;
+  max-width: 450px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  animation: fadeIn 0.8s ease-in-out;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Card Header */
+.login-title {
+  font-family: 'Dancing Script', cursive;
+  font-size: 2.5rem;
+  font-weight: 700;
+  color: #ffffff;
+  text-align: center;
+  margin-bottom: 0.5rem;
+}
+
+.login-subtitle {
+  font-size: 1rem;
+  color: #a8a8b3;
+  text-align: center;
+  margin-bottom: 2.5rem;
+}
+
+/* Form Section */
+.login-form {
+  width: 100%;
+}
+
+.form-group {
+  margin-bottom: 2rem;
+}
+
+.input-icon {
+  display: flex;
+  align-items: center;
+  background-color: #2d2d3a;
+  padding: 0.9rem;
+  border-radius: 12px;
+  box-shadow: inset 0 2px 5px rgba(0, 0, 0, 0.3);
+}
+
+.input-icon .icon {
+  color: #5a67d8;
+  font-size: 1.4rem;
+  margin-right: 0.75rem;
+}
+
+.form-input {
+  flex: 1;
+  border: none;
+  background: transparent;
+  color: #e4e4e7;
+  font-size: 1rem;
+  outline: none;
+}
+
+.form-input::placeholder {
+  color: #666;
+}
+
+/* Password Toggle */
+.password-toggle {
+  cursor: pointer;
+  color: #666;
+  font-size: 1.4rem;
+  margin-left: 0.5rem;
+  transition: color 0.3s ease;
+}
+
+.password-toggle:hover {
+  color: #e4e4e7;
+}
+
+/* Error Messages */
+.error-message {
+  color: #e53e3e;
+  font-size: 0.875rem;
+  margin-top: 0.5rem;
+  animation: fadeInError 0.3s ease;
+}
+
+@keyframes fadeInError {
+  from {
+    opacity: 0;
+    transform: translateY(-5px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Forgot Password Link */
+.forgot-password {
+  text-align: right;
+  margin-bottom: 2rem;
+}
+
+.forgot-link {
+  color: #5a67d8;
+  text-decoration: none;
+  font-size: 0.9rem;
+  transition: color 0.3s ease;
+}
+
+.forgot-link:hover {
+  color: #434190;
+  text-decoration: underline;
+}
+
+/* Submit Button */
+.login-button {
+  width: 100%;
+  background: #5a67d8;
+  color: #ffffff;
+  font-size: 1.1rem;
+  font-weight: 600;
+  padding: 0.85rem;
+  border: none;
+  border-radius: 12px;
+  cursor: pointer;
+  box-shadow: 0 4px 12px rgba(90, 103, 216, 0.5);
+  transition: background 0.3s ease, transform 0.2s ease;
+}
+
+.login-button:hover {
+  background: #434190;
+  transform: scale(1.03);
+}
+
+.login-button:disabled {
+  background: #4a4a6a;
+  cursor: not-allowed;
+}
+
+/* Footer Section */
+.login-footer {
+  text-align: center;
+  margin-top: 2rem;
+}
+
+.signup-link {
+  color: #5a67d8;
+  text-decoration: none;
+  font-weight: 500;
+  transition: color 0.3s ease;
+}
+
+.signup-link:hover {
+  color: #434190;
+  text-decoration: underline;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+  .login-card {
+    max-width: 100%;
+    padding: 2rem;
+  }
+
+  .login-title {
+    font-size: 2rem;
+  }
+
+  .login-subtitle {
+    font-size: 0.9rem;
+  }
+
+  .form-input {
+    font-size: 0.9rem;
+  }
+
+  .login-button {
+    font-size: 0.95rem;
+  }
+}
