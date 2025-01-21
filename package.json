@@ -11,7 +11,8 @@
         "lint": "eslint .",
         "preview": "vite preview",
         "server": "node api/server.js",
-        "start": "npm run server & npm run dev"
+        "start": "npm run server & npm run dev",
+        "deploy": "gh-pages -d dist"
     },
     "dependencies": {
         "@chatscope/chat-ui-kit-react": "^2.0.3",
@@ -31,6 +32,7 @@
         "formik": "^2.4.6",
         "framer-motion": "^11.16.0",
         "gasp": "^0.0.2",
+        "gh-pages": "^6.3.0",
         "grasp": "^0.6.0",
         "gsap": "^3.12.5",
         "lottie-react": "^2.4.0",
