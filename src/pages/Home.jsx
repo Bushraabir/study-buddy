@@ -141,9 +141,9 @@ function Home() {
             },
             {
               animation: aiAssistantAnimation,
-              title: "AI Assistant",
+              title: "Visualise the graph",
               description:
-                "Ask AI to clarify concepts, generate summaries, or suggest study plans tailored to you.",
+                "Visaualise teh mathematical equations to understand easily",
             },
           ].map((feature, index) => (
             <motion.div
