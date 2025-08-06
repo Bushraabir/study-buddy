@@ -196,7 +196,7 @@ function Profile() {
     
     {/* Load 3D Model */}
     <Suspense fallback={<LoadingFallback />}>
-      <GLTFModel modelPath="/study-buddy/src/assets/pikachu/scene.gltf" />
+      <GLTFModel modelPath="/src/assets/pikachu/scene.gltf" />
     </Suspense>
   </Canvas>
 </ModelContainer>
