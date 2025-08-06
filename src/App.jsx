@@ -35,7 +35,7 @@ function App() {
 
   const ProtectedRoute = ({ children }) => {
     if (!user) {
-      return <Navigate to="/study-buddy/login" replace />;
+      return <Navigate to="/login" replace />;
     }
     return children;
   };
@@ -49,13 +49,13 @@ function App() {
 
           <div className="flex-1 p-6 overflow-y-auto">
             <Routes>
-              <Route path="/study-buddy/" element={<Home />} />
-              <Route path="/study-buddy/login" element={<Login />} />
-              <Route path="/study-buddy/register" element={<Register />} />
+              <Route path="/" element={<Home />} />
+              <Route path="/login" element={<Login />} />
+              <Route path="/register" element={<Register />} />
 
               {/* Protected Routes */}
               <Route
-                path="/study-buddy/profile"
+                path="y/profile"
                 element={
                   <ProtectedRoute>
                     <Profile />
@@ -65,7 +65,7 @@ function App() {
 
 
               <Route
-                path="/study-buddy/flash-cards"
+                path="/flash-cards"
                 element={
                   <ProtectedRoute>
                     
@@ -74,7 +74,7 @@ function App() {
                 }
               />
               <Route
-                path="/study-buddy/notes"
+                path="/notes"
                 element={
                   <ProtectedRoute>
                     <Notes />
@@ -82,7 +82,7 @@ function App() {
                 }
               />
               <Route
-                path="/study-buddy/plot-graph"
+                path="/plot-graph"
                 element={
                   <ProtectedRoute>
                     <PlotGraph />
@@ -90,15 +90,15 @@ function App() {
                 }
               />
               <Route
-                path="/study-buddy/3d-graph"
+                path="/3d-graph"
                 element={
                   <ProtectedRoute>
                     <AdvancedEquationVisualizer />
                   </ProtectedRoute>
                 }
               />
-                            <Route
-                path="/study-buddy/session"
+              <Route
+                path="/session"
                 element={
                   <ProtectedRoute>
                     <StartSession />
