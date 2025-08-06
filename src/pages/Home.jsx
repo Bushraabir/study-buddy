@@ -41,7 +41,7 @@ function Home() {
             achieve your goals effortlessly.
           </p>
           <div className="mt-6 hero-buttons">
-            <Link to="/study-buddy/login">
+            <Link to="/login">
               <button className="px-6 py-3 text-white transition bg-indigo-600 rounded-lg shadow-md primary-button hover:bg-indigo-700">
                 Get Started
               </button>
@@ -186,7 +186,7 @@ function Home() {
           Join thousands of students improving their study habits with Study
           Buddy.
         </p>
-        <Link to="/study-buddy/session">
+        <Link to="/session">
           <motion.button
             className="px-8 py-3 mt-6 text-indigo-600 transition bg-white rounded-lg shadow-md cta-button hover:bg-gray-100"
             whileHover={{ scale: 1.1 }}
@@ -200,3 +200,4 @@ function Home() {
 }
 
 export default Home;
+
