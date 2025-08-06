@@ -54,7 +54,7 @@ function Register() {
       });
 
       toast.success("Registration successful!", { position: "top-center" });
-      window.location.href = "/study-buddy/profile"; // Redirect to profile page
+      window.location.href = "/profile"; // Redirect to profile page
     } catch (error) {
       console.error("Registration error:", error.message);
       toast.error(`Registration failed: ${error.message}`, {
