@@ -11,9 +11,23 @@ import {
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import ReactQuill from "react-quill";
 import "react-quill/dist/quill.snow.css";
-import { motion } from "framer-motion";
-import { FaTrash, FaRegHeart, FaThumbtack, FaArrowLeft, FaEdit, FaSave } from "react-icons/fa";
-import "./Notes .css";
+import { motion, AnimatePresence } from "framer-motion";
+import { 
+  FaTrash, 
+  FaRegHeart, 
+  FaHeart,
+  FaThumbtack, 
+  FaArrowLeft, 
+  FaEdit, 
+  FaSave,
+  FaSearch,
+  FaPlus,
+  FaTimes,
+  FaFilter,
+  FaEye,
+  FaPalette
+} from "react-icons/fa";
+import "./Notes.css";
 
 const Notes = () => {
   const [notes, setNotes] = useState([]);
@@ -25,6 +39,9 @@ const Notes = () => {
   const [filterFavorites, setFilterFavorites] = useState(false);
   const [selectedNote, setSelectedNote] = useState(null);
   const [editingNote, setEditingNote] = useState(false);
+  const [showAddForm, setShowAddForm] = useState(false);
+  const [viewMode, setViewMode] = useState("grid"); // grid or list
+  const [isLoading, setIsLoading] = useState(true);
 
   const notesCollectionRef = collection(db, "notes");
 
@@ -32,6 +49,7 @@ const Notes = () => {
   useEffect(() => {
     const unsubscribe = onSnapshot(notesCollectionRef, (snapshot) => {
       setNotes(snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() })));
+      setIsLoading(false);
     });
     return unsubscribe;
   }, []);
@@ -40,6 +58,7 @@ const Notes = () => {
   const handleAddNote = async () => {
     if (!newNote.trim()) return;
 
+    setIsLoading(true);
     await addDoc(notesCollectionRef, {
       text: newNote,
       tags,
@@ -54,11 +73,19 @@ const Notes = () => {
     setTags([]);
     setColor("#ffffff");
     setTextColor("#000000");
+    setShowAddForm(false);
+    setIsLoading(false);
   };
 
   // Delete a note
   const handleDeleteNote = async (id) => {
-    await deleteDoc(doc(db, "notes", id));
+    const confirmDelete = window.confirm("Are you sure you want to delete this note?");
+    if (confirmDelete) {
+      await deleteDoc(doc(db, "notes", id));
+      if (selectedNote?.id === id) {
+        setSelectedNote(null);
+      }
+    }
   };
 
   // Toggle favorite
@@ -79,7 +106,6 @@ const Notes = () => {
     }
   
     try {
-      // Update the note in Firestore
       await updateDoc(doc(db, "notes", selectedNote.id), {
         text: selectedNote.text,
         tags: selectedNote.tags,
@@ -87,16 +113,13 @@ const Notes = () => {
         textColor: selectedNote.textColor,
       });
   
-      // Reset editing state
       setEditingNote(false);
-      setSelectedNote(null);
       alert("Note updated successfully!");
     } catch (error) {
       console.error("Error updating note:", error);
       alert("Failed to update the note. Please try again.");
     }
   };
-  
 
   // Filter and sort notes
   const filteredNotes = notes.filter(
@@ -113,187 +136,449 @@ const Notes = () => {
     return a.pinned ? -1 : 1;
   });
 
+  // Animation variants
+  const containerVariants = {
+    hidden: { opacity: 0, y: 20 },
+    visible: { 
+      opacity: 1, 
+      y: 0,
+      transition: { 
+        duration: 0.6,
+        staggerChildren: 0.1
+      }
+    }
+  };
+
+  const itemVariants = {
+    hidden: { opacity: 0, y: 20, scale: 0.9 },
+    visible: { 
+      opacity: 1, 
+      y: 0, 
+      scale: 1,
+      transition: { duration: 0.4 }
+    }
+  };
+
+  const modalVariants = {
+    hidden: { opacity: 0, scale: 0.8, y: 50 },
+    visible: { 
+      opacity: 1, 
+      scale: 1, 
+      y: 0,
+      transition: { 
+        type: "spring", 
+        damping: 25, 
+        stiffness: 300 
+      }
+    }
+  };
+
   return (
     <motion.div
       className="notes-container"
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      exit={{ opacity: 0 }}
-      transition={{ duration: 0.5 }}
+      variants={containerVariants}
+      initial="hidden"
+      animate="visible"
     >
-      <h2 className="header"> Notes</h2>
+      {/* Header with Actions */}
+      <motion.div className="header-section" variants={itemVariants}>
+        <div className="header-content">
+          <h1 className="main-title">
+            <span className="title-icon">📝</span>
+            My Notes
+          </h1>
+          <div className="header-actions">
+            <motion.button
+              className="add-note-btn"
+              onClick={() => setShowAddForm(true)}
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+            >
+              <FaPlus /> Add Note
+            </motion.button>
+          </div>
+        </div>
+      </motion.div>
 
-      {/* Add New Note Section */}
-      <div className="add-note">
-        <ReactQuill
-          theme="snow"
-          value={newNote}
-          onChange={(value) => setNewNote(value)}
-          placeholder="Write your note here..."
-          style={{ color: textColor }}
-        />
-
-        <div className="tags-section">
+      {/* Search and Filter Bar */}
+      <motion.div className="controls-section" variants={itemVariants}>
+        <div className="search-container">
+          
           <input
             type="text"
-            placeholder="Add tags (comma-separated)"
-            value={tags.join(", ")}
-            onChange={(e) => setTags(e.target.value.split(",").map((tag) => tag.trim()))}
+            placeholder="Search your notes..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="search-input"
           />
         </div>
-
-        <div className="color-selectors">
-          <label>
-            Note Color:
-            <input type="color" value={color} onChange={(e) => setColor(e.target.value)} />
-          </label>
-          <label>
-            Text Color:
-            <input type="color" value={textColor} onChange={(e) => setTextColor(e.target.value)} />
-          </label>
+        
+        <div className="filter-controls">
+          <motion.button
+            className={`filter-btn ${filterFavorites ? 'active' : ''}`}
+            onClick={() => setFilterFavorites(!filterFavorites)}
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+          >
+            <FaHeart /> Favorites
+          </motion.button>
+          
+          <motion.button
+            className={`view-toggle ${viewMode === 'grid' ? 'active' : ''}`}
+            onClick={() => setViewMode(viewMode === 'grid' ? 'list' : 'grid')}
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+          >
+            {viewMode === 'grid' ? '☰' : '⊞'}
+          </motion.button>
         </div>
+      </motion.div>
 
-        <button onClick={handleAddNote}>Add Note</button>
-      </div>
+      {/* Add Note Modal */}
+      <AnimatePresence>
+        {showAddForm && (
+          <motion.div
+            className="modal-overlay"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={() => setShowAddForm(false)}
+          >
+            <motion.div
+              className="add-note-modal"
+              variants={modalVariants}
+              initial="hidden"
+              animate="visible"
+              exit="hidden"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="modal-header">
+                <h3>Create New Note</h3>
+                <button 
+                  className="close-btn"
+                  onClick={() => setShowAddForm(false)}
+                >
+                  <FaTimes />
+                </button>
+              </div>
 
-      {/* Search and Filter */}
-      <div className="filters">
-        <input
-          type="text"
-          placeholder="Search notes..."
-          value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
-        />
-        <label>
-          <input
-            type="checkbox"
-            checked={filterFavorites}
-            onChange={() => setFilterFavorites(!filterFavorites)}
-          />
-          Show only favorites
-        </label>
-      </div>
-
-      {/* Notes List or Selected Note View */}
-      <div className="notes-list">
-        {selectedNote ? (
-          <div className="selected-note">
-            <button onClick={() => setSelectedNote(null)}>
-              <FaArrowLeft /> Back
-            </button>
-
-            {editingNote ? (
-              <>
+              <div className="modal-content">
                 <ReactQuill
                   theme="snow"
-                  value={selectedNote.text}
-                  onChange={(value) =>
-                    setSelectedNote({ ...selectedNote, text: value })
-                  }
+                  value={newNote}
+                  onChange={(value) => setNewNote(value)}
+                  placeholder="Write your note here..."
+                  className="note-editor"
                 />
-                <div className="tags-section">
-                  <input
-                    type="text"
-                    placeholder="Edit tags (comma-separated)"
-                    value={selectedNote.tags?.join(", ") || ""}
-                    onChange={(e) =>
-                      setSelectedNote({
-                        ...selectedNote,
-                        tags: e.target.value.split(",").map((tag) => tag.trim()),
-                      })
-                    }
-                  />
+
+                <div className="form-row">
+                  <div className="tags-input-container">
+                    <input
+                      type="text"
+                      placeholder="Add tags (comma-separated)"
+                      value={tags.join(", ")}
+                      onChange={(e) => setTags(e.target.value.split(",").map((tag) => tag.trim()))}
+                      className="tags-input"
+                    />
+                  </div>
                 </div>
-                <button onClick={handleUpdateNote}>
-                  <FaSave /> Save
-                </button>
-              </>
-            ) : (
-              <>
-                <div
-                  dangerouslySetInnerHTML={{ __html: selectedNote.text }}
-                  className="note-content"
-                ></div>
-                <div className="tags">Tags: {selectedNote.tags?.join(", ") || "None"}</div>
-                <div className="note-actions">
-                  <button onClick={() => setEditingNote(true)}>
-                    <FaEdit /> Edit
-                  </button>
-                  <button onClick={() => handleDeleteNote(selectedNote.id)}>
-                    <FaTrash /> Delete
-                  </button>
-                  <button
-                    onClick={() =>
-                      handleToggleFavorite(selectedNote.id, selectedNote.favorite)
-                    }
+
+                <div className="color-section">
+                  <div className="color-picker">
+                    <label>
+                      <FaPalette /> Note Color:
+                      <input 
+                        type="color" 
+                        value={color} 
+                        onChange={(e) => setColor(e.target.value)} 
+                      />
+                    </label>
+                  </div>
+                  <div className="color-picker">
+                    <label>
+                      Text Color:
+                      <input 
+                        type="color" 
+                        value={textColor} 
+                        onChange={(e) => setTextColor(e.target.value)} 
+                      />
+                    </label>
+                  </div>
+                </div>
+
+                <div className="modal-actions">
+                  <motion.button
+                    className="save-btn"
+                    onClick={handleAddNote}
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
+                    disabled={!newNote.trim()}
                   >
-                    <FaRegHeart /> {selectedNote.favorite ? "Unfavorite" : "Favorite"}
-                  </button>
+                    <FaSave /> Save Note
+                  </motion.button>
                   <button
-                    onClick={() =>
-                      handleTogglePin(selectedNote.id, selectedNote.pinned)
-                    }
+                    className="cancel-btn"
+                    onClick={() => setShowAddForm(false)}
                   >
-                    <FaThumbtack /> {selectedNote.pinned ? "Unpin" : "Pin"}
+                    Cancel
                   </button>
                 </div>
-              </>
-            )}
-          </div>
-        ) : (
-          sortedNotes.map((note) => (
-            <motion.div
-              key={note.id}
-              className="note-item"
-              style={{ backgroundColor: note.color, color: note.textColor }}
-              whileHover={{ scale: 1.05 }}
-              transition={{ type: "spring", stiffness: 300 }}
-              onClick={() => setSelectedNote(note)}
-            >
-              <div className="note-preview">
-                <div
-                  dangerouslySetInnerHTML={{
-                    __html: note.text.length > 100 ? `${note.text.substring(0, 100)}...` : note.text,
-                  }}
-                />
-                <div className="tags">
-                  Tags: {note.tags?.join(", ") || "None"}
-                </div>
-              </div>
-              <div className="note-actions">
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    handleDeleteNote(note.id);
-                  }}
-                >
-                  <FaTrash />
-                </button>
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    handleToggleFavorite(note.id, note.favorite);
-                  }}
-                >
-                  {note.favorite ? <FaRegHeart className="favorite" /> : <FaRegHeart />}
-                </button>
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    handleTogglePin(note.id, note.pinned);
-                  }}
-                >
-                  {note.pinned ? <FaThumbtack className="pinned" /> : <FaThumbtack />}
-                </button>
               </div>
             </motion.div>
-          ))
+          </motion.div>
         )}
-      </div>
+      </AnimatePresence>
 
-      {sortedNotes.length === 0 && !selectedNote && (
-        <div className="empty-state">No notes found. Start adding your notes!</div>
-      )}
+      {/* Notes Display */}
+      <AnimatePresence mode="wait">
+        {selectedNote ? (
+          <motion.div
+            key="selected-note"
+            className="selected-note-container"
+            variants={modalVariants}
+            initial="hidden"
+            animate="visible"
+            exit="hidden"
+          >
+            <div className="selected-note-header">
+              <motion.button
+                className="back-btn"
+                onClick={() => setSelectedNote(null)}
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+              >
+                <FaArrowLeft /> Back to Notes
+              </motion.button>
+              
+              <div className="note-meta">
+                <span className="note-date">
+                  {selectedNote.timestamp?.toDate().toLocaleDateString()}
+                </span>
+              </div>
+            </div>
+
+            <div 
+              className="selected-note-content"
+              style={{ 
+                backgroundColor: selectedNote.color,
+                color: selectedNote.textColor 
+              }}
+            >
+              {editingNote ? (
+                <div className="edit-mode">
+                  <ReactQuill
+                    theme="snow"
+                    value={selectedNote.text}
+                    onChange={(value) =>
+                      setSelectedNote({ ...selectedNote, text: value })
+                    }
+                    className="edit-editor"
+                  />
+                  
+                  <div className="edit-tags">
+                    <input
+                      type="text"
+                      placeholder="Edit tags (comma-separated)"
+                      value={selectedNote.tags?.join(", ") || ""}
+                      onChange={(e) =>
+                        setSelectedNote({
+                          ...selectedNote,
+                          tags: e.target.value.split(",").map((tag) => tag.trim()),
+                        })
+                      }
+                      className="tags-edit-input"
+                    />
+                  </div>
+
+                  <div className="edit-actions">
+                    <motion.button
+                      className="save-edit-btn"
+                      onClick={handleUpdateNote}
+                      whileHover={{ scale: 1.02 }}
+                      whileTap={{ scale: 0.98 }}
+                    >
+                      <FaSave /> Save Changes
+                    </motion.button>
+                    <button
+                      className="cancel-edit-btn"
+                      onClick={() => setEditingNote(false)}
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div className="view-mode">
+                  <div
+                    className="note-text"
+                    dangerouslySetInnerHTML={{ __html: selectedNote.text }}
+                  />
+                  
+                  {selectedNote.tags && selectedNote.tags.length > 0 && (
+                    <div className="note-tags">
+                      {selectedNote.tags.map((tag, index) => (
+                        <span key={index} className="tag-pill">
+                          {tag}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+
+                  <div className="note-actions-bar">
+                    <motion.button
+                      className="action-btn edit-btn"
+                      onClick={() => setEditingNote(true)}
+                      whileHover={{ scale: 1.05 }}
+                      whileTap={{ scale: 0.95 }}
+                    >
+                      <FaEdit /> Edit
+                    </motion.button>
+                    
+                    <motion.button
+                      className={`action-btn favorite-btn ${selectedNote.favorite ? 'active' : ''}`}
+                      onClick={() => handleToggleFavorite(selectedNote.id, selectedNote.favorite)}
+                      whileHover={{ scale: 1.05 }}
+                      whileTap={{ scale: 0.95 }}
+                    >
+                      {selectedNote.favorite ? <FaHeart /> : <FaRegHeart />}
+                      {selectedNote.favorite ? 'Favorited' : 'Favorite'}
+                    </motion.button>
+                    
+                    <motion.button
+                      className={`action-btn pin-btn ${selectedNote.pinned ? 'active' : ''}`}
+                      onClick={() => handleTogglePin(selectedNote.id, selectedNote.pinned)}
+                      whileHover={{ scale: 1.05 }}
+                      whileTap={{ scale: 0.95 }}
+                    >
+                      <FaThumbtack /> {selectedNote.pinned ? 'Unpin' : 'Pin'}
+                    </motion.button>
+                    
+                    <motion.button
+                      className="action-btn delete-btn"
+                      onClick={() => handleDeleteNote(selectedNote.id)}
+                      whileHover={{ scale: 1.05 }}
+                      whileTap={{ scale: 0.95 }}
+                    >
+                      <FaTrash /> Delete
+                    </motion.button>
+                  </div>
+                </div>
+              )}
+            </div>
+          </motion.div>
+        ) : (
+          <motion.div
+            key="notes-grid"
+            className={`notes-grid ${viewMode}`}
+            variants={containerVariants}
+            initial="hidden"
+            animate="visible"
+          >
+            {isLoading ? (
+              <div className="loading-state">
+                <div className="loading-spinner"></div>
+                <p>Loading your notes...</p>
+              </div>
+            ) : sortedNotes.length === 0 ? (
+              <motion.div 
+                className="empty-state"
+                variants={itemVariants}
+              >
+                <div className="empty-icon">📝</div>
+                <h3>No notes yet</h3>
+                <p>Start creating your first note to get organized!</p>
+                <motion.button
+                  className="create-first-btn"
+                  onClick={() => setShowAddForm(true)}
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                >
+                  Create Your First Note
+                </motion.button>
+              </motion.div>
+            ) : (
+              sortedNotes.map((note, index) => (
+                <motion.div
+                  key={note.id}
+                  className={`note-card ${note.pinned ? 'pinned' : ''}`}
+                  style={{ backgroundColor: note.color, color: note.textColor }}
+                  variants={itemVariants}
+                  whileHover={{ 
+                    scale: 1.02, 
+                    y: -5,
+                    transition: { duration: 0.2 }
+                  }}
+                  whileTap={{ scale: 0.98 }}
+                  onClick={() => setSelectedNote(note)}
+                  layout
+                >
+                  {note.pinned && (
+                    <div className="pin-indicator">
+                      <FaThumbtack />
+                    </div>
+                  )}
+                  
+                  <div className="card-content">
+                    <div
+                      className="note-preview"
+                      dangerouslySetInnerHTML={{
+                        __html: note.text.length > 150 
+                          ? `${note.text.substring(0, 150)}...` 
+                          : note.text,
+                      }}
+                    />
+                    
+                    {note.tags && note.tags.length > 0 && (
+                      <div className="card-tags">
+                        {note.tags.slice(0, 3).map((tag, tagIndex) => (
+                          <span key={tagIndex} className="tag-mini">
+                            {tag}
+                          </span>
+                        ))}
+                        {note.tags.length > 3 && (
+                          <span className="tag-mini more">+{note.tags.length - 3}</span>
+                        )}
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="card-footer">
+                    <span className="card-date">
+                      {note.timestamp?.toDate().toLocaleDateString()}
+                    </span>
+                    
+                    <div className="card-actions">
+                      <motion.button
+                        className={`quick-action ${note.favorite ? 'active' : ''}`}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleToggleFavorite(note.id, note.favorite);
+                        }}
+                        whileHover={{ scale: 1.1 }}
+                        whileTap={{ scale: 0.9 }}
+                      >
+                        {note.favorite ? <FaHeart /> : <FaRegHeart />}
+                      </motion.button>
+                      
+                      <motion.button
+                        className="quick-action delete-action"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDeleteNote(note.id);
+                        }}
+                        whileHover={{ scale: 1.1 }}
+                        whileTap={{ scale: 0.9 }}
+                      >
+                        <FaTrash />
+                      </motion.button>
+                    </div>
+                  </div>
+                </motion.div>
+              ))
+            )}
+          </motion.div>
+        )}
+      </AnimatePresence>
     </motion.div>
   );
 };

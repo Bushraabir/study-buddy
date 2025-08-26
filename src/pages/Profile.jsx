@@ -1,8 +1,7 @@
 import React, { useEffect, useState, useMemo, useCallback } from "react";
 import styled from "styled-components";
 import { onAuthStateChanged, signOut } from "firebase/auth";
-import { doc, onSnapshot, updateDoc, deleteDoc } from "firebase/firestore";
-import { auth, db } from "../components/firebase";
+import { doc, onSnapshot, updateDoc, deleteDoc, deleteField } from "firebase/firestore";import { auth, db } from "../components/firebase";
 import { motion, AnimatePresence } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 import toast from "react-hot-toast";
@@ -825,21 +824,32 @@ function Profile() {
     return `${minutes}m`;
   }, []);
 
+  const localYMD = (d = new Date()) => {
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+};
+
+const localYearMonth = (d = new Date()) => {
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, "0");
+  return `${year}-${month}`;
+};
+
+const localWeekStart = (d = new Date(), weekStartsOn = 1 /* 1=Mon */) => {
+  const day = d.getDay() === 0 ? 7 : d.getDay(); // 1..7
+  const diff = day - weekStartsOn;
+  const start = new Date(d);
+  start.setDate(d.getDate() - diff);
+  return localYMD(start);
+};
+
+
   // Get date keys for consistency with Session.jsx
-  const getTodayKey = useCallback(() => {
-    return new Date().toISOString().split('T')[0];
-  }, []);
-
-  const getWeekKey = useCallback(() => {
-    const now = new Date();
-    const startOfWeek = new Date(now.setDate(now.getDate() - now.getDay()));
-    return startOfWeek.toISOString().split('T')[0];
-  }, []);
-
-  const getMonthKey = useCallback(() => {
-    const now = new Date();
-    return `${now.getFullYear()}-${(now.getMonth() + 1).toString().padStart(2, '0')}`;
-  }, []);
+ const getTodayKey = useCallback(() => localYMD(), []);
+ const getWeekKey = useCallback(() => localWeekStart(), []);
+ const getMonthKey = useCallback(() => localYearMonth(), []);
 
   // Setup real-time listener with improved error handling
   const setupRealtimeListener = useCallback((userId) => {
@@ -1021,16 +1031,16 @@ function Profile() {
       const updateData = { studyFields: updatedFields };
 
       // Also remove the field from fieldTimes and all stats
-      const currentFieldTimes = userData.fieldTimes || {};
-      if (currentFieldTimes[fieldToRemove]) {
-        updateData[`fieldTimes.${fieldToRemove}`] = null;
-      }
+     const currentFieldTimes = userData.fieldTimes || {};
+     if (currentFieldTimes[fieldToRemove]) {
+       updateData[`fieldTimes.${fieldToRemove}`] = deleteField();
+     }
 
       // Remove from all analytics data
       if (userData.dailyStats) {
         Object.keys(userData.dailyStats).forEach(date => {
           if (userData.dailyStats[date].fieldTimes && userData.dailyStats[date].fieldTimes[fieldToRemove]) {
-            updateData[`dailyStats.${date}.fieldTimes.${fieldToRemove}`] = null;
+           updateData[`dailyStats.${date}.fieldTimes.${fieldToRemove}`] = deleteField();
           }
         });
       }
@@ -1038,7 +1048,7 @@ function Profile() {
       if (userData.weeklyStats) {
         Object.keys(userData.weeklyStats).forEach(week => {
           if (userData.weeklyStats[week].fieldTimes && userData.weeklyStats[week].fieldTimes[fieldToRemove]) {
-            updateData[`weeklyStats.${week}.fieldTimes.${fieldToRemove}`] = null;
+            updateData[`weeklyStats.${week}.fieldTimes.${fieldToRemove}`] = deleteField();
           }
         });
       }
@@ -1046,7 +1056,7 @@ function Profile() {
       if (userData.monthlyStats) {
         Object.keys(userData.monthlyStats).forEach(month => {
           if (userData.monthlyStats[month].fieldTimes && userData.monthlyStats[month].fieldTimes[fieldToRemove]) {
-            updateData[`monthlyStats.${month}.fieldTimes.${fieldToRemove}`] = null;
+            updateData[`monthlyStats.${month}.fieldTimes.${fieldToRemove}`] = deleteField();
           }
         });
       }

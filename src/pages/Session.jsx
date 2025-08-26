@@ -1,12 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
-import {
-  doc,
-  updateDoc,
-  onSnapshot,
-  setDoc,
-  serverTimestamp,
-  increment
-} from "firebase/firestore";
+import { doc, onSnapshot, updateDoc, deleteDoc, deleteField } from "firebase/firestore";
 import { auth, db } from "../components/firebase";
 import { onAuthStateChanged } from "firebase/auth";
 import toast from "react-hot-toast";
@@ -70,20 +63,31 @@ function StartSession() {
       .padStart(2, "0")}:${seconds.toString().padStart(2, "0")}`;
   }, []);
 
-  const getTodayKey = useCallback(() => {
-    return new Date().toISOString().split('T')[0];
-  }, []);
+const localYMD = (d = new Date()) => {
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+};
 
-  const getWeekKey = useCallback(() => {
-    const now = new Date();
-    const startOfWeek = new Date(now.setDate(now.getDate() - now.getDay()));
-    return startOfWeek.toISOString().split('T')[0];
-  }, []);
+const localYearMonth = (d = new Date()) => {
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, "0");
+  return `${year}-${month}`;
+};
 
-  const getMonthKey = useCallback(() => {
-    const now = new Date();
-    return `${now.getFullYear()}-${(now.getMonth() + 1).toString().padStart(2, '0')}`;
-  }, []);
+const localWeekStart = (d = new Date(), weekStartsOn = 1 /* 1=Mon */) => {
+  const day = d.getDay() === 0 ? 7 : d.getDay(); // 1..7
+  const diff = day - weekStartsOn;
+  const start = new Date(d);
+  start.setDate(d.getDate() - diff);
+  return localYMD(start);
+};
+
+
+ const getTodayKey = useCallback(() => localYMD(), []);
+ const getWeekKey = useCallback(() => localWeekStart(), []);
+ const getMonthKey = useCallback(() => localYearMonth(), []);
 
   // Background timer that works even when tab is not active
   const updateTimer = useCallback(() => {
@@ -166,7 +170,7 @@ function StartSession() {
     });
   }, []);
 
-  // Initialize user document with comprehensive structure
+  // Initialize user document with comprehensive structure matching your database
   const initializeUserDocument = useCallback(async (userId) => {
     console.log("Initializing user document for:", userId);
     const userDocRef = doc(db, "users", userId);
@@ -178,23 +182,26 @@ function StartSession() {
       email: auth.currentUser?.email || "",
       name: auth.currentUser?.displayName || "User",
       createdAt: serverTimestamp(),
-      lastLoginDate: todayKey,
-      lastStudyDate: null,
       
       // Tasks
       todoList: [],
       
       // Study fields
       studyFields: ["General"],
+      
+      // Field times - matches your database structure
       fieldTimes: {},
       
-      // Time tracking - Fixed structure
+      // Time tracking totals
       totalTimeToday: 0,
       totalTimeWeek: 0,
       totalTimeMonth: 0,
       totalTimeAllTime: 0,
       
-      // Analytics data - Properly structured
+      // Last study tracking
+      lastStudyDate: null,
+      
+      // Analytics data - matching your exact structure
       dailyStats: {
         [todayKey]: {
           totalTime: 0,
@@ -215,15 +222,6 @@ function StartSession() {
           fieldTimes: {},
           sessionsCount: 0
         }
-      },
-      
-      // Settings
-      preferences: {
-        pomodoroLength: 25,
-        shortBreakLength: 5,
-        longBreakLength: 15,
-        autoStartBreaks: false,
-        notifications: true
       }
     };
     
@@ -343,7 +341,7 @@ function StartSession() {
     toast.info("Timer reset");
   }, []);
 
-  // Enhanced study session saving with atomic updates
+  // Enhanced study session saving with atomic updates - matches your database structure exactly
   const saveStudySession = useCallback(async (sessionTime) => {
     if (!user || !userRef.current || sessionTime <= 0) {
       console.log("Invalid session save parameters");
@@ -358,7 +356,7 @@ function StartSession() {
     const currentField = selectedFieldRef.current;
 
     try {
-      // Use atomic updates to prevent data conflicts
+      // Use atomic updates to prevent data conflicts - matching your exact database structure
       const updateData = {
         // Main field times and totals
         [`fieldTimes.${currentField}`]: increment(sessionTime),
@@ -367,17 +365,17 @@ function StartSession() {
         totalTimeMonth: increment(sessionTime),
         totalTimeAllTime: increment(sessionTime),
         
-        // Daily stats
+        // Daily stats - exactly matching your structure
         [`dailyStats.${todayKey}.totalTime`]: increment(sessionTime),
         [`dailyStats.${todayKey}.fieldTimes.${currentField}`]: increment(sessionTime),
         [`dailyStats.${todayKey}.sessionsCount`]: increment(1),
         
-        // Weekly stats
+        // Weekly stats - exactly matching your structure
         [`weeklyStats.${weekKey}.totalTime`]: increment(sessionTime),
         [`weeklyStats.${weekKey}.fieldTimes.${currentField}`]: increment(sessionTime),
         [`weeklyStats.${weekKey}.sessionsCount`]: increment(1),
         
-        // Monthly stats
+        // Monthly stats - exactly matching your structure
         [`monthlyStats.${monthKey}.totalTime`]: increment(sessionTime),
         [`monthlyStats.${monthKey}.fieldTimes.${currentField}`]: increment(sessionTime),
         [`monthlyStats.${monthKey}.sessionsCount`]: increment(1),
@@ -395,7 +393,7 @@ function StartSession() {
     }
   }, [user, getTodayKey, getWeekKey, getMonthKey]);
 
-  // Task Management with optimized updates
+  // Task Management with optimized updates - matching your database structure
   const handleAddTask = useCallback(async () => {
     if (!newTaskText.trim()) {
       toast.error("Please enter a task description");
@@ -501,6 +499,7 @@ function StartSession() {
     if (!user || !userRef.current) return;
 
     try {
+     const wasCompleted = !!todoList.find(t => t.id === taskId)?.completed;
       const updatedList = todoList.map((task) =>
         task.id === taskId 
           ? { ...task, completed: !task.completed, completedAt: !task.completed ? new Date().toISOString() : null }
@@ -510,16 +509,13 @@ function StartSession() {
       const userDocRef = doc(db, "users", userRef.current.uid);
       await updateDoc(userDocRef, { todoList: updatedList });
 
-      const task = todoList.find(t => t.id === taskId);
-      if (task) {
-        toast.success(task.completed ? "Task marked as pending" : "Task completed!");
-      }
+
+     toast.success(wasCompleted ? "Task marked as pending" : "Task completed!");
     } catch (error) {
       console.error("Error toggling task:", error);
       toast.error("Failed to update task status");
     }
   }, [user, todoList]);
-
   // Study Field Management
   const addStudyField = useCallback(async () => {
     if (!newFieldName.trim()) {
@@ -642,7 +638,7 @@ function StartSession() {
     return { total, completed, pending, highPriority };
   }, [todoList]);
 
-  // Get time statistics with fallback values
+  // Get time statistics with fallback values - matching your database structure
   const timeStats = useMemo(() => {
     if (!userData) return { today: 0, week: 0, month: 0, allTime: 0 };
     
@@ -654,7 +650,7 @@ function StartSession() {
     };
   }, [userData]);
 
-  // Get field times with sorting
+  // Get field times with sorting - matching your database structure
   const sortedFieldTimes = useMemo(() => {
     if (!userData?.fieldTimes) return [];
     
