@@ -57,6 +57,7 @@
         "react-scroll": "^1.9.0",
         "react-toastify": "^11.0.2",
         "react-tooltip": "^5.28.0",
+        "recharts": "^3.1.2",
         "styled-components": "^6.1.13",
         "three": "^0.171.0",
         "vm2": "^3.9.19",

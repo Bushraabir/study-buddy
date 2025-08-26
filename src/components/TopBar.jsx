@@ -1,154 +1,182 @@
 import React, { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { FaBars, FaTimes } from "react-icons/fa"; // Icons
-import { motion } from "framer-motion"; // Animations for mobile menu and topbar
-import { auth } from "./firebase"; // Firebase authentication
-import "./TopBar.css"; // CSS file for styling
+import { FaBars, FaTimes } from "react-icons/fa";
+import { motion, AnimatePresence } from "framer-motion";
+import { auth } from "./firebase";
+import { signOut, onAuthStateChanged } from "firebase/auth";
+import "./TopBar.css";
 
+/**
+ * A responsive, animated top navigation bar for the StudyBuddy application.
+ *
+ * This component listens for Firebase authentication state to conditionally
+ * render authenticated routes (e.g. Study Session and Profile) and
+ * displays either a login or logout button. The layout is optimised
+ * for both desktop and mobile screens: on mobile the navigation items
+ * appear inside a full‑screen overlay menu that slides down from the top.
+ *
+ * The implementation preserves all functionality from the original
+ * version—authentication state monitoring, logout handling and route
+ * navigation—while enhancing the visual design with smooth animations
+ * and a polished dark theme. Use CSS custom properties to adjust colours
+ * globally in `TopBar.css`.
+ */
 function TopBar() {
   const [isMobileMenuOpen, setMobileMenuOpen] = useState(false);
-
   const [user, setUser] = useState(null);
   const navigate = useNavigate();
 
-  // Listen to auth state changes
+  // Subscribe to Firebase auth state changes on mount.
   useEffect(() => {
-    const unsubscribe = auth.onAuthStateChanged((currentUser) => {
+    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
       setUser(currentUser);
     });
-
     return () => unsubscribe();
   }, []);
 
-
+  // Sign the user out and return to the home page.
   const handleLogout = async () => {
     try {
-      await auth.signOut();
-      navigate("/study-buddy/login"); // Redirect to login after logout
+      await signOut(auth);
+      navigate("/");
     } catch (error) {
       console.error("Error logging out:", error.message);
     }
   };
 
+  // Close the mobile menu when a link is clicked.
+  const handleLinkClick = () => {
+    setMobileMenuOpen(false);
+  };
+
   return (
     <motion.header
-      className="flex items-center justify-between px-6 py-4 bg-gray-900 shadow-md topbar-container"
-      initial={{ y: -50, opacity: 0 }}
+      className="topbar"
+      initial={{ y: -40, opacity: 0 }}
       animate={{ y: 0, opacity: 1 }}
-      transition={{ duration: 0.8 }}
+      transition={{ duration: 0.6, ease: "easeOut" }}
     >
-      {/* Logo */}
-      <div className="logo">
-        <Link to="/study-buddy/" className="text-2xl font-bold text-indigo-500">
-          Study<span className="text-white">Buddy</span>
-        </Link>
-      </div>
-
-      {/* Navigation Menu (Desktop) */}
-      <nav className="items-center hidden space-x-6 nav-menu md:flex">
-      {user && (
-          <Link to="/study-buddy/session" className="nav-link">
-            Study Session
+      <div className="topbar__container">
+        {/* Logo */}
+        <div className="topbar__logo">
+          <Link to="/" className="logo-link" onClick={handleLinkClick}>
+            Study<span>Buddy</span>
           </Link>
-        )}
-
-        <Link to="/study-buddy/flash-cards" className="nav-link">
-          Flashcards
-        </Link>
-        <Link to="/study-buddy/notes" className="nav-link">
-          Notes
-        </Link>
-        <Link to="/study-buddy/plot-graph" className="nav-link">
-          Sketch Curves
-        </Link>
-        <Link to="/study-buddy/3d-graph" className="nav-link">
-          3D
-        </Link>
-        {/* Show Profile button only if the user is logged in */}
-        {user && (
-          <Link to="/study-buddy/profile" className="nav-link">
-            Profile
-          </Link>
-        )}
-      </nav>
-
-      {/* Mobile Menu Toggle */}
-      <div className="flex items-center mobile-menu-button md:hidden">
-        {!isMobileMenuOpen ? (
-          <FaBars
-            className="text-2xl text-gray-300 cursor-pointer"
-            onClick={() => setMobileMenuOpen(true)}
-          />
-        ) : (
-          <FaTimes
-            className="text-2xl text-gray-300 cursor-pointer"
-            onClick={() => setMobileMenuOpen(false)}
-          />
-        )}
-      </div>
-
-      {/* Mobile Menu */}
-      {isMobileMenuOpen && (
-        <motion.nav
-          className="fixed top-0 left-0 z-50 flex flex-col items-center justify-center w-full h-full bg-gray-900 mobile-menu"
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-        >
-          <Link
-            to="/study-buddy/dashboard"
-            className="mb-4 text-xl text-gray-300"
-            onClick={() => setMobileMenuOpen(false)}
-          >
-            Dashboard
-          </Link>
-          <Link
-            to="/study-buddy/flash-cards"
-            className="mb-4 text-xl text-gray-300"
-            onClick={() => setMobileMenuOpen(false)}
-          >
+        </div>
+        {/* Desktop Navigation */}
+        <nav className="topbar__nav topbar__nav--desktop">
+          {user && (
+            <Link to="/session" className="nav-link" onClick={handleLinkClick}>
+              Study Session
+            </Link>
+          )}
+          <Link to="/flash-cards" className="nav-link" onClick={handleLinkClick}>
             Flashcards
           </Link>
-          <Link
-            to="/study-buddy/notes"
-            className="mb-4 text-xl text-gray-300"
-            onClick={() => setMobileMenuOpen(false)}
-          >
+          <Link to="/notes" className="nav-link" onClick={handleLinkClick}>
             Notes
           </Link>
- 
-
-          {/* Show Profile button in mobile menu if user is logged in */}
+          <Link to="/plot-graph" className="nav-link" onClick={handleLinkClick}>
+            Sketch Curves
+          </Link>
+          <Link to="/3d-graph" className="nav-link" onClick={handleLinkClick}>
+            3D
+          </Link>
           {user && (
-            <Link
-              to="/study-buddy/profile"
-              className="text-xl text-gray-300"
-              onClick={() => setMobileMenuOpen(false)}
-            >
+            <Link to="/profile" className="nav-link" onClick={handleLinkClick}>
               Profile
             </Link>
           )}
-        </motion.nav>
-      )}
-
-      {/* Login/Logout Buttons */}
-      <div className="items-center hidden space-x-4 md:flex">
-        {user ? (
-          <button
-            onClick={handleLogout}
-            className="px-4 py-2 text-white bg-red-500 rounded-md logout-button hover:bg-red-600"
-          >
-            Logout
-          </button>
-        ) : (
-          <Link
-            to="/study-buddy/login"
-            className="px-4 py-2 text-white bg-blue-500 rounded-md login-button hover:bg-blue-600"
-          >
-            Login
-          </Link>
-        )}
+        </nav>
+        {/* Desktop Action Buttons */}
+        <div className="topbar__actions">
+          {user ? (
+            <button
+              onClick={handleLogout}
+              className="action-button logout-button"
+              aria-label="Logout"
+            >
+              Logout
+            </button>
+          ) : (
+            <Link to="/login" className="action-button login-button" onClick={handleLinkClick}>
+              Login
+            </Link>
+          )}
+        </div>
+        {/* Mobile Menu Toggle */}
+        <div className="topbar__toggle">
+          {!isMobileMenuOpen ? (
+            <FaBars
+              aria-label="Open menu"
+              onClick={() => setMobileMenuOpen(true)}
+            />
+          ) : (
+            <FaTimes
+              aria-label="Close menu"
+              onClick={() => setMobileMenuOpen(false)}
+            />
+          )}
+        </div>
       </div>
+      {/* Mobile Navigation Overlay */}
+      <AnimatePresence>
+        {isMobileMenuOpen && (
+          <motion.nav
+            key="mobile-menu"
+            className="mobile-menu"
+            initial={{ y: "-100%" }}
+            animate={{ y: 0 }}
+            exit={{ y: "-100%" }}
+            transition={{ type: "spring", stiffness: 260, damping: 20 }}
+          >
+            {user && (
+              <Link to="/session" className="mobile-menu-link" onClick={handleLinkClick}>
+                Study Session
+              </Link>
+            )}
+            <Link to="/flash-cards" className="mobile-menu-link" onClick={handleLinkClick}>
+              Flashcards
+            </Link>
+            <Link to="/notes" className="mobile-menu-link" onClick={handleLinkClick}>
+              Notes
+            </Link>
+            <Link to="/plot-graph" className="mobile-menu-link" onClick={handleLinkClick}>
+              Sketch Curves
+            </Link>
+            <Link to="/3d-graph" className="mobile-menu-link" onClick={handleLinkClick}>
+              3D
+            </Link>
+            {user && (
+              <Link to="/profile" className="mobile-menu-link" onClick={handleLinkClick}>
+                Profile
+              </Link>
+            )}
+            {/* Mobile Authentication Actions */}
+            <div className="mobile-actions">
+              {user ? (
+                <button
+                  onClick={() => {
+                    handleLogout();
+                    handleLinkClick();
+                  }}
+                  className="action-button logout-button mobile-logout"
+                >
+                  Logout
+                </button>
+              ) : (
+                <Link
+                  to="/login"
+                  className="action-button login-button mobile-login"
+                  onClick={handleLinkClick}
+                >
+                  Login
+                </Link>
+              )}
+            </div>
+          </motion.nav>
+        )}
+      </AnimatePresence>
     </motion.header>
   );
 }

@@ -5,15 +5,16 @@ import * as Yup from "yup";
 import { motion } from "framer-motion";
 import Lottie from "lottie-react";
 import { signInWithEmailAndPassword } from "firebase/auth";
-import { toast } from "react-toastify";
-import { useNavigate } from "react-router-dom"; // For navigation
-import { auth } from "../components/firebase"; 
-import loginAnimation from "../assets/login-animation.json"; 
+import { Link, useNavigate } from "react-router-dom";
+import { auth } from "../components/firebase";
+import toast from "react-hot-toast";
 import "./Login.css";
+
+import loginAnimation from "../assets/login-animation.json"; 
 
 function Login() {
   const [passwordVisible, setPasswordVisible] = useState(false);
-  const navigate = useNavigate(); // To handle redirection
+  const navigate = useNavigate();
 
   // Validation schema for form fields
   const validationSchema = Yup.object({
@@ -29,13 +30,11 @@ function Login() {
   const handleSubmit = async (values, { setSubmitting }) => {
     try {
       await signInWithEmailAndPassword(auth, values.email, values.password);
-      toast.success("Login successful!", { position: "top-center" });
-      navigate("/session"); // Redirect to Profile.jsx
+      toast.success("Login successful!");
+      navigate("/session");
     } catch (error) {
       console.error("Login error:", error.message);
-      toast.error("Invalid login. Please check your credentials.", {
-        position: "bottom-center",
-      });
+      toast.error("Invalid login credentials. Please check your email and password.");
     }
     setSubmitting(false);
   };
@@ -129,8 +128,6 @@ function Login() {
                 />
               </motion.div>
 
-
-
               {/* Submit Button */}
               <motion.button
                 type="submit"
@@ -148,10 +145,10 @@ function Login() {
 
         <div className="login-footer">
           <p>
-            Don’t have an account?{" "}
-            <a href="/register" className="signup-link">
+            Don't have an account?{" "}
+            <Link to="/register" className="signup-link">
               Sign up here
-            </a>
+            </Link>
           </p>
         </div>
       </motion.div>

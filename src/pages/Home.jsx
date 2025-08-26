@@ -1,9 +1,8 @@
 import React, { useEffect } from "react";
 import { Link } from "react-router-dom";
-import { motion, useAnimation } from "framer-motion"; // For animations
-import { useInView } from "react-intersection-observer"; // For detecting scroll position
-import { Link as ScrollLink } from "react-scroll"; // For smooth scrolling
-import Lottie from "lottie-react"; // For Lottie animations
+import { motion, useAnimation } from "framer-motion";
+import { useInView } from "react-intersection-observer";
+import Lottie from "lottie-react";
 import "./Home.css";
 
 // Import Lottie animation files
@@ -13,15 +12,21 @@ import notesAnimation from "../assets/notes-animation.json";
 import aiAssistantAnimation from "../assets/ai-assistant-animation.json";
 
 function Home() {
-  const controls = useAnimation(); // Framer Motion animation controls
-  const [ref, inView] = useInView({ threshold: 0.1 }); // Detect if the section is in view
+  const controls = useAnimation();
+  const [ref, inView] = useInView({ threshold: 0.1 });
 
   useEffect(() => {
-    // Trigger animation when the section comes into view
     if (inView) {
       controls.start("visible");
     }
   }, [controls, inView]);
+
+  const scrollToSection = (sectionId) => {
+    const element = document.getElementById(sectionId);
+    if (element) {
+      element.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  };
 
   return (
     <div className="home-container">
@@ -46,15 +51,12 @@ function Home() {
                 Get Started
               </button>
             </Link>
-            <ScrollLink
-              to="quotes"
-              smooth={true}
-              duration={500}
-              offset={-50}
+            <button
+              onClick={() => scrollToSection('quotes')}
               className="px-6 py-3 ml-4 text-gray-300 transition bg-gray-800 rounded-lg shadow-md cursor-pointer secondary-button hover:bg-gray-700"
             >
               Learn More
-            </ScrollLink>
+            </button>
           </div>
         </motion.div>
 
@@ -112,7 +114,7 @@ function Home() {
                   "{quote.text}"
                 </p>
                 <h4 className="mt-4 text-indigo-500 quote-author">
-                  – {quote.author}
+                  — {quote.author}
                 </h4>
               </motion.div>
             ))}
@@ -141,9 +143,9 @@ function Home() {
             },
             {
               animation: aiAssistantAnimation,
-              title: "Visualise the graph",
+              title: "Visualize the Graph",
               description:
-                "Visaualise teh mathematical equations to understand easily",
+                "Visualize mathematical equations to understand them easily",
             },
           ].map((feature, index) => (
             <motion.div
@@ -200,4 +202,3 @@ function Home() {
 }
 
 export default Home;
-

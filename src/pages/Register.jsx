@@ -3,18 +3,21 @@ import { FaUser, FaEnvelope, FaLock, FaEye, FaEyeSlash } from "react-icons/fa";
 import { Formik, Form, Field, ErrorMessage } from "formik";
 import * as Yup from "yup";
 import { motion } from "framer-motion";
-import { Tooltip } from "react-tooltip";
 import { createUserWithEmailAndPassword } from "firebase/auth";
 import { doc, setDoc } from "firebase/firestore";
-import { toast } from "react-toastify";
+import { Link, useNavigate } from "react-router-dom";
 import { auth, db } from "../components/firebase";
+import toast from "react-hot-toast";
 import Lottie from "lottie-react";
 import registrationAnimation from "../assets/login-animation.json"; // Lottie file
 import "./Register.css";
 
+
+
 function Register() {
   const [passwordVisible, setPasswordVisible] = useState(false);
   const [confirmPasswordVisible, setConfirmPasswordVisible] = useState(false);
+  const navigate = useNavigate();
 
   // Validation Schema
   const validationSchema = Yup.object({
@@ -51,15 +54,25 @@ function Register() {
         name: values.name,
         email: user.email,
         createdAt: new Date(),
+        totalTimeToday: 0,
+        todoList: [],
+        studyFields: ["General"],
+        fieldTimes: {}
       });
 
-      toast.success("Registration successful!", { position: "top-center" });
-      window.location.href = "/profile"; // Redirect to profile page
+      toast.success("Registration successful!");
+      navigate("/session");
     } catch (error) {
       console.error("Registration error:", error.message);
-      toast.error(`Registration failed: ${error.message}`, {
-        position: "bottom-center",
-      });
+      let errorMessage = "Registration failed. Please try again.";
+      
+      if (error.code === "auth/email-already-in-use") {
+        errorMessage = "Email is already registered. Please use a different email.";
+      } else if (error.code === "auth/weak-password") {
+        errorMessage = "Password is too weak. Please use a stronger password.";
+      }
+      
+      toast.error(errorMessage);
     }
     setSubmitting(false);
   };
@@ -108,9 +121,7 @@ function Register() {
                   name="name"
                   placeholder="Enter your name"
                   className="form-control"
-                  data-tooltip="Enter your full name"
                 />
-                <Tooltip anchorSelect="[data-tooltip]" />
                 <ErrorMessage
                   name="name"
                   component="div"
@@ -206,6 +217,15 @@ function Register() {
             </Form>
           )}
         </Formik>
+
+        <div className="login-footer">
+          <p>
+            Already have an account?{" "}
+            <Link to="/login" className="signup-link">
+              Login here
+            </Link>
+          </p>
+        </div>
       </motion.div>
     </div>
   );

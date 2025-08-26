@@ -1,117 +1,256 @@
-/* TopBar Styles */
+/*
+  TopBar Styles
 
-/* Topbar Container */
-.topbar-container {
-  background-color: #1a1a1a; /* Dark background */
-  color: #e4e4e7; /* Soft light text */
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 1rem 1.5rem;
-  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.2); /* Elegant shadow */
+  This stylesheet defines a modern dark theme for the StudyBuddy
+  navigation bar. It leverages CSS custom properties (variables) to
+  centralise colour definitions, making it easy to adjust the palette
+  from a single place. The design prioritises clarity, contrast and
+  subtle interactivity while remaining fully responsive.
+*/
+
+/* Colour palette definitions */
+:root {
+  --primary-color: #6366f1;      /* Indigo 500 */
+  --primary-hover: #4f46e5;      /* Indigo 600 */
+  --primary-active: #4338ca;     /* Indigo 700 */
+  --danger-color: #ef4444;       /* Red 500 */
+  --danger-hover: #dc2626;       /* Red 600 */
+  --danger-active: #991b1b;      /* Deeper red */
+  --background-dark: #1a1a2e;    /* Navigation bar background */
+  --background-light: #27293d;   /* Mobile menu background */
+  --text-primary: #e4e4e7;       /* Primary text colour */
+  --text-secondary: #a1a1aa;     /* Secondary text colour */
+}
+
+/* Base topbar styling */
+.topbar {
+  background-color: var(--background-dark);
+  color: var(--text-primary);
+  width: 100%;
+  position: sticky;
+  top: 0;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.5);
   z-index: 1000;
 }
 
-/* Logo */
-.logo a {
-  font-family: 'Dancing Script', cursive; /* Handwritten font for elegance */
-  font-size: 1.8rem;
-  font-weight: bold;
-  color: #5a67d8; /* Indigo primary color */
-  text-decoration: none;
-}
-
-.logo a span {
-  color: #ffffff; /* White for contrast */
-}
-
-/* Navigation Menu (Desktop) */
-.nav-menu {
+/* Inner container to centre content and provide padding */
+.topbar__container {
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: 0.75rem 1.5rem;
   display: flex;
-  gap: 2rem;
+  align-items: center;
+  justify-content: space-between;
+}
+
+/* Logo area */
+.topbar__logo .logo-link {
+  font-family: "Dancing Script", cursive;
+  font-size: 2rem;
+  font-weight: 700;
+  color: var(--primary-color);
+  text-decoration: none;
+  transition: color 0.25s ease;
+}
+
+.topbar__logo .logo-link span {
+  color: var(--text-primary);
+}
+
+.topbar__logo .logo-link:hover {
+  color: var(--primary-hover);
+}
+
+/* Desktop navigation links */
+.topbar__nav {
+  display: none; /* hidden by default, shown via modifier class */
+}
+
+.topbar__nav--desktop {
+  display: flex;
+  gap: 1.5rem;
 }
 
 .nav-link {
+  position: relative;
   font-size: 1rem;
   font-weight: 500;
-  color: #e4e4e7; /* Soft text */
+  color: var(--text-primary);
   text-decoration: none;
-  transition: color 0.3s ease-in-out;
+  transition: color 0.2s ease-in-out;
+}
+
+/* Underline animation on hover */
+.nav-link::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  bottom: -0.25rem;
+  width: 0;
+  height: 2px;
+  background-color: var(--primary-color);
+  transition: width 0.3s ease;
 }
 
 .nav-link:hover {
-  color: #5a67d8; /* Indigo hover effect */
+  color: var(--primary-color);
 }
 
-/* Mobile Menu Toggle */
-.mobile-menu-button {
+.nav-link:hover::after {
+  width: 100%;
+}
+
+/* Action buttons (login/logout) */
+.topbar__actions {
+  display: none; /* hidden on mobile */
+  align-items: center;
+  gap: 1rem;
+}
+
+.action-button {
+  padding: 0.5rem 1.25rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+  border: none;
+  border-radius: 0.375rem;
+  cursor: pointer;
+  transition: background-color 0.3s ease, transform 0.2s ease;
+  text-decoration: none;
+  display: inline-block;
+}
+
+/* Login button styling */
+.login-button {
+  background-color: var(--primary-color);
+  color: #ffffff;
+}
+
+.login-button:hover {
+  background-color: var(--primary-hover);
+  transform: scale(1.05);
+}
+
+.login-button:active {
+  background-color: var(--primary-active);
+  transform: scale(0.95);
+}
+
+/* Logout button styling */
+.logout-button {
+  background-color: var(--danger-color);
+  color: #ffffff;
+}
+
+.logout-button:hover {
+  background-color: var(--danger-hover);
+  transform: scale(1.05);
+}
+
+.logout-button:active {
+  background-color: var(--danger-active);
+  transform: scale(0.95);
+}
+
+/* Mobile menu toggle icon */
+.topbar__toggle {
   display: flex;
   align-items: center;
-}
-
-.mobile-menu-button svg {
   cursor: pointer;
-  transition: transform 0.3s ease-in-out;
 }
 
-.mobile-menu-button svg:hover {
-  transform: scale(1.1); /* Slight zoom effect */
+.topbar__toggle svg {
+  font-size: 1.75rem;
+  color: var(--text-primary);
+  transition: transform 0.3s ease;
 }
 
-/* Mobile Menu (Full Screen) */
+.topbar__toggle svg:hover {
+  transform: scale(1.1);
+}
+
+/* Mobile menu overlay */
 .mobile-menu {
   position: fixed;
   top: 0;
   left: 0;
   width: 100%;
-  height: 100%;
-  background-color: #1a1a1a;
+  height: 100vh;
+  background-color: var(--background-light);
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 2rem;
-  z-index: 9999;
+  gap: 1.5rem;
+  padding: 1rem;
+  z-index: 2000;
 }
 
-.mobile-menu a {
-  font-size: 1.5rem;
+.mobile-menu-link {
+  font-size: 1.2rem;
   font-weight: 500;
-  color: #e4e4e7;
+  color: var(--text-primary);
   text-decoration: none;
-  transition: color 0.3s ease-in-out;
+  transition: color 0.2s ease;
 }
 
-.mobile-menu a:hover {
-  color: #5a67d8; /* Indigo hover */
+.mobile-menu-link:hover {
+  color: var(--primary-color);
 }
 
-
-
-/* Login Button Styles */
-.login-button {
-  padding: 0.5rem 1rem; /* Adjusts spacing around the button text */
-  background-color: #6366f1; /* Indigo-500 color */
-  color: #ffffff; /* White text */
-  border-radius: 0.375rem; /* Rounded corners */
-  font-size: 0.875rem; /* Text size (14px) */
-  font-weight: 500; /* Medium font weight */
-  text-align: center; /* Centers text inside the button */
-  transition: background-color 0.3s ease, transform 0.2s ease; /* Smooth hover effects */
-  text-decoration: none; /* Removes default underline for links */
+/* Container for mobile specific auth buttons */
+.mobile-actions {
+  margin-top: 1.5rem;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  align-items: center;
 }
 
-.login-button:hover {
-  background-color: #4f46e5; /* Indigo-600 color */
-  transform: scale(1.05); /* Slightly enlarges the button */
+/* Mobile login button inherits base login styling */
+.mobile-login {
+  background-color: var(--primary-color);
+  color: #ffffff;
+  width: 100%;
+  text-align: center;
 }
 
-.login-button:active {
-  background-color: #4338ca; /* Indigo-700 color */
-  transform: scale(0.95); /* Slightly shrinks on click */
+.mobile-login:hover {
+  background-color: var(--primary-hover);
 }
 
-.login-button:focus {
-  outline: 2px solid #6366f1; /* Focus ring for accessibility */
-  outline-offset: 2px;
+.mobile-login:active {
+  background-color: var(--primary-active);
+}
+
+/* Mobile logout button inherits base logout styling */
+.mobile-logout {
+  background-color: var(--danger-color);
+  color: #ffffff;
+  width: 100%;
+  text-align: center;
+}
+
+.mobile-logout:hover {
+  background-color: var(--danger-hover);
+}
+
+.mobile-logout:active {
+  background-color: var(--danger-active);
+}
+
+/* Responsive rules: show desktop nav and actions on medium screens and up */
+@media (min-width: 768px) {
+  .topbar__nav--desktop {
+    display: flex;
+  }
+  .topbar__actions {
+    display: flex;
+  }
+  .topbar__toggle {
+    display: none;
+  }
+  .mobile-menu {
+    display: none;
+  }
 }

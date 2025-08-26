@@ -1,259 +1,703 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import {
   doc,
   updateDoc,
   getDoc,
   onSnapshot,
+  setDoc,
+  serverTimestamp,
+  increment
 } from "firebase/firestore";
 import { auth, db } from "../components/firebase";
 import { onAuthStateChanged } from "firebase/auth";
-import { toast } from "react-toastify";
-import { motion } from "framer-motion";
+import toast from "react-hot-toast";
+import { motion, AnimatePresence } from "framer-motion";
 import Lottie from "lottie-react";
 import clockAnimation from "../assets/3d-clock-animation.json";
 import "./Session.css";
-import "@fortawesome/fontawesome-free/css/all.min.css";
 
 function StartSession() {
-  // State variables for user, time, tasks, and study fields
+  // Core state
   const [user, setUser] = useState(null);
+  const [loading, setLoading] = useState(true);
+  
+  // Timer state
   const [time, setTime] = useState(0);
   const [isRunning, setIsRunning] = useState(false);
   const [pomodoroMode, setPomodoroMode] = useState(false);
-  const [pomodoroTime, setPomodoroTime] = useState(25 * 60); // Default 25 minutes
+  const [pomodoroTime, setPomodoroTime] = useState(25 * 60);
   const [elapsedPomodoroTime, setElapsedPomodoroTime] = useState(0);
-  const [totalTimeToday, setTotalTimeToday] = useState(0);
-  const [todoList, setTodoList] = useState([]);
+  const [isBreakTime, setIsBreakTime] = useState(false);
+  const [pomodoroRounds, setPomodoroRounds] = useState(0);
+  
+  // Real-time user data
+  const [userData, setUserData] = useState(null);
+  
+  // Study fields
   const [studyFields, setStudyFields] = useState(["General"]);
   const [selectedField, setSelectedField] = useState("General");
+  const [newFieldName, setNewFieldName] = useState("");
+  
+  // Tasks
+  const [todoList, setTodoList] = useState([]);
+  const [newTaskText, setNewTaskText] = useState("");
   const [editTaskId, setEditTaskId] = useState(null);
   const [editTaskText, setEditTaskText] = useState("");
   const [taskPriority, setTaskPriority] = useState("Medium");
   const [taskDeadline, setTaskDeadline] = useState("");
   const [filterOption, setFilterOption] = useState("All");
   const [lastDeletedTask, setLastDeletedTask] = useState(null);
-  const [fieldTimes, setFieldTimes] = useState({});
-  // Firebase: Fetch user and tasks when authentication state changes
-  useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
-      setUser(currentUser);
-      if (currentUser) {
-        const userRef = doc(db, "users", currentUser.uid);
-        const userDoc = await getDoc(userRef);
-
-        if (userDoc.exists()) {
-          const data = userDoc.data();
-          setTodoList(data.todoList || []);
-          setStudyFields(data.studyFields || ["General"]);
-          setTotalTimeToday(data.totalTimeToday || 0);
-        }
-
-        // Real-time updates from Firebase
-        onSnapshot(userRef, (snapshot) => {
-          if (snapshot.exists()) {
-            const data = snapshot.data();
-            setTodoList(data.todoList || []);
-            setStudyFields(data.studyFields || ["General"]);
-          }
-        });
-      }
-    });
-
-    return () => unsubscribe();
-  }, []);
-
-  // Timer logic (handles both Pomodoro and Stopwatch modes)
-  useEffect(() => {
-    let interval;
-    if (isRunning) {
-      interval = setInterval(() => {
-        if (pomodoroMode) {
-          setPomodoroTime((prev) => {
-            if (prev <= 1) {
-              stopTimer();
-              toast.info("Pomodoro session ended!", { position: "top-center" });
-              return 25 * 60; // Reset Pomodoro timer
-            }
-            setElapsedPomodoroTime((elapsed) => elapsed + 1);
-            return prev - 1;
-          });
-        } else {
-          setTime((prev) => prev + 1);
-        }
-      }, 1000);
-    }
-    return () => clearInterval(interval);
-  }, [isRunning, pomodoroMode]);
-
-  // Timer controls
-  const startTimer = () => setIsRunning(true);
-
-  const stopTimer = async () => {
-    setIsRunning(false);
-    const timeToAdd = pomodoroMode ? elapsedPomodoroTime : time;
   
-    if (user) {
-      const userRef = doc(db, "users", user.uid);
-      const updatedFieldTimes = {
-        ...fieldTimes,
-        [selectedField]: (fieldTimes[selectedField] || 0) + timeToAdd,
-      };
+  // Refs for background timer
+  const timerRef = useRef(null);
+  const startTimeRef = useRef(null);
+  const accumulatedTimeRef = useRef(0);
+  const isRunningRef = useRef(false);
+  const pomodoroModeRef = useRef(false);
+  const selectedFieldRef = useRef("General");
+  const userRef = useRef(null);
   
-      await updateDoc(userRef, {
-        totalTimeToday: totalTimeToday + timeToAdd,
-        fieldTimes: updatedFieldTimes,
-      });
-  
-      setFieldTimes(updatedFieldTimes);
-      setTotalTimeToday((prev) => prev + timeToAdd);
-    }
-  
-    setTime(0);
-    setElapsedPomodoroTime(0);
-    setPomodoroTime(25 * 60);
-  };
-  
+  // Real-time database listener
+  const unsubscribeRef = useRef(null);
 
-  // Task management functions
-  const handleAddTask = async (taskText) => {
-    const newTask = {
-      id: Date.now(),
-      text: taskText,
-      completed: false,
-      priority: taskPriority,
-      deadline: taskDeadline || null,
-    };
-    const updatedList = [...todoList, newTask];
-    setTodoList(updatedList);
-
-    if (user) {
-      const userRef = doc(db, "users", user.uid);
-      await updateDoc(userRef, { todoList: updatedList });
-    }
-
-    setTaskPriority("Medium");
-    setTaskDeadline("");
-    toast.success("Task added!", { position: "top-center" });
-  };
-
-  const handleEditTask = (id, text) => {
-    setEditTaskId(id);
-    setEditTaskText(text);
-  };
-
-  const saveEditTask = async (id) => {
-    const updatedList = todoList.map((task) =>
-      task.id === id ? { ...task, text: editTaskText } : task
-    );
-    setTodoList(updatedList);
-    setEditTaskId(null);
-    setEditTaskText("");
-
-    if (user) {
-      const userRef = doc(db, "users", user.uid);
-      await updateDoc(userRef, { todoList: updatedList });
-    }
-
-    toast.info("Task updated!", { position: "top-center" });
-  };
-
-  const handleRemoveTask = async (taskId) => {
-    const taskToDelete = todoList.find((task) => task.id === taskId);
-    setLastDeletedTask(taskToDelete);
-    const updatedList = todoList.filter((task) => task.id !== taskId);
-    setTodoList(updatedList);
-
-    if (user) {
-      const userRef = doc(db, "users", user.uid);
-      await updateDoc(userRef, { todoList: updatedList });
-    }
-
-    toast.warning("Task deleted!", { position: "top-center" });
-  };
-
-  const undoDeleteTask = async () => {
-    if (lastDeletedTask) {
-      const updatedList = [...todoList, lastDeletedTask];
-      setTodoList(updatedList);
-
-      if (user) {
-        const userRef = doc(db, "users", user.uid);
-        await updateDoc(userRef, { todoList: updatedList });
-      }
-
-      setLastDeletedTask(null);
-      toast.success("Task restored!", { position: "top-center" });
-    }
-  };
-
-  const toggleTaskCompletion = async (taskId) => {
-    const updatedList = todoList.map((task) =>
-      task.id === taskId ? { ...task, completed: !task.completed } : task
-    );
-    setTodoList(updatedList);
-
-    if (user) {
-      const userRef = doc(db, "users", user.uid);
-      await updateDoc(userRef, { todoList: updatedList });
-    }
-
-    toast.info("Task status updated!", { position: "top-center" });
-  };
-
-  // Sorting and filtering
-  const sortTasksByPriority = () => {
-    const sortedTasks = [...todoList].sort((a, b) => {
-      const priorityOrder = { High: 1, Medium: 2, Low: 3 };
-      return priorityOrder[a.priority] - priorityOrder[b.priority];
-    });
-    setTodoList(sortedTasks);
-  };
-
-  const sortTasksByDeadline = () => {
-    const sortedTasks = [...todoList].sort((a, b) => {
-      const deadlineA = new Date(a.deadline || "2100-01-01");
-      const deadlineB = new Date(b.deadline || "2100-01-01");
-      return deadlineA - deadlineB;
-    });
-    setTodoList(sortedTasks);
-  };
-
-  const filteredTasks = todoList.filter((task) => {
-    if (filterOption === "All") return true;
-    if (filterOption === "Completed") return task.completed;
-    if (filterOption === "Pending") return !task.completed;
-    if (filterOption === "High") return task.priority === "High";
-    if (filterOption === "Low") return task.priority === "Low";
-    return true;
-  });
-
-  // Utility function for formatting time
-  const formatTime = (timeInSeconds) => {
+  // Helper functions
+  const formatTime = useCallback((timeInSeconds) => {
+    if (!timeInSeconds || timeInSeconds === 0) return "00:00:00";
     const hours = Math.floor(timeInSeconds / 3600);
     const minutes = Math.floor((timeInSeconds % 3600) / 60);
     const seconds = timeInSeconds % 60;
     return `${hours.toString().padStart(2, "0")}:${minutes
       .toString()
       .padStart(2, "0")}:${seconds.toString().padStart(2, "0")}`;
-  };
-  const addStudyField = async (newField) => {
-    if (!newField || studyFields.includes(newField)) {
-      toast.error("Field already exists or is invalid", { position: "top-center" });
+  }, []);
+
+  const getTodayKey = useCallback(() => {
+    return new Date().toISOString().split('T')[0];
+  }, []);
+
+  const getWeekKey = useCallback(() => {
+    const now = new Date();
+    const startOfWeek = new Date(now.setDate(now.getDate() - now.getDay()));
+    return startOfWeek.toISOString().split('T')[0];
+  }, []);
+
+  const getMonthKey = useCallback(() => {
+    const now = new Date();
+    return `${now.getFullYear()}-${(now.getMonth() + 1).toString().padStart(2, '0')}`;
+  }, []);
+
+  // Background timer that works even when tab is not active
+  const updateTimer = useCallback(() => {
+    if (isRunningRef.current && startTimeRef.current) {
+      const now = Date.now();
+      const elapsed = Math.floor((now - startTimeRef.current) / 1000) + accumulatedTimeRef.current;
+      
+      if (pomodoroModeRef.current) {
+        const remaining = 25 * 60 - (elapsed % (25 * 60));
+        setPomodoroTime(Math.max(0, remaining));
+        setElapsedPomodoroTime(elapsed);
+        
+        if (remaining <= 0 && elapsed > 0) {
+          // Pomodoro session completed
+          const rounds = Math.floor(elapsed / (25 * 60)) + 1;
+          setPomodoroRounds(rounds);
+          
+          if (rounds % 4 === 0) {
+            toast.success("🎉 Time for a long break! (15-30 minutes)");
+          } else {
+            toast.success("✅ Pomodoro completed! Time for a 5 minute break.");
+          }
+          
+          setIsBreakTime(true);
+          stopTimer();
+        }
+      } else {
+        setTime(elapsed);
+      }
+    }
+  }, []);
+
+  // Setup background timer
+  useEffect(() => {
+    if (timerRef.current) {
+      clearInterval(timerRef.current);
+    }
+    timerRef.current = setInterval(updateTimer, 1000);
+    
+    return () => {
+      if (timerRef.current) {
+        clearInterval(timerRef.current);
+      }
+    };
+  }, [updateTimer]);
+
+  // Real-time data synchronization
+  const setupRealtimeListener = useCallback((userId) => {
+    const docRef = doc(db, "users", userId);
+    
+    return onSnapshot(docRef, (docSnapshot) => {
+      if (docSnapshot.exists()) {
+        const data = docSnapshot.data();
+        setUserData(data);
+        
+        // Update local state with real-time data
+        setTodoList(data.todoList || []);
+        setStudyFields(data.studyFields || ["General"]);
+        
+        // Set selected field if not already set or if it doesn't exist
+        const currentField = selectedFieldRef.current;
+        if (!data.studyFields?.includes(currentField)) {
+          const firstField = data.studyFields?.[0] || "General";
+          setSelectedField(firstField);
+          selectedFieldRef.current = firstField;
+        }
+      } else {
+        console.warn("User document does not exist, creating...");
+        initializeUserDocument(userId);
+      }
+      
+      setLoading(false);
+    }, (error) => {
+      console.error("Real-time listener error:", error);
+      toast.error("Connection issue with database. Retrying...");
+      setLoading(false);
+    });
+  }, []);
+
+  // Initialize user document with better structure
+  const initializeUserDocument = useCallback(async (userId) => {
+    const userDocRef = doc(db, "users", userId);
+    const todayKey = getTodayKey();
+    const weekKey = getWeekKey();
+    const monthKey = getMonthKey();
+    
+    const initialData = {
+      email: auth.currentUser?.email || "",
+      name: auth.currentUser?.displayName || "User",
+      createdAt: serverTimestamp(),
+      lastLoginDate: todayKey,
+      lastStudyDate: null,
+      
+      // Tasks
+      todoList: [],
+      
+      // Study fields
+      studyFields: ["General"],
+      fieldTimes: {},
+      
+      // Time tracking
+      totalTimeToday: 0,
+      totalTimeWeek: 0,
+      totalTimeMonth: 0,
+      totalTimeAllTime: 0,
+      
+      // Analytics data
+      dailyStats: {
+        [todayKey]: {
+          totalTime: 0,
+          fieldTimes: {},
+          sessionsCount: 0
+        }
+      },
+      weeklyStats: {
+        [weekKey]: {
+          totalTime: 0,
+          fieldTimes: {},
+          sessionsCount: 0
+        }
+      },
+      monthlyStats: {
+        [monthKey]: {
+          totalTime: 0,
+          fieldTimes: {},
+          sessionsCount: 0
+        }
+      },
+      
+      // Settings
+      preferences: {
+        pomodoroLength: 25,
+        shortBreakLength: 5,
+        longBreakLength: 15,
+        autoStartBreaks: false,
+        notifications: true
+      }
+    };
+    
+    try {
+      await setDoc(userDocRef, initialData);
+      console.log("User document initialized successfully");
+    } catch (error) {
+      console.error("Error initializing user document:", error);
+      toast.error("Failed to initialize user data");
+    }
+  }, [getTodayKey, getWeekKey, getMonthKey]);
+
+  // Firebase Authentication and Real-time Data
+  useEffect(() => {
+    const unsubscribeAuth = onAuthStateChanged(auth, async (currentUser) => {
+      if (currentUser) {
+        setUser(currentUser);
+        userRef.current = currentUser;
+        
+        // Setup real-time listener
+        unsubscribeRef.current = setupRealtimeListener(currentUser.uid);
+      } else {
+        setUser(null);
+        setUserData(null);
+        setLoading(false);
+        
+        // Clean up listener if user logs out
+        if (unsubscribeRef.current) {
+          unsubscribeRef.current();
+        }
+      }
+    });
+
+    return () => {
+      unsubscribeAuth();
+      if (unsubscribeRef.current) {
+        unsubscribeRef.current();
+      }
+    };
+  }, [setupRealtimeListener]);
+
+  // Update refs when state changes
+  useEffect(() => {
+    isRunningRef.current = isRunning;
+  }, [isRunning]);
+
+  useEffect(() => {
+    pomodoroModeRef.current = pomodoroMode;
+  }, [pomodoroMode]);
+
+  useEffect(() => {
+    selectedFieldRef.current = selectedField;
+  }, [selectedField]);
+
+  // Timer Controls with optimized database updates
+  const startTimer = useCallback(() => {
+    if (!user) {
+      toast.error("Please log in to start a study session");
       return;
     }
-  
-    const updatedFields = [...studyFields, newField];
-    setStudyFields(updatedFields);
-  
-    if (user) {
-      const userRef = doc(db, "users", user.uid);
-      await updateDoc(userRef, { studyFields: updatedFields });
+    
+    setIsRunning(true);
+    setIsBreakTime(false);
+    startTimeRef.current = Date.now();
+    accumulatedTimeRef.current = pomodoroMode ? elapsedPomodoroTime : time;
+    
+    toast.success(`🚀 Study session started for ${selectedField}!`);
+  }, [user, pomodoroMode, elapsedPomodoroTime, time, selectedField]);
+
+  const stopTimer = useCallback(async () => {
+    setIsRunning(false);
+    
+    if (!user || !userRef.current) return;
+    
+    const currentTime = Date.now();
+    const sessionTime = startTimeRef.current ? 
+      Math.floor((currentTime - startTimeRef.current) / 1000) + accumulatedTimeRef.current : 0;
+    
+    if (sessionTime > 5) { // Only save sessions longer than 5 seconds
+      try {
+        await saveStudySession(sessionTime);
+        
+        const formattedTime = formatTime(sessionTime);
+        toast.success(`✅ Session saved! ${formattedTime} added to ${selectedField}`);
+      } catch (error) {
+        console.error("Error saving session:", error);
+        toast.error("Failed to save session data");
+      }
     }
-  
-    toast.success("Study field added!", { position: "top-center" });
-  };
 
+    // Reset timer state
+    setTime(0);
+    setElapsedPomodoroTime(0);
+    setPomodoroTime(25 * 60);
+    accumulatedTimeRef.current = 0;
+    startTimeRef.current = null;
+  }, [user, formatTime, selectedField]);
 
+  const resetTimer = useCallback(() => {
+    setIsRunning(false);
+    setTime(0);
+    setElapsedPomodoroTime(0);
+    setPomodoroTime(25 * 60);
+    setIsBreakTime(false);
+    setPomodoroRounds(0);
+    accumulatedTimeRef.current = 0;
+    startTimeRef.current = null;
+    toast.info("⏰ Timer reset");
+  }, []);
+
+  // Optimized study session saving with batch updates
+  const saveStudySession = useCallback(async (sessionTime) => {
+    if (!user || !userRef.current || sessionTime <= 0) return;
+
+    const userDocRef = doc(db, "users", userRef.current.uid);
+    const todayKey = getTodayKey();
+    const weekKey = getWeekKey();
+    const monthKey = getMonthKey();
+    const currentField = selectedFieldRef.current;
+
+    try {
+      // Prepare update data
+      const updateData = {
+        [`fieldTimes.${currentField}`]: increment(sessionTime),
+        totalTimeToday: increment(sessionTime),
+        totalTimeWeek: increment(sessionTime),
+        totalTimeMonth: increment(sessionTime),
+        totalTimeAllTime: increment(sessionTime),
+        
+        [`dailyStats.${todayKey}.totalTime`]: increment(sessionTime),
+        [`dailyStats.${todayKey}.fieldTimes.${currentField}`]: increment(sessionTime),
+        [`dailyStats.${todayKey}.sessionsCount`]: increment(1),
+        
+        [`weeklyStats.${weekKey}.totalTime`]: increment(sessionTime),
+        [`weeklyStats.${weekKey}.fieldTimes.${currentField}`]: increment(sessionTime),
+        [`weeklyStats.${weekKey}.sessionsCount`]: increment(1),
+        
+        [`monthlyStats.${monthKey}.totalTime`]: increment(sessionTime),
+        [`monthlyStats.${monthKey}.fieldTimes.${currentField}`]: increment(sessionTime),
+        [`monthlyStats.${monthKey}.sessionsCount`]: increment(1),
+        
+        lastStudyDate: serverTimestamp(),
+      };
+
+      await updateDoc(userDocRef, updateData);
+      console.log(`Study session saved: ${sessionTime}s for ${currentField}`);
+      
+    } catch (error) {
+      console.error("Error saving study session:", error);
+      throw error;
+    }
+  }, [user, getTodayKey, getWeekKey, getMonthKey]);
+
+  // Task Management with optimized updates
+  const handleAddTask = useCallback(async () => {
+    if (!newTaskText.trim()) {
+      toast.error("Please enter a task description");
+      return;
+    }
+
+    if (!user || !userRef.current) {
+      toast.error("Please log in to add tasks");
+      return;
+    }
+    
+    const newTask = {
+      id: Date.now() + Math.random(), // Ensure unique ID
+      text: newTaskText.trim(),
+      completed: false,
+      priority: taskPriority,
+      deadline: taskDeadline || null,
+      createdAt: new Date().toISOString(),
+      field: selectedField // Associate task with current field
+    };
+
+    try {
+      const userDocRef = doc(db, "users", userRef.current.uid);
+      const updatedList = [...todoList, newTask];
+      
+      await updateDoc(userDocRef, { todoList: updatedList });
+
+      setNewTaskText("");
+      setTaskPriority("Medium");
+      setTaskDeadline("");
+      toast.success("✅ Task added successfully!");
+    } catch (error) {
+      console.error("Error adding task:", error);
+      toast.error("Failed to add task");
+    }
+  }, [newTaskText, user, taskPriority, taskDeadline, todoList, selectedField]);
+
+  const handleEditTask = useCallback((id, text) => {
+    setEditTaskId(id);
+    setEditTaskText(text);
+  }, []);
+
+  const saveEditTask = useCallback(async (id) => {
+    if (!editTaskText.trim()) {
+      toast.error("Task cannot be empty");
+      return;
+    }
+
+    if (!user || !userRef.current) return;
+
+    try {
+      const updatedList = todoList.map((task) =>
+        task.id === id ? { ...task, text: editTaskText.trim(), updatedAt: new Date().toISOString() } : task
+      );
+      
+      const userDocRef = doc(db, "users", userRef.current.uid);
+      await updateDoc(userDocRef, { todoList: updatedList });
+
+      setEditTaskId(null);
+      setEditTaskText("");
+      toast.success("✅ Task updated successfully!");
+    } catch (error) {
+      console.error("Error updating task:", error);
+      toast.error("Failed to update task");
+    }
+  }, [editTaskText, user, todoList]);
+
+  const handleRemoveTask = useCallback(async (taskId) => {
+    if (!user || !userRef.current) return;
+
+    try {
+      const taskToDelete = todoList.find((task) => task.id === taskId);
+      setLastDeletedTask(taskToDelete);
+      
+      const updatedList = todoList.filter((task) => task.id !== taskId);
+      const userDocRef = doc(db, "users", userRef.current.uid);
+      await updateDoc(userDocRef, { todoList: updatedList });
+
+      toast.success("🗑️ Task deleted successfully!");
+    } catch (error) {
+      console.error("Error deleting task:", error);
+      toast.error("Failed to delete task");
+    }
+  }, [user, todoList]);
+
+  const undoDeleteTask = useCallback(async () => {
+    if (lastDeletedTask && user && userRef.current) {
+      try {
+        const updatedList = [...todoList, lastDeletedTask];
+        const userDocRef = doc(db, "users", userRef.current.uid);
+        await updateDoc(userDocRef, { todoList: updatedList });
+
+        setLastDeletedTask(null);
+        toast.success("↩️ Task restored successfully!");
+      } catch (error) {
+        console.error("Error restoring task:", error);
+        toast.error("Failed to restore task");
+      }
+    }
+  }, [lastDeletedTask, user, todoList]);
+
+  const toggleTaskCompletion = useCallback(async (taskId) => {
+    if (!user || !userRef.current) return;
+
+    try {
+      const updatedList = todoList.map((task) =>
+        task.id === taskId 
+          ? { ...task, completed: !task.completed, completedAt: !task.completed ? new Date().toISOString() : null }
+          : task
+      );
+      
+      const userDocRef = doc(db, "users", userRef.current.uid);
+      await updateDoc(userDocRef, { todoList: updatedList });
+
+      const task = todoList.find(t => t.id === taskId);
+      if (task) {
+        toast.success(task.completed ? "Task marked as pending" : "Task completed!");
+      }
+    } catch (error) {
+      console.error("Error toggling task:", error);
+      toast.error("Failed to update task status");
+    }
+  }, [user, todoList]);
+
+  // Study Field Management
+  const addStudyField = useCallback(async () => {
+    if (!newFieldName.trim()) {
+      toast.error("Please enter a field name");
+      return;
+    }
+
+    const trimmedFieldName = newFieldName.trim();
+    
+    if (studyFields.includes(trimmedFieldName)) {
+      toast.error("Field already exists");
+      return;
+    }
+
+    if (!user || !userRef.current) {
+      toast.error("Please log in to add study fields");
+      return;
+    }
+
+    try {
+      const updatedFields = [...studyFields, trimmedFieldName];
+      const userDocRef = doc(db, "users", userRef.current.uid);
+      await updateDoc(userDocRef, { studyFields: updatedFields });
+
+      setNewFieldName("");
+      toast.success("Study field added successfully!");
+    } catch (error) {
+      console.error("Error adding field:", error);
+      toast.error("Failed to add study field");
+    }
+  }, [newFieldName, studyFields, user]);
+
+  const removeStudyField = useCallback(async (fieldToRemove) => {
+    if (fieldToRemove === "General") {
+      toast.error("Cannot remove the General field");
+      return;
+    }
+
+    if (studyFields.length <= 1) {
+      toast.error("Must have at least one study field");
+      return;
+    }
+
+    if (!user || !userRef.current) return;
+
+    try {
+      const updatedFields = studyFields.filter(field => field !== fieldToRemove);
+      const updateData = { studyFields: updatedFields };
+
+      // Also remove the field from fieldTimes if it exists
+      const currentFieldTimes = userData?.fieldTimes || {};
+      if (currentFieldTimes[fieldToRemove]) {
+        updateData[`fieldTimes.${fieldToRemove}`] = null; // Delete the field
+      }
+
+      const userDocRef = doc(db, "users", userRef.current.uid);
+      await updateDoc(userDocRef, updateData);
+
+      if (selectedField === fieldToRemove) {
+        setSelectedField(updatedFields[0]);
+      }
+
+      toast.success("Study field removed");
+    } catch (error) {
+      console.error("Error removing field:", error);
+      toast.error("Failed to remove study field");
+    }
+  }, [studyFields, user, userData?.fieldTimes, selectedField]);
+
+  // Sorting functions
+  const sortTasksByPriority = useCallback(() => {
+    if (!user || !userRef.current) return;
+
+    const priorityOrder = { High: 1, Medium: 2, Low: 3 };
+    const sortedTasks = [...todoList].sort((a, b) => 
+      priorityOrder[a.priority] - priorityOrder[b.priority]
+    );
+    
+    const userDocRef = doc(db, "users", userRef.current.uid);
+    updateDoc(userDocRef, { todoList: sortedTasks });
+    
+    toast.info("Tasks sorted by priority");
+  }, [user, todoList]);
+
+  const sortTasksByDeadline = useCallback(() => {
+    if (!user || !userRef.current) return;
+
+    const sortedTasks = [...todoList].sort((a, b) => {
+      const deadlineA = new Date(a.deadline || "2100-01-01");
+      const deadlineB = new Date(b.deadline || "2100-01-01");
+      return deadlineA - deadlineB;
+    });
+    
+    const userDocRef = doc(db, "users", userRef.current.uid);
+    updateDoc(userDocRef, { todoList: sortedTasks });
+    
+    toast.info("Tasks sorted by deadline");
+  }, [user, todoList]);
+
+  // Memoized calculations for better performance
+  const filteredTasks = useMemo(() => {
+    return todoList.filter((task) => {
+      if (filterOption === "All") return true;
+      if (filterOption === "Completed") return task.completed;
+      if (filterOption === "Pending") return !task.completed;
+      if (filterOption === "High") return task.priority === "High";
+      if (filterOption === "Medium") return task.priority === "Medium";
+      if (filterOption === "Low") return task.priority === "Low";
+      return true;
+    });
+  }, [todoList, filterOption]);
+
+  // Get task statistics
+  const taskStats = useMemo(() => {
+    const total = todoList.length;
+    const completed = todoList.filter(task => task && task.completed).length;
+    const pending = total - completed;
+    const highPriority = todoList.filter(task => task && task.priority === "High").length;
+    
+    return { total, completed, pending, highPriority };
+  }, [todoList]);
+
+  // Get time statistics with fallback values
+  const timeStats = useMemo(() => {
+    if (!userData) return { today: 0, week: 0, month: 0, allTime: 0 };
+    
+    return {
+      today: userData.totalTimeToday || 0,
+      week: userData.totalTimeWeek || 0,
+      month: userData.totalTimeMonth || 0,
+      allTime: userData.totalTimeAllTime || 0
+    };
+  }, [userData]);
+
+  // Get field times with sorting
+  const sortedFieldTimes = useMemo(() => {
+    if (!userData?.fieldTimes) return [];
+    
+    return Object.entries(userData.fieldTimes)
+      .filter(([field, time]) => field && typeof time === 'number' && time > 0)
+      .sort(([,a], [,b]) => b - a);
+  }, [userData?.fieldTimes]);
+
+  // Auto-save functionality for task editing
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (editTaskId && editTaskText.trim() && editTaskText !== todoList.find(t => t.id === editTaskId)?.text) {
+        saveEditTask(editTaskId);
+      }
+    }, 2000); // Auto-save after 2 seconds of inactivity
+
+    return () => clearTimeout(timer);
+  }, [editTaskText, editTaskId, todoList, saveEditTask]);
+
+  // Cleanup effect
+  useEffect(() => {
+    return () => {
+      if (timerRef.current) {
+        clearInterval(timerRef.current);
+      }
+      if (unsubscribeRef.current) {
+        unsubscribeRef.current();
+      }
+    };
+  }, []);
+
+  if (loading) {
+    return (
+      <div className="session-container">
+        <div className="loading-container">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.8 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ duration: 0.5 }}
+          >
+            <h2>Loading session data...</h2>
+            <div className="loading-spinner"></div>
+          </motion.div>
+        </div>
+      </div>
+    );
+  }
+
+  if (!user) {
+    return (
+      <div className="session-container">
+        <div className="not-logged-in">
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5 }}
+          >
+            <h2>Please log in to start a study session</h2>
+            <p>You need to be logged in to track your study time and manage tasks.</p>
+          </motion.div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="session-container">
@@ -265,240 +709,324 @@ function StartSession() {
           transition={{ duration: 0.5 }}
         >
           <h1>Study Session</h1>
-          <p>Today's total study duration: {formatTime(totalTimeToday)}</p>
+          <div className="time-stats">
+            <p>Today: <strong>{formatTime(timeStats.today)}</strong></p>
+            <p>This Week: <strong>{formatTime(timeStats.week)}</strong></p>
+            <p>This Month: <strong>{formatTime(timeStats.month)}</strong></p>
+          </div>
+          <div className="session-stats">
+            <span>Tasks: {taskStats.total}</span>
+            <span>Completed: {taskStats.completed}</span>
+            <span>Pending: {taskStats.pending}</span>
+            <span>High Priority: {taskStats.highPriority}</span>
+          </div>
         </motion.div>
       </header>
 
       {/* Timer Section */}
       <div className="timer-section">
-  <div className="animation-container">
-    <Lottie animationData={clockAnimation} loop className="clock-animation" />
-  </div>
-  <motion.div
-    className="timer-container"
-    initial={{ opacity: 0 }}
-    animate={{ opacity: 1 }}
-    transition={{ delay: 0.2, duration: 0.5 }}
-  >
-
-        {/* Study Field Heading */}
-        <h2 className="selected-field-heading">
-      Study Field: <span>{selectedField}</span>
-    </h2>
-    <h2>{pomodoroMode ? "Pomodoro Timer" : "Stopwatch"}</h2>
-    <div className="timer-display">
-      {formatTime(pomodoroMode ? pomodoroTime : time)}
-    </div>
-    <div className="timer-controls">
-      {!isRunning ? (
-        <button onClick={startTimer} className="start-button">
-          Start
-        </button>
-      ) : (
-        <button onClick={stopTimer} className="stop-button">
-          Pause
-        </button>
-      )}
-    </div>
-    <div className="pomodoro-mode-toggle">
-      <label>
-        <input
-          type="checkbox"
-          checked={pomodoroMode}
-          onChange={() => setPomodoroMode(!pomodoroMode)}
-        />
-        Enable Pomodoro Mode
-      </label>
-    </div>
-    <div className="field-management">
-      <div className="field-selector">
-        <label htmlFor="studyField">Select Study Field: </label>
-        <select
-          id="studyField"
-          value={selectedField}
-          onChange={(e) => setSelectedField(e.target.value)}
+        <div className="animation-container">
+          <Lottie 
+            animationData={clockAnimation} 
+            loop={isRunning} 
+            className="clock-animation" 
+          />
+        </div>
+        
+        <motion.div
+          className="timer-container"
+          initial={{ opacity: 0, scale: 0.9 }}
+          animate={{ opacity: 1, scale: 1 }}
+          transition={{ delay: 0.2, duration: 0.5 }}
         >
-          {studyFields.map((field) => (
-            <option key={field} value={field}>
-              {field}
-            </option>
-          ))}
-        </select>
-      </div>
-      <div className="add-field-container">
-        <input
-          type="text"
-          placeholder="Add a new field..."
-          onKeyDown={(e) => {
-            if (e.key === "Enter" && e.target.value.trim() !== "") {
-              addStudyField(e.target.value.trim());
-              e.target.value = "";
-            }
-          }}
-        />
-        <button
-          onClick={() => {
-            const input = document.querySelector(".add-field-container input");
-            if (input.value.trim() !== "") {
-              addStudyField(input.value.trim());
-              input.value = "";
-            }
-          }}
-          className="add-field-button"
+          <h2 className="selected-field-heading">
+            Study Field: <span>{selectedField}</span>
+          </h2>
+          <h2>{pomodoroMode ? "Pomodoro Timer" : "Stopwatch"}</h2>
+          
+          {pomodoroMode && pomodoroRounds > 0 && (
+            <div className="pomodoro-rounds">
+              Round: {pomodoroRounds} | {isBreakTime ? "Break Time!" : "Study Time"}
+            </div>
+          )}
+          
+          <div className="timer-display">
+            {formatTime(pomodoroMode ? pomodoroTime : time)}
+          </div>
+          
+          <div className="timer-controls">
+            {!isRunning ? (
+              <button onClick={startTimer} className="start-button">
+                Start
+              </button>
+            ) : (
+              <button onClick={stopTimer} className="stop-button">
+                Stop
+              </button>
+            )}
+            <button onClick={resetTimer} className="reset-button">
+              Reset
+            </button>
+          </div>
+          
+          <div className="pomodoro-mode-toggle">
+            <label>
+              <input
+                type="checkbox"
+                checked={pomodoroMode}
+                onChange={(e) => setPomodoroMode(e.target.checked)}
+                disabled={isRunning}
+              />
+              Enable Pomodoro Mode (25 min sessions)
+            </label>
+          </div>
+          
+          <div className="field-management">
+            <div className="field-selector">
+              <label htmlFor="studyField">Select Study Field:</label>
+              <select
+                id="studyField"
+                value={selectedField}
+                onChange={(e) => setSelectedField(e.target.value)}
+                disabled={isRunning}
+              >
+                {studyFields.map((field) => (
+                  <option key={field} value={field}>
+                    {field}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="add-field-container">
+              <input
+                type="text"
+                placeholder="Add a new field..."
+                value={newFieldName}
+                onChange={(e) => setNewFieldName(e.target.value)}
+                onKeyPress={(e) => e.key === "Enter" && addStudyField()}
+              />
+              <button
+                onClick={addStudyField}
+                className="add-field-button"
+              >
+                Add Field
+              </button>
+            </div>
+          </div>
+        </motion.div>
+
+        {/* Field Times Display */}
+        <motion.div
+          className="field-times-section"
+          initial={{ opacity: 0, x: 20 }}
+          animate={{ opacity: 1, x: 0 }}
+          transition={{ delay: 0.4, duration: 0.5 }}
         >
-          Add Field
-        </button>
+          <h2>Study Time by Field</h2>
+          {sortedFieldTimes.length > 0 ? (
+            <ul className="field-times-list">
+              <AnimatePresence>
+                {sortedFieldTimes.map(([field, time]) => (
+                  <motion.li 
+                    key={field} 
+                    className="field-time-item"
+                    initial={{ opacity: 0, x: -20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    exit={{ opacity: 0, x: 20 }}
+                    transition={{ duration: 0.3 }}
+                  >
+                    <div className="field-info">
+                      <strong>{field}:</strong> 
+                      <span className="field-time">{formatTime(time)}</span>
+                    </div>
+                    {field !== "General" && (
+                      <button 
+                        onClick={() => removeStudyField(field)}
+                        className="remove-field-button"
+                        title="Remove field"
+                      >
+                        ×
+                      </button>
+                    )}
+                  </motion.li>
+                ))}
+              </AnimatePresence>
+            </ul>
+          ) : (
+            <p className="no-data">Start studying to see your field statistics!</p>
+          )}
+        </motion.div>
       </div>
-    </div>
-  </motion.div>
-
-  <motion.div
-    className="field-times-section"
-    initial={{ opacity: 0 }}
-    animate={{ opacity: 1 }}
-    transition={{ delay: 0.4, duration: 0.5 }}
-  >
-    <h2>Field Timers</h2>
-    <ul className="field-times-list">
-      {Object.entries(fieldTimes).map(([field, time]) => (
-        <li key={field} className="field-time-item">
-          <strong>{field}:</strong> {formatTime(time)}
-        </li>
-      ))}
-    </ul>
-  </motion.div>
-</div>
-
 
       {/* To-Do Section */}
       <motion.div
         className="todo-section"
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        transition={{ delay: 0.4, duration: 0.5 }}
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.6, duration: 0.5 }}
       >
         <h2>To-Do List</h2>
+        
+        {/* Task Input */}
         <div className="todo-input-container">
           <input
             type="text"
             placeholder="Add a new task..."
-            onKeyDown={(e) => {
-              if (e.key === "Enter" && e.target.value.trim() !== "") {
-                handleAddTask(e.target.value.trim());
-                e.target.value = "";
-              }
-            }}
+            value={newTaskText}
+            onChange={(e) => setNewTaskText(e.target.value)}
+            onKeyPress={(e) => e.key === "Enter" && handleAddTask()}
+            className="task-input"
           />
           <select
             className="priority-selector"
+            value={taskPriority}
             onChange={(e) => setTaskPriority(e.target.value)}
-            defaultValue="Medium"
           >
-            <option value="Low">Low</option>
-            <option value="Medium">Medium</option>
-            <option value="High">High</option>
+            <option value="Low">Low Priority</option>
+            <option value="Medium">Medium Priority</option>
+            <option value="High">High Priority</option>
           </select>
           <input
             type="date"
             className="deadline-input"
+            value={taskDeadline}
             onChange={(e) => setTaskDeadline(e.target.value)}
+            min={new Date().toISOString().split('T')[0]}
           />
           <button
             className="add-task-button"
-            onClick={() => {
-              const taskInput = document.querySelector(".todo-input-container input");
-              if (taskInput.value.trim() !== "") {
-                handleAddTask(taskInput.value.trim());
-                taskInput.value = "";
-              }
-            }}
+            onClick={handleAddTask}
           >
-            Add
+            Add Task
           </button>
         </div>
 
+        {/* Task Filters and Controls */}
         <div className="task-filters">
           <select
             className="filter-selector"
+            value={filterOption}
             onChange={(e) => setFilterOption(e.target.value)}
-            defaultValue="All"
           >
-            <option value="All">All</option>
-            <option value="Completed">Completed</option>
-            <option value="Pending">Pending</option>
-            <option value="High">High Priority</option>
+            <option value="All">All Tasks ({todoList.length})</option>
+            <option value="Completed">Completed ({taskStats.completed})</option>
+            <option value="Pending">Pending ({taskStats.pending})</option>
+            <option value="High">High Priority ({taskStats.highPriority})</option>
+            <option value="Medium">Medium Priority</option>
             <option value="Low">Low Priority</option>
           </select>
-          <button onClick={sortTasksByPriority}>Sort by Priority</button>
-          <button onClick={sortTasksByDeadline}>Sort by Deadline</button>
+          <button onClick={sortTasksByPriority} className="sort-button">
+            Sort by Priority
+          </button>
+          <button onClick={sortTasksByDeadline} className="sort-button">
+            Sort by Deadline
+          </button>
         </div>
 
-        <ul className="todo-list">
-          {filteredTasks.map((task) => (
-            <li
-              key={task.id}
-              className={`todo-item ${task.completed ? "completed" : ""} ${
-                task.priority.toLowerCase()
-              }`}
-            >
-              <div className="task-content">
-                {editTaskId === task.id ? (
-                  <input
-                    className="edit-task-input"
-                    value={editTaskText}
-                    onChange={(e) => setEditTaskText(e.target.value)}
-                    onBlur={() => saveEditTask(task.id)}
-                  />
-                ) : (
-                  <div>
-                    <span
-                      className={`task-text ${task.completed ? "done" : ""}`}
-                      title="Task details"
-                    >
-                      {task.text}
-                    </span>
-                    <span className="task-priority">[{task.priority}]</span>
-                    {task.deadline && (
-                      <span className="task-deadline">
-                        (Due: {new Date(task.deadline).toLocaleDateString()} )
-                      </span>
+        {/* Task List */}
+        {filteredTasks.length > 0 ? (
+          <ul className="todo-list">
+            <AnimatePresence>
+              {filteredTasks.map((task) => (
+                <motion.li
+                  key={task.id}
+                  className={`todo-item ${task.completed ? "completed" : ""}`}
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -20 }}
+                  transition={{ duration: 0.3 }}
+                >
+                  <div className="task-content">
+                    {editTaskId === task.id ? (
+                      <input
+                        className="edit-task-input"
+                        value={editTaskText}
+                        onChange={(e) => setEditTaskText(e.target.value)}
+                        onBlur={() => saveEditTask(task.id)}
+                        onKeyPress={(e) => {
+                          if (e.key === "Enter") saveEditTask(task.id);
+                          if (e.key === "Escape") {
+                            setEditTaskId(null);
+                            setEditTaskText("");
+                          }
+                        }}
+                        autoFocus
+                      />
+                    ) : (
+                      <div className="task-details">
+                        <span
+                          className={`task-text ${task.completed ? "completed" : ""}`}
+                          onClick={() => toggleTaskCompletion(task.id)}
+                        >
+                          {task.text}
+                        </span>
+                        <div className="task-meta">
+                          <span className={`task-priority priority-${task.priority.toLowerCase()}`}>
+                            {task.priority} Priority
+                          </span>
+                          {task.deadline && (
+                            <span className={`task-deadline ${new Date(task.deadline) < new Date() ? 'overdue' : ''}`}>
+                              Due: {new Date(task.deadline).toLocaleDateString()}
+                            </span>
+                          )}
+                        </div>
+                      </div>
                     )}
                   </div>
-                )}
-              </div>
-              <div className="task-actions">
-                <button
-                  className="complete-task-button"
-                  title="Mark as Completed"
-                  onClick={() => toggleTaskCompletion(task.id)}
-                >
-                  <i className="fas fa-check-circle"></i>
-                </button>
-                <button
-                  className="edit-task-button"
-                  title="Edit Task"
-                  onClick={() => handleEditTask(task.id, task.text)}
-                >
-                  <i className="fas fa-edit"></i>
-                </button>
-                <button
-                  className="remove-task-button"
-                  title="Remove Task"
-                  onClick={() => handleRemoveTask(task.id)}
-                >
-                  <i className="fas fa-trash"></i>
-                </button>
-              </div>
-            </li>
-          ))}
-        </ul>
-
-        {lastDeletedTask && (
-          <div className="undo-container">
-            <span>Task deleted: {lastDeletedTask.text}</span>
-            <button onClick={undoDeleteTask}>Undo</button>
+                  <div className="task-actions">
+                    <button
+                      className="complete-task-button"
+                      title={task.completed ? "Mark as Pending" : "Mark as Completed"}
+                      onClick={() => toggleTaskCompletion(task.id)}
+                    >
+                      {task.completed ? "↩" : "✓"}
+                    </button>
+                    <button
+                      className="edit-task-button"
+                      title="Edit Task"
+                      onClick={() => handleEditTask(task.id, task.text)}
+                    >
+                      ✎
+                    </button>
+                    <button
+                      className="remove-task-button"
+                      title="Remove Task"
+                      onClick={() => handleRemoveTask(task.id)}
+                    >
+                      🗑
+                    </button>
+                  </div>
+                </motion.li>
+              ))}
+            </AnimatePresence>
+          </ul>
+        ) : (
+          <div className="empty-tasks">
+            <p>
+              {filterOption === "All" 
+                ? "No tasks yet. Add your first task above!" 
+                : `No ${filterOption.toLowerCase()} tasks found.`}
+            </p>
           </div>
         )}
+
+        {/* Undo Container */}
+        <AnimatePresence>
+          {lastDeletedTask && (
+            <motion.div 
+              className="undo-container"
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 20 }}
+              transition={{ duration: 0.3 }}
+            >
+              <span>Task deleted: <strong>{lastDeletedTask.text}</strong></span>
+              <button onClick={undoDeleteTask} className="undo-button">
+                Undo
+              </button>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </motion.div>
     </div>
   );
