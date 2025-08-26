@@ -2,7 +2,6 @@ import React, { useState, useEffect, useRef, useCallback, useMemo } from "react"
 import {
   doc,
   updateDoc,
-  getDoc,
   onSnapshot,
   setDoc,
   serverTimestamp,
@@ -103,9 +102,9 @@ function StartSession() {
           setPomodoroRounds(rounds);
           
           if (rounds % 4 === 0) {
-            toast.success("🎉 Time for a long break! (15-30 minutes)");
+            toast.success("Time for a long break! (15-30 minutes)");
           } else {
-            toast.success("✅ Pomodoro completed! Time for a 5 minute break.");
+            toast.success("Pomodoro completed! Time for a 5 minute break.");
           }
           
           setIsBreakTime(true);
@@ -131,23 +130,26 @@ function StartSession() {
     };
   }, [updateTimer]);
 
-  // Real-time data synchronization
+  // Real-time data synchronization with better error handling
   const setupRealtimeListener = useCallback((userId) => {
+    console.log("Setting up real-time listener for user:", userId);
     const docRef = doc(db, "users", userId);
     
     return onSnapshot(docRef, (docSnapshot) => {
       if (docSnapshot.exists()) {
         const data = docSnapshot.data();
+        console.log("Real-time data update received:", data);
         setUserData(data);
         
         // Update local state with real-time data
         setTodoList(data.todoList || []);
-        setStudyFields(data.studyFields || ["General"]);
+        const fields = data.studyFields || ["General"];
+        setStudyFields(fields);
         
-        // Set selected field if not already set or if it doesn't exist
+        // Ensure selected field is valid
         const currentField = selectedFieldRef.current;
-        if (!data.studyFields?.includes(currentField)) {
-          const firstField = data.studyFields?.[0] || "General";
+        if (!fields.includes(currentField)) {
+          const firstField = fields[0] || "General";
           setSelectedField(firstField);
           selectedFieldRef.current = firstField;
         }
@@ -164,8 +166,9 @@ function StartSession() {
     });
   }, []);
 
-  // Initialize user document with better structure
+  // Initialize user document with comprehensive structure
   const initializeUserDocument = useCallback(async (userId) => {
+    console.log("Initializing user document for:", userId);
     const userDocRef = doc(db, "users", userId);
     const todayKey = getTodayKey();
     const weekKey = getWeekKey();
@@ -185,13 +188,13 @@ function StartSession() {
       studyFields: ["General"],
       fieldTimes: {},
       
-      // Time tracking
+      // Time tracking - Fixed structure
       totalTimeToday: 0,
       totalTimeWeek: 0,
       totalTimeMonth: 0,
       totalTimeAllTime: 0,
       
-      // Analytics data
+      // Analytics data - Properly structured
       dailyStats: {
         [todayKey]: {
           totalTime: 0,
@@ -227,6 +230,7 @@ function StartSession() {
     try {
       await setDoc(userDocRef, initialData);
       console.log("User document initialized successfully");
+      toast.success("Profile setup completed!");
     } catch (error) {
       console.error("Error initializing user document:", error);
       toast.error("Failed to initialize user data");
@@ -236,6 +240,8 @@ function StartSession() {
   // Firebase Authentication and Real-time Data
   useEffect(() => {
     const unsubscribeAuth = onAuthStateChanged(auth, async (currentUser) => {
+      console.log("Auth state changed:", currentUser ? "User logged in" : "User logged out");
+      
       if (currentUser) {
         setUser(currentUser);
         userRef.current = currentUser;
@@ -275,7 +281,7 @@ function StartSession() {
     selectedFieldRef.current = selectedField;
   }, [selectedField]);
 
-  // Timer Controls with optimized database updates
+  // Timer Controls with enhanced database updates
   const startTimer = useCallback(() => {
     if (!user) {
       toast.error("Please log in to start a study session");
@@ -287,24 +293,30 @@ function StartSession() {
     startTimeRef.current = Date.now();
     accumulatedTimeRef.current = pomodoroMode ? elapsedPomodoroTime : time;
     
-    toast.success(`🚀 Study session started for ${selectedField}!`);
+    toast.success(`Study session started for ${selectedField}!`);
   }, [user, pomodoroMode, elapsedPomodoroTime, time, selectedField]);
 
   const stopTimer = useCallback(async () => {
+    console.log("Stopping timer...");
     setIsRunning(false);
     
-    if (!user || !userRef.current) return;
+    if (!user || !userRef.current) {
+      console.log("No user found, cannot save session");
+      return;
+    }
     
     const currentTime = Date.now();
     const sessionTime = startTimeRef.current ? 
       Math.floor((currentTime - startTimeRef.current) / 1000) + accumulatedTimeRef.current : 0;
+    
+    console.log("Session time calculated:", sessionTime, "seconds");
     
     if (sessionTime > 5) { // Only save sessions longer than 5 seconds
       try {
         await saveStudySession(sessionTime);
         
         const formattedTime = formatTime(sessionTime);
-        toast.success(`✅ Session saved! ${formattedTime} added to ${selectedField}`);
+        toast.success(`Session saved! ${formattedTime} added to ${selectedField}`);
       } catch (error) {
         console.error("Error saving session:", error);
         toast.error("Failed to save session data");
@@ -328,13 +340,17 @@ function StartSession() {
     setPomodoroRounds(0);
     accumulatedTimeRef.current = 0;
     startTimeRef.current = null;
-    toast.info("⏰ Timer reset");
+    toast.info("Timer reset");
   }, []);
 
-  // Optimized study session saving with batch updates
+  // Enhanced study session saving with atomic updates
   const saveStudySession = useCallback(async (sessionTime) => {
-    if (!user || !userRef.current || sessionTime <= 0) return;
+    if (!user || !userRef.current || sessionTime <= 0) {
+      console.log("Invalid session save parameters");
+      return;
+    }
 
+    console.log("Saving study session:", sessionTime, "seconds for field:", selectedFieldRef.current);
     const userDocRef = doc(db, "users", userRef.current.uid);
     const todayKey = getTodayKey();
     const weekKey = getWeekKey();
@@ -342,31 +358,36 @@ function StartSession() {
     const currentField = selectedFieldRef.current;
 
     try {
-      // Prepare update data
+      // Use atomic updates to prevent data conflicts
       const updateData = {
+        // Main field times and totals
         [`fieldTimes.${currentField}`]: increment(sessionTime),
         totalTimeToday: increment(sessionTime),
         totalTimeWeek: increment(sessionTime),
         totalTimeMonth: increment(sessionTime),
         totalTimeAllTime: increment(sessionTime),
         
+        // Daily stats
         [`dailyStats.${todayKey}.totalTime`]: increment(sessionTime),
         [`dailyStats.${todayKey}.fieldTimes.${currentField}`]: increment(sessionTime),
         [`dailyStats.${todayKey}.sessionsCount`]: increment(1),
         
+        // Weekly stats
         [`weeklyStats.${weekKey}.totalTime`]: increment(sessionTime),
         [`weeklyStats.${weekKey}.fieldTimes.${currentField}`]: increment(sessionTime),
         [`weeklyStats.${weekKey}.sessionsCount`]: increment(1),
         
+        // Monthly stats
         [`monthlyStats.${monthKey}.totalTime`]: increment(sessionTime),
         [`monthlyStats.${monthKey}.fieldTimes.${currentField}`]: increment(sessionTime),
         [`monthlyStats.${monthKey}.sessionsCount`]: increment(1),
         
+        // Update metadata
         lastStudyDate: serverTimestamp(),
       };
 
       await updateDoc(userDocRef, updateData);
-      console.log(`Study session saved: ${sessionTime}s for ${currentField}`);
+      console.log(`Study session saved successfully: ${sessionTime}s for ${currentField}`);
       
     } catch (error) {
       console.error("Error saving study session:", error);
@@ -405,7 +426,7 @@ function StartSession() {
       setNewTaskText("");
       setTaskPriority("Medium");
       setTaskDeadline("");
-      toast.success("✅ Task added successfully!");
+      toast.success("Task added successfully!");
     } catch (error) {
       console.error("Error adding task:", error);
       toast.error("Failed to add task");
@@ -435,7 +456,7 @@ function StartSession() {
 
       setEditTaskId(null);
       setEditTaskText("");
-      toast.success("✅ Task updated successfully!");
+      toast.success("Task updated successfully!");
     } catch (error) {
       console.error("Error updating task:", error);
       toast.error("Failed to update task");
@@ -453,7 +474,7 @@ function StartSession() {
       const userDocRef = doc(db, "users", userRef.current.uid);
       await updateDoc(userDocRef, { todoList: updatedList });
 
-      toast.success("🗑️ Task deleted successfully!");
+      toast.success("Task deleted successfully!");
     } catch (error) {
       console.error("Error deleting task:", error);
       toast.error("Failed to delete task");
@@ -468,7 +489,7 @@ function StartSession() {
         await updateDoc(userDocRef, { todoList: updatedList });
 
         setLastDeletedTask(null);
-        toast.success("↩️ Task restored successfully!");
+        toast.success("Task restored successfully!");
       } catch (error) {
         console.error("Error restoring task:", error);
         toast.error("Failed to restore task");
