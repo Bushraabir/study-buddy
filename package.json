@@ -36,6 +36,7 @@
         "grasp": "^0.6.0",
         "gsap": "^3.12.5",
         "lottie-react": "^2.4.0",
+        "lucide-react": "^0.541.0",
         "mathjs": "^14.0.1",
         "openai": "^4.77.3",
         "plotly.js": "^2.35.3",

@@ -1,513 +1,529 @@
-import React, { useState, useEffect } from "react";
-import Plot from "react-plotly.js";
-import * as math from "mathjs";
+import React, { useState, useEffect, useCallback } from 'react';
+import Plot from 'react-plotly.js';
+import * as math from 'mathjs';
+import { Trash2, Plus, Eye, EyeOff, Settings, Grid, ZoomIn, ZoomOut, RotateCcw } from 'lucide-react';
 import "./PlotGraph.css";
-
-const PlotGraph = () => {
-  const [equations, setEquations] = useState([]);
-  const [inputEquation, setInputEquation] = useState("");
-  const [error, setError] = useState("");
-  const [graphOptions, setGraphOptions] = useState({
-    showGrid: true,
-    showAxisTitles: true,
-    xAxisScale: "linear",
-    yAxisScale: "linear",
-    graphType: "lines",
-    xRange: [-10, 10],
-    yRange: [-10, 10],
-    equalAspect: false,
+const GraphingCalculator = () => {
+  const [equations, setEquations] = useState([
+    { id: 1, expression: 'y = x^2', color: '#8b5cf6', visible: true, error: null }
+  ]);
+  const [newEquation, setNewEquation] = useState('');
+  const [nextId, setNextId] = useState(2);
+  const [graphSettings, setGraphSettings] = useState({
+    xMin: -10, xMax: 10, yMin: -10, yMax: 10,
+    showGrid: true, showAxes: true, showLabels: true,
+    gridStyle: 'solid', aspectRatio: 'auto'
   });
-  const [advancedFeatures, setAdvancedFeatures] = useState({
-    showDerivative: false,
-    showIntegral: false,
-    showRoots: false,
-    showAsymptotes: false,
-  });
+  const [showSettings, setShowSettings] = useState(false);
   const [variables, setVariables] = useState({});
 
-  const instructions = (
-    <div className="instructions">
-      <h3>Supported Equation Types</h3>
-      <ul>
-        <li>
-          Explicit: <code>y = f(x)</code>
-        </li>
-        <li>
-          Implicit: <code>F(x,y)=0</code>
-        </li>
-        <li>
-          Parametric: <code>x = f(t), y = g(t)</code>
-        </li>
-        <li>
-          Polar: <code>r = f(θ)</code>
-        </li>
-      </ul>
-      <div>
-        <p>
-          Custom variables (e.g., <code>a</code>, <code>b</code>) will appear as sliders.
-        </p>
-      </div>
-    </div>
-  );
+  const colors = ['#8b5cf6', '#06b6d4', '#10b981', '#f59e0b', '#ef4444', '#ec4899', '#84cc16', '#f97316'];
 
-  const detectEquationType = (equation) => {
-    if (/^\s*y\s*=\s*/.test(equation)) return "explicit";
-    if (equation.includes(",") && equation.includes("x=") && equation.includes("y="))
-      return "parametric";
-    if (/^\s*r\s*=\s*/.test(equation)) return "polar";
-    if (equation.includes("=")) return "implicit";
-    return "unknown";
-  };
-
-  const generateXValues = (num = 500) => {
-    const [min, max] = graphOptions.xRange;
-    const step = (max - min) / (num - 1);
-    return Array.from({ length: num }, (_, i) => min + i * step);
-  };
-
-  const generateTValues = (num = 500) => {
-    const step = 20 / (num - 1);
-    return Array.from({ length: num }, (_, i) => -10 + i * step);
-  };
-
-  const generateExplicitData = (equation) => {
-    const xValues = generateXValues();
-    const expr = equation.replace(/^\s*y\s*=\s*/, "");
-    const yValues = xValues.map((x) => {
-      try {
-        return math.evaluate(expr, { x, ...variables });
-      } catch (e) {
-        return null;
-      }
-    });
-    return { x: xValues, y: yValues };
-  };
-
-  const generateImplicitData = (equation) => {
-    const [minX, maxX] = graphOptions.xRange;
-    const [minY, maxY] = graphOptions.yRange;
-    const xValues = Array.from({ length: 200 }, (_, i) => minX + ((maxX - minX) * i) / 199);
-    const yValues = Array.from({ length: 200 }, (_, i) => minY + ((maxY - minY) * i) / 199);
-    const points = { x: [], y: [] };
-    const expr = equation.replace("=", "-");
-    xValues.forEach((x) => {
-      yValues.forEach((y) => {
-        try {
-          const result = math.evaluate(expr, { x, y, ...variables });
-          if (Math.abs(result) < 0.1) {
-            points.x.push(x);
-            points.y.push(y);
-          }
-        } catch (e) {}
-      });
-    });
-    return points;
-  };
-
-  const generateParametricData = (equation) => {
-    const parts = equation.split(",");
-    if (parts.length < 2) return { x: [], y: [] };
-    const xPart = parts.find((p) => /x\s*=/.test(p));
-    const yPart = parts.find((p) => /y\s*=/.test(p));
-    if (!xPart || !yPart) return { x: [], y: [] };
-    const exprX = xPart.replace(/^\s*x\s*=\s*/, "");
-    const exprY = yPart.replace(/^\s*y\s*=\s*/, "");
-    const tValues = generateTValues();
-    const xValues = tValues.map((t) => {
-      try {
-        return math.evaluate(exprX, { t, ...variables });
-      } catch (e) {
-        return null;
-      }
-    });
-    const yValues = tValues.map((t) => {
-      try {
-        return math.evaluate(exprY, { t, ...variables });
-      } catch (e) {
-        return null;
-      }
-    });
-    return { x: xValues, y: yValues };
-  };
-
-  const generatePolarData = (equation) => {
-    const thetaValues = Array.from({ length: 500 }, (_, i) => (i * 2 * Math.PI) / 499);
-    const expr = equation.replace(/^\s*r\s*=\s*/, "");
-    const rValues = thetaValues.map((theta) => {
-      try {
-        return math.evaluate(expr, { θ: theta, theta, ...variables });
-      } catch (e) {
-        return null;
-      }
-    });
-    const xValues = rValues.map((r, i) => (r ? r * Math.cos(thetaValues[i]) : null));
-    const yValues = rValues.map((r, i) => (r ? r * Math.sin(thetaValues[i]) : null));
-    return { x: xValues, y: yValues };
-  };
-
-  const computeDerivativeData = (equation) => {
-    const expr = equation.replace(/^\s*y\s*=\s*/, "");
-    let derivative;
-    try {
-      derivative = math.derivative(expr, "x");
-    } catch (e) {
-      return { x: [], y: [] };
-    }
-    const xValues = generateXValues();
-    const yValues = xValues.map((x) => {
-      try {
-        return derivative.evaluate({ x, ...variables });
-      } catch (e) {
-        return null;
-      }
-    });
-    return { x: xValues, y: yValues };
-  };
-
-  const computeIntegralData = (equation) => {
-    const expr = equation.replace(/^\s*y\s*=\s*/, "");
-    const f = (x) => {
-      try {
-        return math.evaluate(expr, { x, ...variables });
-      } catch (e) {
-        return 0;
-      }
-    };
-    const xValues = generateXValues();
+  // Generate data points for plotting
+  const generateDataPoints = useCallback((expression, numPoints = 1000) => {
+    const { xMin, xMax } = graphSettings;
+    const step = (xMax - xMin) / (numPoints - 1);
+    const xValues = [];
     const yValues = [];
-    let sum = 0;
-    for (let i = 1; i < xValues.length; i++) {
-      const dx = xValues[i] - xValues[i - 1];
-      sum += ((f(xValues[i - 1]) || 0) + (f(xValues[i]) || 0)) * dx / 2;
-      yValues.push(sum);
+
+    for (let i = 0; i < numPoints; i++) {
+      const x = xMin + i * step;
+      try {
+        let y;
+        
+        // Handle different equation types
+        if (expression.toLowerCase().includes('y =')) {
+          const expr = expression.replace(/y\s*=\s*/i, '').trim();
+          y = math.evaluate(expr, { x, ...variables });
+        } else if (expression.toLowerCase().includes('x =')) {
+          // For x = f(y) equations, we need to solve differently
+          continue;
+        } else {
+          // Assume it's a function of x
+          y = math.evaluate(expression, { x, ...variables });
+        }
+
+        if (typeof y === 'number' && isFinite(y)) {
+          xValues.push(x);
+          yValues.push(y);
+        }
+      } catch (error) {
+        // Skip invalid points
+      }
     }
-    yValues.unshift(0);
+
     return { x: xValues, y: yValues };
-  };
+  }, [graphSettings, variables]);
 
-  const computeRoots = (equation) => {
-    const expr = equation.replace(/^\s*y\s*=\s*/, "");
-    const f = (x) => {
-      try {
-        return math.evaluate(expr, { x, ...variables });
-      } catch (e) {
-        return NaN;
-      }
-    };
-    const xValues = generateXValues();
-    const roots = [];
-    for (let i = 1; i < xValues.length; i++) {
-      const y1 = f(xValues[i - 1]);
-      const y2 = f(xValues[i]);
-      if (y1 * y2 < 0) {
-        const root = xValues[i - 1] - y1 * (xValues[i] - xValues[i - 1]) / (y2 - y1);
-        roots.push(root);
+  // Handle implicit equations (like x^2 + y^2 = 25)
+  const generateImplicitData = useCallback((expression) => {
+    const { xMin, xMax, yMin, yMax } = graphSettings;
+    const resolution = 200;
+    const xStep = (xMax - xMin) / resolution;
+    const yStep = (yMax - yMin) / resolution;
+    
+    const xValues = [];
+    const yValues = [];
+    
+    // Parse the equation to get left and right sides
+    let leftSide, rightSide;
+    if (expression.includes('=')) {
+      const parts = expression.split('=');
+      leftSide = parts[0].trim();
+      rightSide = parts[1].trim() || '0';
+    } else {
+      leftSide = expression;
+      rightSide = '0';
+    }
+
+    for (let i = 0; i <= resolution; i++) {
+      for (let j = 0; j <= resolution; j++) {
+        const x = xMin + i * xStep;
+        const y = yMin + j * yStep;
+        
+        try {
+          const leftValue = math.evaluate(leftSide, { x, y, ...variables });
+          const rightValue = math.evaluate(rightSide, { x, y, ...variables });
+          const diff = Math.abs(leftValue - rightValue);
+          
+          if (diff < 0.1) {
+            xValues.push(x);
+            yValues.push(y);
+          }
+        } catch (error) {
+          // Skip invalid points
+        }
       }
     }
-    return roots;
-  };
 
-  const computeAsymptotes = (equation) => {
-    const expr = equation.replace(/^\s*y\s*=\s*/, "");
-    const f = (x) => {
+    return { x: xValues, y: yValues };
+  }, [graphSettings, variables]);
+
+  // Generate parametric equations (x = f(t), y = g(t))
+  const generateParametricData = useCallback((xExpr, yExpr) => {
+    const tValues = [];
+    const xValues = [];
+    const yValues = [];
+    
+    const tMin = -10;
+    const tMax = 10;
+    const numPoints = 1000;
+    const step = (tMax - tMin) / (numPoints - 1);
+
+    for (let i = 0; i < numPoints; i++) {
+      const t = tMin + i * step;
       try {
-        return math.evaluate(expr, { x, ...variables });
-      } catch (e) {
-        return NaN;
-      }
-    };
-    const xValues = generateXValues();
-    const asymptotes = [];
-    for (let i = 1; i < xValues.length; i++) {
-      const y1 = f(xValues[i - 1]);
-      const y2 = f(xValues[i]);
-      if ((!isFinite(y1) || !isFinite(y2)) && isFinite(f((xValues[i - 1] + xValues[i]) / 2))) {
-        const xAsym = (xValues[i - 1] + xValues[i]) / 2;
-        asymptotes.push(xAsym);
+        const x = math.evaluate(xExpr, { t, ...variables });
+        const y = math.evaluate(yExpr, { t, ...variables });
+        
+        if (typeof x === 'number' && typeof y === 'number' && 
+            isFinite(x) && isFinite(y)) {
+          xValues.push(x);
+          yValues.push(y);
+        }
+      } catch (error) {
+        // Skip invalid points
       }
     }
-    return asymptotes;
-  };
 
+    return { x: xValues, y: yValues };
+  }, [variables]);
+
+  // Detect equation type and generate appropriate data
+  const processEquation = useCallback((equation) => {
+    const expr = equation.expression.toLowerCase().trim();
+    
+    try {
+      // Parametric equations
+      if (expr.includes('x =') && expr.includes('y =')) {
+        const parts = equation.expression.split(',');
+        const xPart = parts.find(p => p.toLowerCase().includes('x ='));
+        const yPart = parts.find(p => p.toLowerCase().includes('y ='));
+        
+        if (xPart && yPart) {
+          const xExpr = xPart.replace(/x\s*=\s*/i, '').trim();
+          const yExpr = yPart.replace(/y\s*=\s*/i, '').trim();
+          return {
+            ...generateParametricData(xExpr, yExpr),
+            mode: 'lines',
+            type: 'scatter',
+            name: equation.expression,
+            line: { color: equation.color, width: 2 },
+            visible: equation.visible
+          };
+        }
+      }
+      
+      // Implicit equations
+      if (expr.includes('=') && !expr.includes('y =') && !expr.includes('x =')) {
+        return {
+          ...generateImplicitData(equation.expression),
+          mode: 'markers',
+          type: 'scatter',
+          name: equation.expression,
+          marker: { color: equation.color, size: 1 },
+          visible: equation.visible
+        };
+      }
+      
+      // Explicit equations (y = f(x))
+      return {
+        ...generateDataPoints(equation.expression),
+        mode: 'lines',
+        type: 'scatter',
+        name: equation.expression,
+        line: { color: equation.color, width: 2 },
+        visible: equation.visible
+      };
+    } catch (error) {
+      return {
+        x: [],
+        y: [],
+        mode: 'lines',
+        type: 'scatter',
+        name: equation.expression,
+        line: { color: equation.color, width: 2 },
+        visible: equation.visible
+      };
+    }
+  }, [generateDataPoints, generateImplicitData, generateParametricData]);
+
+  // Extract variables from equations
   useEffect(() => {
-    let customVars = { ...variables };
-    let updated = false;
-    equations.forEach((eq) => {
+    const extractedVars = {};
+    equations.forEach(eq => {
       try {
-        const node = math.parse(eq);
-        node.filter((n) => n.isSymbolNode).forEach((n) => {
-          if (!["x", "y", "t", "θ", "theta"].includes(n.name) && customVars[n.name] === undefined) {
-            customVars[n.name] = 1;
-            updated = true;
+        const node = math.parse(eq.expression);
+        node.filter(node => node.isSymbolNode).forEach(symbolNode => {
+          const name = symbolNode.name;
+          if (!['x', 'y', 't', 'e', 'pi', 'sin', 'cos', 'tan', 'log', 'ln', 'sqrt', 'abs'].includes(name) &&
+              !extractedVars.hasOwnProperty(name)) {
+            extractedVars[name] = variables[name] || 1;
           }
         });
-      } catch (e) {}
-    });
-    if (updated) setVariables(customVars);
-  }, [equations]);
-
-  const getGraphData = () => {
-    let data = [];
-    equations.forEach((equation) => {
-      const type = detectEquationType(equation);
-      let trace = { name: equation, mode: "lines", type: "scatter" };
-      if (type === "explicit") {
-        trace = { ...trace, ...generateExplicitData(equation) };
-        data.push(trace);
-        if (advancedFeatures.showDerivative)
-          data.push({
-            x: computeDerivativeData(equation).x,
-            y: computeDerivativeData(equation).y,
-            mode: "lines",
-            line: { dash: "dot" },
-            name: `Derivative: ${equation}`,
-          });
-        if (advancedFeatures.showIntegral)
-          data.push({
-            x: computeIntegralData(equation).x,
-            y: computeIntegralData(equation).y,
-            mode: "lines",
-            line: { dash: "dashdot" },
-            name: `Integral: ${equation}`,
-          });
-        if (advancedFeatures.showRoots) {
-          const roots = computeRoots(equation);
-          data.push({
-            x: roots,
-            y: roots.map(() => 0),
-            mode: "markers",
-            marker: { color: "red", size: 8 },
-            name: `Roots: ${equation}`,
-          });
-        }
-      } else if (type === "implicit") {
-        trace = { ...trace, ...generateImplicitData(equation) };
-        data.push(trace);
-      } else if (type === "parametric") {
-        trace = { ...trace, ...generateParametricData(equation) };
-        data.push(trace);
-      } else if (type === "polar") {
-        trace = { ...trace, ...generatePolarData(equation) };
-        data.push(trace);
+      } catch (error) {
+        // Skip parsing errors
       }
     });
-    return data;
-  };
-
-  const getLayout = () => {
-    const layout = {
-      title: "Advanced 2D Graphing Calculator",
-      autosize: true,
-      xaxis: {
-        title: graphOptions.showAxisTitles ? "x" : "",
-        type: graphOptions.xAxisScale,
-        showgrid: graphOptions.showGrid,
-        range: graphOptions.xRange,
-      },
-      yaxis: {
-        title: graphOptions.showAxisTitles ? "y" : "",
-        type: graphOptions.yAxisScale,
-        showgrid: graphOptions.showGrid,
-        range: graphOptions.yRange,
-      },
-      shapes: [],
-    };
-    if (advancedFeatures.showAsymptotes) {
-      equations.forEach((equation) => {
-        if (detectEquationType(equation) === "explicit") {
-          const asymptotes = computeAsymptotes(equation);
-          asymptotes.forEach((xAsym) => {
-            layout.shapes.push({
-              type: "line",
-              x0: xAsym,
-              x1: xAsym,
-              y0: graphOptions.yRange[0],
-              y1: graphOptions.yRange[1],
-              line: { dash: "dot", width: 2, color: "gray" },
-            });
-          });
-        }
-      });
+    
+    if (JSON.stringify(extractedVars) !== JSON.stringify(variables)) {
+      setVariables(extractedVars);
     }
-    if (graphOptions.equalAspect) layout.aspectratio = { x: 1, y: 1 };
-    return layout;
-  };
-
-  const handleInputChange = (e) => {
-    setInputEquation(e.target.value);
-    setError("");
-  };
+  }, [equations, variables]);
 
   const addEquation = () => {
-    if (inputEquation.trim()) {
-      setEquations([...equations, inputEquation]);
-      setInputEquation("");
-    } else {
-      setError("Please enter a valid equation.");
+    if (newEquation.trim()) {
+      const newEq = {
+        id: nextId,
+        expression: newEquation.trim(),
+        color: colors[(nextId - 1) % colors.length],
+        visible: true,
+        error: null
+      };
+      
+      setEquations([...equations, newEq]);
+      setNewEquation('');
+      setNextId(nextId + 1);
     }
   };
 
-  const removeEquation = (index) => {
-    setEquations(equations.filter((_, i) => i !== index));
+  const updateEquation = (id, field, value) => {
+    setEquations(equations.map(eq => 
+      eq.id === id ? { ...eq, [field]: value } : eq
+    ));
   };
 
-  const toggleAdvancedFeature = (feature) => {
-    setAdvancedFeatures({ ...advancedFeatures, [feature]: !advancedFeatures[feature] });
+  const deleteEquation = (id) => {
+    setEquations(equations.filter(eq => eq.id !== id));
   };
 
-  const updateGraphOption = (option, value) => {
-    setGraphOptions({ ...graphOptions, [option]: value });
+  const toggleVisibility = (id) => {
+    updateEquation(id, 'visible', !equations.find(eq => eq.id === id).visible);
+  };
+
+  const resetView = () => {
+    setGraphSettings(prev => ({
+      ...prev,
+      xMin: -10, xMax: 10, yMin: -10, yMax: 10
+    }));
+  };
+
+  const zoomIn = () => {
+    const factor = 0.8;
+    setGraphSettings(prev => {
+      const xCenter = (prev.xMin + prev.xMax) / 2;
+      const yCenter = (prev.yMin + prev.yMax) / 2;
+      const xRange = (prev.xMax - prev.xMin) * factor;
+      const yRange = (prev.yMax - prev.yMin) * factor;
+      
+      return {
+        ...prev,
+        xMin: xCenter - xRange / 2,
+        xMax: xCenter + xRange / 2,
+        yMin: yCenter - yRange / 2,
+        yMax: yCenter + yRange / 2
+      };
+    });
+  };
+
+  const zoomOut = () => {
+    const factor = 1.25;
+    setGraphSettings(prev => {
+      const xCenter = (prev.xMin + prev.xMax) / 2;
+      const yCenter = (prev.yMin + prev.yMax) / 2;
+      const xRange = (prev.xMax - prev.xMin) * factor;
+      const yRange = (prev.yMax - prev.yMin) * factor;
+      
+      return {
+        ...prev,
+        xMin: xCenter - xRange / 2,
+        xMax: xCenter + xRange / 2,
+        yMin: yCenter - yRange / 2,
+        yMax: yCenter + yRange / 2
+      };
+    });
+  };
+
+  const plotData = equations.map(processEquation);
+
+  const layout = {
+    paper_bgcolor: 'rgba(0,0,0,0)',
+    plot_bgcolor: 'rgba(0,0,0,0)',
+    font: { color: '#e5e7eb', family: 'Inter, sans-serif' },
+    title: {
+      text: '',
+      font: { size: 20, color: '#f3f4f6' }
+    },
+    xaxis: {
+      range: [graphSettings.xMin, graphSettings.xMax],
+      showgrid: graphSettings.showGrid,
+      gridcolor: 'rgba(139, 92, 246, 0.2)',
+      gridwidth: 1,
+      zeroline: graphSettings.showAxes,
+      zerolinecolor: 'rgba(139, 92, 246, 0.5)',
+      zerolinewidth: 2,
+      showticklabels: graphSettings.showLabels,
+      tickcolor: 'rgba(139, 92, 246, 0.3)',
+      color: '#e5e7eb'
+    },
+    yaxis: {
+      range: [graphSettings.yMin, graphSettings.yMax],
+      showgrid: graphSettings.showGrid,
+      gridcolor: 'rgba(139, 92, 246, 0.2)',
+      gridwidth: 1,
+      zeroline: graphSettings.showAxes,
+      zerolinecolor: 'rgba(139, 92, 246, 0.5)',
+      zerolinewidth: 2,
+      showticklabels: graphSettings.showLabels,
+      tickcolor: 'rgba(139, 92, 246, 0.3)',
+      color: '#e5e7eb'
+    },
+    margin: { l: 60, r: 20, t: 40, b: 50 },
+    showlegend: false,
+    dragmode: 'pan'
+  };
+
+  const config = {
+    responsive: true,
+    displayModeBar: true,
+    modeBarButtonsToRemove: [
+      'zoom2d', 'pan2d', 'select2d', 'lasso2d', 'zoomIn2d', 'zoomOut2d',
+      'autoScale2d', 'hoverClosestCartesian', 'hoverCompareCartesian',
+      'toggleSpikelines', 'toImage'
+    ],
+    displaylogo: false
   };
 
   return (
-    <div className="advanced-equation-visualizer">
-      <h2>Advanced 2D Graphing Calculator</h2>
-      {instructions}
-      <div className="input-section">
-        <textarea
-          value={inputEquation}
-          onChange={handleInputChange}
-          placeholder="Enter your equation (e.g., y = x^2, x^2+y^2-16=0, x = cos(t), y = sin(t), or r = sin(θ))"
-          rows={3}
-          style={{ width: "100%", fontSize: "16px" }}
-        />
-        <button onClick={addEquation}>Add Equation</button>
-        {error && <div className="error-message" style={{ color: "red" }}>{error}</div>}
-      </div>
-      {equations.length > 0 && (
-        <div className="equation-list">
-          <h3>Equations</h3>
-          <ul>
-            {equations.map((eq, index) => (
-              <li key={index}>
-                {eq} <button onClick={() => removeEquation(index)}>Remove</button>
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
-      <div className="options-section">
-        <h3>Graph Options</h3>
-        <label>
-          <input type="checkbox" checked={graphOptions.showGrid} onChange={() => updateGraphOption("showGrid", !graphOptions.showGrid)} />
-          Show Grid
-        </label>
-        <label style={{ marginLeft: "20px" }}>
-          <input type="checkbox" checked={graphOptions.showAxisTitles} onChange={() => updateGraphOption("showAxisTitles", !graphOptions.showAxisTitles)} />
-          Show Axis Titles
-        </label>
-        <label style={{ marginLeft: "20px" }}>
-          <input type="checkbox" checked={graphOptions.equalAspect} onChange={() => updateGraphOption("equalAspect", !graphOptions.equalAspect)} />
-          Equal Aspect Ratio
-        </label>
-        <br />
-        <label>
-          X-Axis Scale:
-          <select value={graphOptions.xAxisScale} onChange={(e) => updateGraphOption("xAxisScale", e.target.value)} style={{ marginLeft: "10px" }}>
-            <option value="linear">Linear</option>
-            <option value="log">Logarithmic</option>
-          </select>
-        </label>
-        <label style={{ marginLeft: "20px" }}>
-          Y-Axis Scale:
-          <select value={graphOptions.yAxisScale} onChange={(e) => updateGraphOption("yAxisScale", e.target.value)} style={{ marginLeft: "10px" }}>
-            <option value="linear">Linear</option>
-            <option value="log">Logarithmic</option>
-          </select>
-        </label>
-        <br />
-        <label>
-          X Range:
-          <input
-            type="number"
-            value={graphOptions.xRange[0]}
-            onChange={(e) => updateGraphOption("xRange", [parseFloat(e.target.value), graphOptions.xRange[1]])}
-            style={{ width: "80px", marginLeft: "10px" }}
-          />
-          to
-          <input
-            type="number"
-            value={graphOptions.xRange[1]}
-            onChange={(e) => updateGraphOption("xRange", [graphOptions.xRange[0], parseFloat(e.target.value)])}
-            style={{ width: "80px", marginLeft: "10px" }}
-          />
-        </label>
-        <br />
-        <label>
-          Y Range:
-          <input
-            type="number"
-            value={graphOptions.yRange[0]}
-            onChange={(e) => updateGraphOption("yRange", [parseFloat(e.target.value), graphOptions.yRange[1]])}
-            style={{ width: "80px", marginLeft: "10px" }}
-          />
-          to
-          <input
-            type="number"
-            value={graphOptions.yRange[1]}
-            onChange={(e) => updateGraphOption("yRange", [graphOptions.yRange[0], parseFloat(e.target.value)])}
-            style={{ width: "80px", marginLeft: "10px" }}
-          />
-        </label>
-      </div>
-      <div className="advanced-features">
-        <h3>Advanced Features</h3>
-        <label>
-          <input type="checkbox" checked={advancedFeatures.showDerivative} onChange={() => toggleAdvancedFeature("showDerivative")} />
-          Show Derivative (Explicit equations only)
-        </label>
-        <br />
-        <label>
-          <input type="checkbox" checked={advancedFeatures.showIntegral} onChange={() => toggleAdvancedFeature("showIntegral")} />
-          Show Integral (Explicit equations only)
-        </label>
-        <br />
-        <label>
-          <input type="checkbox" checked={advancedFeatures.showRoots} onChange={() => toggleAdvancedFeature("showRoots")} />
-          Show Roots (Explicit equations only)
-        </label>
-        <br />
-        <label>
-          <input type="checkbox" checked={advancedFeatures.showAsymptotes} onChange={() => toggleAdvancedFeature("showAsymptotes")} />
-          Show Asymptotes (Explicit equations only)
-        </label>
-      </div>
-      <div className="variables-section">
-        <h3>Variables (Interactive Sliders)</h3>
-        {Object.keys(variables).length === 0 && (
-          <p>No variables defined. Use custom variables in your equations (e.g., a, b) to generate sliders.</p>
-        )}
-        {Object.keys(variables).map((key) => (
-          <div key={key}>
-            <label>
-              {key}:
-              <input
-                type="range"
-                min="-10"
-                max="10"
-                step="0.1"
-                value={variables[key]}
-                onChange={(e) => setVariables({ ...variables, [key]: parseFloat(e.target.value) })}
-              />
-              {variables[key]}
-            </label>
+    <div className="graphing-calculator">
+      <div className="sidebar">
+        <div className="header">
+         
+          <div className="controls">
+            <button onClick={() => setShowSettings(!showSettings)} className="control-btn">
+              <Settings size={18} />
+            </button>
+            <button onClick={zoomIn} className="control-btn">
+              <ZoomIn size={18} />
+            </button>
+            <button onClick={zoomOut} className="control-btn">
+              <ZoomOut size={18} />
+            </button>
+            <button onClick={resetView} className="control-btn">
+              <RotateCcw size={18} />
+            </button>
           </div>
-        ))}
+        </div>
+
+        {showSettings && (
+          <div className="settings-panel">
+            <h3>Graph Settings</h3>
+            <div className="setting-group">
+              <label>X Range:</label>
+              <div className="range-inputs">
+                <input
+                  type="number"
+                  value={graphSettings.xMin}
+                  onChange={(e) => setGraphSettings(prev => ({ ...prev, xMin: parseFloat(e.target.value) }))}
+                  step="0.1"
+                />
+                <span>to</span>
+                <input
+                  type="number"
+                  value={graphSettings.xMax}
+                  onChange={(e) => setGraphSettings(prev => ({ ...prev, xMax: parseFloat(e.target.value) }))}
+                  step="0.1"
+                />
+              </div>
+            </div>
+            <div className="setting-group">
+              <label>Y Range:</label>
+              <div className="range-inputs">
+                <input
+                  type="number"
+                  value={graphSettings.yMin}
+                  onChange={(e) => setGraphSettings(prev => ({ ...prev, yMin: parseFloat(e.target.value) }))}
+                  step="0.1"
+                />
+                <span>to</span>
+                <input
+                  type="number"
+                  value={graphSettings.yMax}
+                  onChange={(e) => setGraphSettings(prev => ({ ...prev, yMax: parseFloat(e.target.value) }))}
+                  step="0.1"
+                />
+              </div>
+            </div>
+            <div className="setting-group">
+              <label>
+                <input
+                  type="checkbox"
+                  checked={graphSettings.showGrid}
+                  onChange={(e) => setGraphSettings(prev => ({ ...prev, showGrid: e.target.checked }))}
+                />
+                Show Grid
+              </label>
+            </div>
+            <div className="setting-group">
+              <label>
+                <input
+                  type="checkbox"
+                  checked={graphSettings.showAxes}
+                  onChange={(e) => setGraphSettings(prev => ({ ...prev, showAxes: e.target.checked }))}
+                />
+                Show Axes
+              </label>
+            </div>
+            <div className="setting-group">
+              <label>
+                <input
+                  type="checkbox"
+                  checked={graphSettings.showLabels}
+                  onChange={(e) => setGraphSettings(prev => ({ ...prev, showLabels: e.target.checked }))}
+                />
+                Show Labels
+              </label>
+            </div>
+          </div>
+        )}
+
+        <div className="equations-section">
+          <h3>Equations</h3>
+          
+          <div className="add-equation">
+            <input
+              type="text"
+              value={newEquation}
+              onChange={(e) => setNewEquation(e.target.value)}
+              placeholder="Enter equation (e.g., y = x^2)"
+              onKeyPress={(e) => e.key === 'Enter' && addEquation()}
+            />
+            <button onClick={addEquation} className="add-btn">
+              <Plus size={18} />
+            </button>
+          </div>
+
+          <div className="equations-list">
+            {equations.map((equation) => (
+              <div key={equation.id} className="equation-item">
+                <div className="equation-color" style={{ backgroundColor: equation.color }}></div>
+                <input
+                  type="text"
+                  value={equation.expression}
+                  onChange={(e) => updateEquation(equation.id, 'expression', e.target.value)}
+                  className="equation-input"
+                />
+                <button
+                  onClick={() => toggleVisibility(equation.id)}
+                  className={`visibility-btn ${equation.visible ? 'visible' : 'hidden'}`}
+                >
+                  {equation.visible ? <Eye size={16} /> : <EyeOff size={16} />}
+                </button>
+                <button
+                  onClick={() => deleteEquation(equation.id)}
+                  className="delete-btn"
+                >
+                  <Trash2 size={16} />
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {Object.keys(variables).length > 0 && (
+          <div className="variables-section">
+            <h3>Variables</h3>
+            {Object.keys(variables).map((varName) => (
+              <div key={varName} className="variable-slider">
+                <label>{varName}: {variables[varName].toFixed(2)}</label>
+                <input
+                  type="range"
+                  min="-10"
+                  max="10"
+                  step="0.1"
+                  value={variables[varName]}
+                  onChange={(e) => setVariables(prev => ({
+                    ...prev,
+                    [varName]: parseFloat(e.target.value)
+                  }))}
+                />
+              </div>
+            ))}
+          </div>
+        )}
+
+        <div className="examples">
+          <h3>Examples</h3>
+          <div className="example-buttons">
+            <button onClick={() => setNewEquation('y = sin(x)')}>Sine Wave</button>
+            <button onClick={() => setNewEquation('y = x^3 - 3*x')}>Cubic</button>
+            <button onClick={() => setNewEquation('x^2 + y^2 = 25')}>Circle</button>
+            <button onClick={() => setNewEquation('x = cos(t), y = sin(t)')}>Parametric</button>
+          </div>
+        </div>
       </div>
-      <div className="graph-section">
+
+      <div className="graph-container">
         <Plot
-          data={getGraphData()}
-          layout={getLayout()}
-          config={{
-            responsive: true,
-            displayModeBar: true,
-            modeBarButtonsToRemove: ["zoom2d", "pan2d"],
+          data={plotData}
+          layout={layout}
+          config={config}
+          style={{ width: '100%', height: '100%' }}
+          onRelayout={(event) => {
+            if (event['xaxis.range[0]'] !== undefined) {
+              setGraphSettings(prev => ({
+                ...prev,
+                xMin: event['xaxis.range[0]'],
+                xMax: event['xaxis.range[1]'],
+                yMin: event['yaxis.range[0]'],
+                yMax: event['yaxis.range[1]']
+              }));
+            }
           }}
-          style={{ width: "100%", height: "600px" }}
         />
       </div>
     </div>
   );
 };
 
-export default PlotGraph;
+export default GraphingCalculator;

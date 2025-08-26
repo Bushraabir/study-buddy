@@ -1,167 +1,613 @@
-/* Import Fonts */
+/* Import Google Fonts */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
 
-@import url('https://fonts.googleapis.com/css2?family=Dancing+Script:wght@500;700&family=Inter:wght@400;500;600;700&display=swap');
-
-/* Global Styles */
+/* CSS Reset and Base Styles */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
 
 body {
-    margin: 0;
-    font-family: 'Inter', sans-serif;
-    background: linear-gradient(145deg, #1a1a1a, #2d2d3a);
-    color: #e4e4e7;
-    scroll-behavior: smooth;
-    overflow-x: hidden;
-    overflow-y: auto;
-    min-height: 100vh;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  background: linear-gradient(135deg, #0f0f23 0%, #1a1a2e 50%, #16213e 100%);
+  color: #e5e7eb;
+  overflow-x: hidden;
+  
 }
 
-/* Main Visualizer Section */
-
-.equation-visualizer {
-    padding: 2rem;
-    text-align: center;
-    background: linear-gradient(145deg, #2d2d3a, #1a1a1a);
-    border-radius: 10px;
-    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.2);
-    max-width: 900px;
-    margin: 2rem auto;
+/* Main Container */
+.graphing-calculator {
+  display: flex;
+  height: 100vh;
+  background: linear-gradient(135deg, #0f0f23 0%, #1a1a2e 50%, #16213e 100%);
 }
 
-h1 {
-    font-family: 'Dancing Script', cursive;
-    font-size: 2.5rem;
-    color: #ffffff;
-    margin-bottom: 1rem;
+/* Sidebar */
+.sidebar {
+  width: 350px;
+  background: rgba(15, 15, 35, 0.95);
+  backdrop-filter: blur(20px);
+  border-right: 1px solid rgba(139, 92, 246, 0.2);
+  padding: 20px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  box-shadow: 4px 0 20px rgba(0, 0, 0, 0.3);
 }
 
-h1 span {
-    color: #5a67d8; /* Premium indigo */
+/* Custom Scrollbar */
+.sidebar::-webkit-scrollbar {
+  width: 6px;
 }
 
-input[type="text"],
-textarea {
-    padding: 0.75rem;
-    font-size: 1rem;
-    border-radius: 8px;
-    background: #2d2d3a;
-    border: 1px solid #5a67d8;
-    color: #e4e4e7;
-    width: 100%;
-    margin-bottom: 1rem;
-    outline: none;
+.sidebar::-webkit-scrollbar-track {
+  background: rgba(139, 92, 246, 0.1);
+  border-radius: 3px;
 }
 
+.sidebar::-webkit-scrollbar-thumb {
+  background: rgba(139, 92, 246, 0.3);
+  border-radius: 3px;
+}
+
+.sidebar::-webkit-scrollbar-thumb:hover {
+  background: rgba(139, 92, 246, 0.5);
+}
+
+/* Header */
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+}
+
+.header h1 {
+  font-size: 24px;
+  font-weight: 700;
+  background: linear-gradient(135deg, #8b5cf6, #a855f7, #c084fc);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.controls {
+  display: flex;
+  gap: 8px;
+}
+
+.control-btn {
+  background: rgba(139, 92, 246, 0.1);
+  border: 1px solid rgba(139, 92, 246, 0.3);
+  color: #a855f7;
+  padding: 8px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.control-btn:hover {
+  background: rgba(139, 92, 246, 0.2);
+  border-color: rgba(139, 92, 246, 0.5);
+  transform: translateY(-1px);
+}
+
+/* Settings Panel */
+.settings-panel {
+  background: rgba(26, 26, 46, 0.6);
+  border: 1px solid rgba(139, 92, 246, 0.2);
+  border-radius: 12px;
+  padding: 16px;
+  animation: slideDown 0.3s ease;
+}
+
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.settings-panel h3 {
+  color: #c084fc;
+  font-size: 16px;
+  font-weight: 600;
+  margin-bottom: 12px;
+}
+
+.setting-group {
+  margin-bottom: 16px;
+}
+
+.setting-group label {
+  display: block;
+  color: #d1d5db;
+  font-size: 14px;
+  margin-bottom: 6px;
+}
+
+.range-inputs {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.range-inputs input {
+  flex: 1;
+  padding: 6px 10px;
+  background: rgba(139, 92, 246, 0.1);
+  border: 1px solid rgba(139, 92, 246, 0.3);
+  border-radius: 6px;
+  color: #e5e7eb;
+  font-size: 13px;
+}
+
+.range-inputs span {
+  color: #9ca3af;
+  font-size: 12px;
+}
+
+/* Equations Section */
+.equations-section h3 {
+  color: #c084fc;
+  font-size: 35px;
+  font-weight: 600;
+  margin-bottom: 16px;
+}
+
+.add-equation {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.add-equation input {
+  flex: 1;
+  padding: 12px 16px;
+  background: rgba(139, 92, 246, 0.1);
+  border: 1px solid rgba(139, 92, 246, 0.3);
+  border-radius: 8px;
+  color: #e5e7eb;
+  font-size: 14px;
+  transition: all 0.2s ease;
+}
+
+.add-equation input:focus {
+  outline: none;
+  border-color: #8b5cf6;
+  box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.1);
+}
+
+.add-equation input::placeholder {
+  color: #9ca3af;
+}
+
+.add-btn {
+  background: linear-gradient(135deg, #8b5cf6, #a855f7);
+  border: none;
+  color: white;
+  padding: 12px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 4px 12px rgba(139, 92, 246, 0.3);
+}
+
+.add-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(139, 92, 246, 0.4);
+}
+
+/* Equations List */
+.equations-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.equation-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px;
+  background: rgba(26, 26, 46, 0.6);
+  border: 1px solid rgba(139, 92, 246, 0.2);
+  border-radius: 8px;
+  transition: all 0.2s ease;
+}
+
+.equation-item:hover {
+  background: rgba(26, 26, 46, 0.8);
+  border-color: rgba(139, 92, 246, 0.4);
+}
+
+.equation-color {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  border: 2px solid rgba(255, 255, 255, 0.2);
+  flex-shrink: 0;
+}
+
+.equation-input {
+  flex: 1;
+  background: transparent;
+  border: none;
+  color: #e5e7eb;
+  font-size: 14px;
+  font-family: 'Monaco', 'Menlo', monospace;
+  padding: 4px 0;
+}
+
+.equation-input:focus {
+  outline: none;
+}
+
+.visibility-btn,
+.delete-btn {
+  background: transparent;
+  border: none;
+  color: #9ca3af;
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 4px;
+  transition: all 0.2s ease;
+}
+
+.visibility-btn:hover,
+.delete-btn:hover {
+  background: rgba(139, 92, 246, 0.2);
+  color: #e5e7eb;
+}
+
+.visibility-btn.visible {
+  color: #8b5cf6;
+}
+
+.visibility-btn.hidden {
+  color: #6b7280;
+}
+
+.delete-btn:hover {
+  color: #ef4444;
+  background: rgba(239, 68, 68, 0.1);
+}
+
+/* Variables Section */
+.variables-section {
+  background: rgba(26, 26, 46, 0.6);
+  border: 1px solid rgba(139, 92, 246, 0.2);
+  border-radius: 12px;
+  padding: 16px;
+}
+
+.variables-section h3 {
+  color: #c084fc;
+  font-size: 16px;
+  font-weight: 600;
+  margin-bottom: 12px;
+}
+
+.variable-slider {
+  margin-bottom: 16px;
+}
+
+.variable-slider label {
+  display: block;
+  color: #d1d5db;
+  font-size: 14px;
+  margin-bottom: 6px;
+  font-family: 'Monaco', 'Menlo', monospace;
+}
+
+.variable-slider input[type="range"] {
+  width: 100%;
+  height: 6px;
+  background: rgba(139, 92, 246, 0.2);
+  border-radius: 3px;
+  outline: none;
+  -webkit-appearance: none;
+}
+
+.variable-slider input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 16px;
+  height: 16px;
+  background: linear-gradient(135deg, #8b5cf6, #a855f7);
+  border-radius: 50%;
+  cursor: pointer;
+  box-shadow: 0 2px 6px rgba(139, 92, 246, 0.3);
+}
+
+.variable-slider input[type="range"]::-moz-range-thumb {
+  width: 16px;
+  height: 16px;
+  background: linear-gradient(135deg, #8b5cf6, #a855f7);
+  border-radius: 50%;
+  cursor: pointer;
+  border: none;
+  box-shadow: 0 2px 6px rgba(139, 92, 246, 0.3);
+}
+
+/* Examples Section */
+.examples {
+  background: rgba(26, 26, 46, 0.6);
+  border: 1px solid rgba(139, 92, 246, 0.2);
+  border-radius: 12px;
+  padding: 16px;
+}
+
+.examples h3 {
+  color: #c084fc;
+  font-size: 16px;
+  font-weight: 600;
+  margin-bottom: 12px;
+}
+
+.example-buttons {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.example-buttons button {
+  background: rgba(139, 92, 246, 0.1);
+  border: 1px solid rgba(139, 92, 246, 0.3);
+  color: #a855f7;
+  padding: 8px 12px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 12px;
+  transition: all 0.2s ease;
+}
+
+.example-buttons button:hover {
+  background: rgba(139, 92, 246, 0.2);
+  border-color: rgba(139, 92, 246, 0.5);
+  transform: translateY(-1px);
+}
+
+/* Graph Container */
+.graph-container {
+  flex: 1;
+  background: rgba(15, 15, 35, 0.5);
+  backdrop-filter: blur(10px);
+  position: relative;
+  overflow: hidden;
+}
+
+.graph-container .js-plotly-plot {
+  background: transparent !important;
+}
+
+/* Custom Plotly Styling */
+.graph-container .plotly {
+  background: transparent !important;
+}
+
+.graph-container .bg {
+  fill: transparent !important;
+}
+
+/* Input Focus States */
 input[type="text"]:focus,
+input[type="number"]:focus,
 textarea:focus {
-    border-color: #5a67d8;
+  outline: none;
+  border-color: #8b5cf6 !important;
+  box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.1) !important;
 }
 
-button {
-    padding: 0.75rem 1.5rem;
-    font-size: 1rem;
-    border-radius: 8px;
-    cursor: pointer;
-    transition: all 0.3s ease-in-out;
-    background: #5a67d8;
-    color: #ffffff;
-    border: none;
-}
-
-button:hover {
-    transform: scale(1.05);
-    box-shadow: 0 8px 20px rgba(90, 103, 216, 0.5);
-}
-
-/* Error message */
-
-div[style*="color: red"] {
-    color: #f56565;
-    margin-top: 10px;
-    font-size: 1rem;
-}
-
-/* Options Section */
-
-.options-section,
-.advanced-options {
-    display: flex;
-    flex-wrap: wrap;
-    justify-content: center;
-    gap: 1rem;
-    margin-bottom: 2rem;
-}
-
-label {
-    color: #e4e4e7;
-    font-size: 1rem;
-    display: flex;
-    align-items: center;
-}
-
-select {
-    padding: 0.5rem;
-    background: #2d2d3a;
-    color: #e4e4e7;
-    border-radius: 8px;
-    border: 1px solid #5a67d8;
-    margin-left: 0.5rem;
-}
-
+/* Checkbox Styling */
 input[type="checkbox"] {
-    margin-right: 0.5rem;
+  appearance: none;
+  width: 16px;
+  height: 16px;
+  border: 1px solid rgba(139, 92, 246, 0.3);
+  border-radius: 3px;
+  background: rgba(139, 92, 246, 0.1);
+  cursor: pointer;
+  position: relative;
+  margin-right: 8px;
 }
 
-/* Graph Section */
-
-.graph-section {
-    margin-top: 2rem;
+input[type="checkbox"]:checked {
+  background: linear-gradient(135deg, #8b5cf6, #a855f7);
+  border-color: #8b5cf6;
 }
 
-#plot {
-    background: #2d2d3a;
-    border-radius: 12px;
-    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.3);
+input[type="checkbox"]:checked::after {
+  content: '✓';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  color: white;
+  font-size: 10px;
+  font-weight: bold;
 }
 
-/* Save Plot Button */
-
-button[title="Save Plot"] {
-    margin-top: 2rem;
-    padding: 0.75rem 1.5rem;
-    background: #5a67d8;
-    color: #ffffff;
-    font-size: 1rem;
-    border-radius: 8px;
-    cursor: pointer;
-    transition: all 0.3s ease-in-out;
-    border: none;
+/* Animation for smooth transitions */
+.equation-item,
+.settings-panel,
+.variables-section,
+.examples {
+  animation: fadeIn 0.3s ease;
 }
 
-button[title="Save Plot"]:hover {
-    transform: scale(1.05);
-    box-shadow: 0 8px 20px rgba(90, 103, 216, 0.5);
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 /* Responsive Design */
+@media (max-width: 1024px) {
+  .graphing-calculator {
+    flex-direction: column;
+    height: auto;
+    min-height: 100vh;
+  }
+
+  .sidebar {
+    width: 100%;
+    height: auto;
+    max-height: 60vh;
+    border-right: none;
+    border-bottom: 1px solid rgba(139, 92, 246, 0.2);
+  }
+
+  .graph-container {
+    height: 40vh;
+    min-height: 400px;
+  }
+
+  .example-buttons {
+    grid-template-columns: 1fr;
+  }
+
+  .header {
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+
+  .controls {
+    flex-wrap: wrap;
+  }
+}
 
 @media (max-width: 768px) {
-    .equation-visualizer {
-        padding: 1rem;
-    }
-    h1 {
-        font-size: 2rem;
-    }
-    input[type="text"],
-    textarea {
-        font-size: 0.9rem;
-    }
-    button {
-        font-size: 0.9rem;
-        padding: 0.6rem 1.2rem;
-    }
-    .options-section,
-    .advanced-options {
-        flex-direction: column;
-        align-items: center;
-    }
+  .sidebar {
+    padding: 15px;
+  }
+
+  .header h1 {
+    font-size: 20px;
+  }
+
+  .equations-section h3,
+  .variables-section h3,
+  .examples h3 {
+    font-size: 16px;
+  }
+
+  .add-equation {
+    flex-direction: column;
+  }
+
+  .add-equation input {
+    margin-bottom: 8px;
+  }
+
+  .equation-item {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .equation-input {
+    order: 1;
+    width: 100%;
+    margin-top: 5px;
+  }
+
+  .range-inputs {
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .range-inputs span {
+    align-self: center;
+  }
+}
+
+/* Dark scrollbar for webkit browsers */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: rgba(139, 92, 246, 0.1);
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(139, 92, 246, 0.3);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(139, 92, 246, 0.5);
+}
+
+/* Loading animation for plot */
+.graph-container::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 40px;
+  height: 40px;
+  border: 3px solid rgba(139, 92, 246, 0.3);
+  border-top: 3px solid #8b5cf6;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  z-index: 1;
+}
+
+@keyframes spin {
+  0% { transform: translate(-50%, -50%) rotate(0deg); }
+  100% { transform: translate(-50%, -50%) rotate(360deg); }
+}
+
+/* Hide loading animation when plot is ready */
+.graph-container:has(.js-plotly-plot)::before {
+  display: none;
+}
+
+/* Enhance button interactions */
+button {
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+button:active {
+  transform: scale(0.98);
+}
+
+/* Smooth color transitions */
+* {
+  transition: border-color 0.2s ease, background-color 0.2s ease, color 0.2s ease, transform 0.2s ease;
+}
+
+/* Improve text rendering */
+body {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+/* Focus visible for accessibility */
+button:focus-visible,
+input:focus-visible {
+  outline: 2px solid #8b5cf6;
+  outline-offset: 2px;
 }

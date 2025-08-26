@@ -1,12 +1,4 @@
-/*
-  TopBar Styles
 
-  This stylesheet defines a modern dark theme for the StudyBuddy
-  navigation bar. It leverages CSS custom properties (variables) to
-  centralise colour definitions, making it easy to adjust the palette
-  from a single place. The design prioritises clarity, contrast and
-  subtle interactivity while remaining fully responsive.
-*/
 
 /* Colour palette definitions */
 :root {
@@ -31,6 +23,7 @@
   top: 0;
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.5);
   z-index: 1000;
+
 }
 
 /* Inner container to centre content and provide padding */

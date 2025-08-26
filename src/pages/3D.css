@@ -1,17 +1,7 @@
 /* Import Fonts */
 @import url('https://fonts.googleapis.com/css2?family=Dancing+Script:wght@500;700&family=Inter:wght@400;500;600;700&display=swap');
 
-/* Global Styles */
-body {
-    margin: 0;
-    font-family: 'Inter', sans-serif;
-    background: linear-gradient(145deg, #1a1a1a, #2d2d3a);
-    color: #e4e4e7;
-    scroll-behavior: smooth;
-    overflow-x: hidden;
-    overflow-y: auto;
-    min-height: 100vh;
-}
+
 
 /* Main Visualizer Section */
 .equation-visualizer {
