@@ -1,32 +1,18 @@
 import React, { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { FaBars, FaTimes } from "react-icons/fa";
+import { FaBars, FaTimes, FaGraduationCap, FaBook, FaStickyNote, FaChartLine, FaCube, FaUser, FaSignInAlt, FaSignOutAlt } from "react-icons/fa";
 import { motion, AnimatePresence } from "framer-motion";
 import { auth } from "./firebase";
 import { signOut, onAuthStateChanged } from "firebase/auth";
 import "./TopBar.css";
 
-/**
- * A responsive, animated top navigation bar for the StudyBuddy application.
- *
- * This component listens for Firebase authentication state to conditionally
- * render authenticated routes (e.g. Study Session and Profile) and
- * displays either a login or logout button. The layout is optimised
- * for both desktop and mobile screens: on mobile the navigation items
- * appear inside a full‑screen overlay menu that slides down from the top.
- *
- * The implementation preserves all functionality from the original
- * version—authentication state monitoring, logout handling and route
- * navigation—while enhancing the visual design with smooth animations
- * and a polished dark theme. Use CSS custom properties to adjust colours
- * globally in `TopBar.css`.
- */
 function TopBar() {
   const [isMobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [user, setUser] = useState(null);
+  const [isScrolled, setIsScrolled] = useState(false);
   const navigate = useNavigate();
 
-  // Subscribe to Firebase auth state changes on mount.
+  // Subscribe to Firebase auth state changes
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
       setUser(currentUser);
@@ -34,7 +20,17 @@ function TopBar() {
     return () => unsubscribe();
   }, []);
 
-  // Sign the user out and return to the home page.
+  // Handle scroll effect for topbar styling
+  useEffect(() => {
+    const handleScroll = () => {
+      setIsScrolled(window.scrollY > 20);
+    };
+    
+    window.addEventListener('scroll', handleScroll);
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
+
+  // Sign out user and navigate to home
   const handleLogout = async () => {
     try {
       await signOut(auth);
@@ -44,140 +40,289 @@ function TopBar() {
     }
   };
 
-  // Close the mobile menu when a link is clicked.
+  // Close mobile menu on link click
   const handleLinkClick = () => {
     setMobileMenuOpen(false);
   };
 
+  const navItems = [
+    { 
+      path: "/session", 
+      label: "Study Session", 
+      icon: FaGraduationCap, 
+      authRequired: true,
+      description: "Focus mode sessions" 
+    },
+    { 
+      path: "/flash-cards", 
+      label: "Flashcards", 
+      icon: FaBook, 
+      authRequired: false,
+      description: "Interactive learning cards" 
+    },
+    { 
+      path: "/notes", 
+      label: "Notes", 
+      icon: FaStickyNote, 
+      authRequired: false,
+      description: "Digital notebook" 
+    },
+    { 
+      path: "/plot-graph", 
+      label: "Sketch Curves", 
+      icon: FaChartLine, 
+      authRequired: false,
+      description: "Mathematical visualization" 
+    },
+    { 
+      path: "/3d-graph", 
+      label: "3D Graphs", 
+      icon: FaCube, 
+      authRequired: false,
+      description: "3D mathematical models" 
+    },
+    { 
+      path: "/profile", 
+      label: "Profile", 
+      icon: FaUser, 
+      authRequired: true,
+      description: "Your study progress" 
+    }
+  ];
+
   return (
-    <motion.header
-      className="topbar"
-      initial={{ y: -40, opacity: 0 }}
-      animate={{ y: 0, opacity: 1 }}
-      transition={{ duration: 0.6, ease: "easeOut" }}
-    >
-      <div className="topbar__container">
-        {/* Logo */}
-        <div className="topbar__logo">
-          <Link to="/" className="logo-link" onClick={handleLinkClick}>
-            Study<span>Buddy</span>
-          </Link>
-        </div>
-        {/* Desktop Navigation */}
-        <nav className="topbar__nav topbar__nav--desktop">
-          {user && (
-            <Link to="/session" className="nav-link" onClick={handleLinkClick}>
-              Study Session
+    <>
+      <motion.header
+        className={`studybuddy-topbar ${isScrolled ? 'studybuddy-topbar--scrolled' : ''}`}
+        initial={{ y: -100, opacity: 0 }}
+        animate={{ y: 0, opacity: 1 }}
+        transition={{ duration: 0.8, ease: "easeOut" }}
+      >
+        <div className="studybuddy-topbar__container">
+          {/* Enhanced Logo */}
+          <motion.div 
+            className="studybuddy-topbar__logo"
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+          >
+            <Link to="/" className="studybuddy-logo-link" onClick={handleLinkClick}>
+              <motion.div 
+                className="studybuddy-logo-icon"
+                animate={{ 
+                  rotate: [0, 10, -10, 0],
+                  scale: [1, 1.1, 1] 
+                }}
+                transition={{ 
+                  duration: 2,
+                  repeat: Infinity,
+                  repeatType: "reverse",
+                  ease: "easeInOut"
+                }}
+              >
+                <FaGraduationCap />
+              </motion.div>
+              <span className="studybuddy-logo-text">
+                Study<span className="studybuddy-logo-accent">Buddy</span>
+              </span>
             </Link>
-          )}
-          <Link to="/flash-cards" className="nav-link" onClick={handleLinkClick}>
-            Flashcards
-          </Link>
-          <Link to="/notes" className="nav-link" onClick={handleLinkClick}>
-            Notes
-          </Link>
-          <Link to="/plot-graph" className="nav-link" onClick={handleLinkClick}>
-            Sketch Curves
-          </Link>
-          <Link to="/3d-graph" className="nav-link" onClick={handleLinkClick}>
-            3D
-          </Link>
-          {user && (
-            <Link to="/profile" className="nav-link" onClick={handleLinkClick}>
-              Profile
-            </Link>
-          )}
-        </nav>
-        {/* Desktop Action Buttons */}
-        <div className="topbar__actions">
-          {user ? (
-            <button
-              onClick={handleLogout}
-              className="action-button logout-button"
-              aria-label="Logout"
+          </motion.div>
+
+          {/* Desktop Navigation */}
+          <nav className="studybuddy-topbar__nav studybuddy-topbar__nav--desktop">
+            {navItems.map((item, index) => {
+              if (item.authRequired && !user) return null;
+              const IconComponent = item.icon;
+              
+              return (
+                <motion.div
+                  key={item.path}
+                  className="studybuddy-nav-item"
+                  whileHover={{ y: -3, scale: 1.05 }}
+                  whileTap={{ y: 0, scale: 0.95 }}
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: index * 0.1 }}
+                >
+                  <Link 
+                    to={item.path} 
+                    className="studybuddy-nav-link" 
+                    onClick={handleLinkClick}
+                    title={item.description}
+                  >
+                    <motion.div className="studybuddy-nav-icon">
+                      <IconComponent />
+                    </motion.div>
+                    <span className="studybuddy-nav-text">{item.label}</span>
+                  </Link>
+                </motion.div>
+              );
+            })}
+          </nav>
+
+          {/* Desktop Actions */}
+          <div className="studybuddy-topbar__actions">
+            {user ? (
+              <motion.button
+                onClick={handleLogout}
+                className="studybuddy-action-button studybuddy-logout-button"
+                whileHover={{ scale: 1.05, boxShadow: "0 8px 25px rgba(168, 85, 247, 0.4)" }}
+                whileTap={{ scale: 0.95 }}
+                aria-label="Logout"
+              >
+                <FaSignOutAlt className="studybuddy-button-icon" />
+                <span>Logout</span>
+              </motion.button>
+            ) : (
+              <motion.div 
+                whileHover={{ scale: 1.05, boxShadow: "0 8px 25px rgba(168, 85, 247, 0.4)" }} 
+                whileTap={{ scale: 0.95 }}
+              >
+                <Link 
+                  to="/login" 
+                  className="studybuddy-action-button studybuddy-login-button" 
+                  onClick={handleLinkClick}
+                >
+                  <FaSignInAlt className="studybuddy-button-icon" />
+                  <span>Login</span>
+                </Link>
+              </motion.div>
+            )}
+          </div>
+
+          {/* Mobile Menu Toggle */}
+          <motion.div 
+            className="studybuddy-topbar__toggle"
+            whileTap={{ scale: 0.9 }}
+          >
+            <motion.button
+              className="studybuddy-mobile-toggle-btn"
+              animate={{ rotate: isMobileMenuOpen ? 180 : 0 }}
+              transition={{ duration: 0.3 }}
+              onClick={() => setMobileMenuOpen(!isMobileMenuOpen)}
             >
-              Logout
-            </button>
-          ) : (
-            <Link to="/login" className="action-button login-button" onClick={handleLinkClick}>
-              Login
-            </Link>
-          )}
+              {!isMobileMenuOpen ? (
+                <FaBars aria-label="Open menu" />
+              ) : (
+                <FaTimes aria-label="Close menu" />
+              )}
+            </motion.button>
+          </motion.div>
         </div>
-        {/* Mobile Menu Toggle */}
-        <div className="topbar__toggle">
-          {!isMobileMenuOpen ? (
-            <FaBars
-              aria-label="Open menu"
-              onClick={() => setMobileMenuOpen(true)}
-            />
-          ) : (
-            <FaTimes
-              aria-label="Close menu"
-              onClick={() => setMobileMenuOpen(false)}
-            />
-          )}
-        </div>
-      </div>
+      </motion.header>
+
       {/* Mobile Navigation Overlay */}
       <AnimatePresence>
         {isMobileMenuOpen && (
-          <motion.nav
-            key="mobile-menu"
-            className="mobile-menu"
-            initial={{ y: "-100%" }}
-            animate={{ y: 0 }}
-            exit={{ y: "-100%" }}
-            transition={{ type: "spring", stiffness: 260, damping: 20 }}
-          >
-            {user && (
-              <Link to="/session" className="mobile-menu-link" onClick={handleLinkClick}>
-                Study Session
-              </Link>
-            )}
-            <Link to="/flash-cards" className="mobile-menu-link" onClick={handleLinkClick}>
-              Flashcards
-            </Link>
-            <Link to="/notes" className="mobile-menu-link" onClick={handleLinkClick}>
-              Notes
-            </Link>
-            <Link to="/plot-graph" className="mobile-menu-link" onClick={handleLinkClick}>
-              Sketch Curves
-            </Link>
-            <Link to="/3d-graph" className="mobile-menu-link" onClick={handleLinkClick}>
-              3D
-            </Link>
-            {user && (
-              <Link to="/profile" className="mobile-menu-link" onClick={handleLinkClick}>
-                Profile
-              </Link>
-            )}
-            {/* Mobile Authentication Actions */}
-            <div className="mobile-actions">
-              {user ? (
-                <button
-                  onClick={() => {
-                    handleLogout();
-                    handleLinkClick();
-                  }}
-                  className="action-button logout-button mobile-logout"
-                >
-                  Logout
-                </button>
-              ) : (
-                <Link
-                  to="/login"
-                  className="action-button login-button mobile-login"
-                  onClick={handleLinkClick}
-                >
-                  Login
-                </Link>
-              )}
-            </div>
-          </motion.nav>
+          <>
+            <motion.div
+              className="studybuddy-mobile-backdrop"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setMobileMenuOpen(false)}
+            />
+            <motion.nav
+              className="studybuddy-mobile-menu"
+              initial={{ x: "100%", opacity: 0 }}
+              animate={{ x: 0, opacity: 1 }}
+              exit={{ x: "100%", opacity: 0 }}
+              transition={{ type: "spring", stiffness: 300, damping: 30 }}
+            >
+              <div className="studybuddy-mobile-menu__header">
+                <div className="studybuddy-mobile-logo">
+                  <FaGraduationCap className="studybuddy-mobile-logo-icon" />
+                  <span className="studybuddy-mobile-logo-text">StudyBuddy</span>
+                </div>
+              </div>
+
+              <div className="studybuddy-mobile-menu__content">
+                {navItems.map((item, index) => {
+                  if (item.authRequired && !user) return null;
+                  const IconComponent = item.icon;
+                  
+                  return (
+                    <motion.div
+                      key={item.path}
+                      className="studybuddy-mobile-menu-item"
+                      initial={{ x: 50, opacity: 0 }}
+                      animate={{ x: 0, opacity: 1 }}
+                      transition={{ delay: index * 0.1 }}
+                      whileHover={{ x: 10, scale: 1.02 }}
+                      whileTap={{ scale: 0.98 }}
+                    >
+                      <Link 
+                        to={item.path} 
+                        className="studybuddy-mobile-menu-link" 
+                        onClick={handleLinkClick}
+                      >
+                        <div className="studybuddy-mobile-link-content">
+                          <motion.div 
+                            className="studybuddy-mobile-link-icon"
+                            whileHover={{ rotate: 360 }}
+                            transition={{ duration: 0.5 }}
+                          >
+                            <IconComponent />
+                          </motion.div>
+                          <div className="studybuddy-mobile-link-text">
+                            <span className="studybuddy-mobile-link-title">{item.label}</span>
+                            <span className="studybuddy-mobile-link-desc">{item.description}</span>
+                          </div>
+                        </div>
+                        <motion.div 
+                          className="studybuddy-mobile-link-arrow"
+                          initial={{ x: -10, opacity: 0 }}
+                          whileHover={{ x: 0, opacity: 1 }}
+                          transition={{ duration: 0.2 }}
+                        >
+                          →
+                        </motion.div>
+                      </Link>
+                    </motion.div>
+                  );
+                })}
+              </div>
+
+              {/* Mobile Authentication */}
+              <motion.div 
+                className="studybuddy-mobile-actions"
+                initial={{ y: 50, opacity: 0 }}
+                animate={{ y: 0, opacity: 1 }}
+                transition={{ delay: 0.6 }}
+              >
+                {user ? (
+                  <motion.button
+                    onClick={() => {
+                      handleLogout();
+                      handleLinkClick();
+                    }}
+                    className="studybuddy-mobile-action-button studybuddy-mobile-logout"
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
+                  >
+                    <FaSignOutAlt className="studybuddy-button-icon" />
+                    <span>Logout</span>
+                  </motion.button>
+                ) : (
+                  <motion.div
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
+                  >
+                    <Link
+                      to="/login"
+                      className="studybuddy-mobile-action-button studybuddy-mobile-login"
+                      onClick={handleLinkClick}
+                    >
+                      <FaSignInAlt className="studybuddy-button-icon" />
+                      <span>Login to StudyBuddy</span>
+                    </Link>
+                  </motion.div>
+                )}
+              </motion.div>
+            </motion.nav>
+          </>
         )}
       </AnimatePresence>
-    </motion.header>
+    </>
   );
 }
 
