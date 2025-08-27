@@ -171,8 +171,8 @@
 }
 
 .clock-animation {
-  width: 280px;
-  height: 280px;
+ 
+  height: 345px;
   filter: drop-shadow(0 0 20px rgba(90, 103, 216, 0.5));
   
   @media (max-width: 768px) {
