@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useLocation } from "react-router-dom";
 import { FaBars, FaTimes, FaGraduationCap, FaBook, FaStickyNote, FaChartLine, FaCube, FaUser, FaSignInAlt, FaSignOutAlt } from "react-icons/fa";
 import { motion, AnimatePresence } from "framer-motion";
 import { auth } from "./firebase";
@@ -11,6 +11,7 @@ function TopBar() {
   const [user, setUser] = useState(null);
   const [isScrolled, setIsScrolled] = useState(false);
   const navigate = useNavigate();
+  const location = useLocation();
 
   // Subscribe to Firebase auth state changes
   useEffect(() => {
@@ -30,13 +31,57 @@ function TopBar() {
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
 
+  // Check if navigation should be blocked due to running timer
+  const checkTimerBeforeNavigation = (callback) => {
+    // Check if we have access to timer state from window
+    if (window.studyBuddyTimerState && window.studyBuddyTimerState.isRunning) {
+      // Show warning and return true if navigation should be blocked
+      return window.studyBuddyTimerState.showWarning(callback);
+    }
+    return false; // Allow navigation
+  };
+
+  // Enhanced navigation handler
+  const handleNavigation = (path) => {
+    // Don't show warning if already on the target path
+    if (location.pathname === path) {
+      setMobileMenuOpen(false);
+      return;
+    }
+
+    const navigateToPath = () => {
+      setMobileMenuOpen(false);
+      navigate(path);
+    };
+
+    // Check if timer is running before navigation
+    const isBlocked = checkTimerBeforeNavigation(navigateToPath);
+    
+    if (!isBlocked) {
+      // No timer running, proceed with navigation
+      navigateToPath();
+    }
+    // If blocked, the warning modal will handle the navigation
+  };
+
   // Sign out user and navigate to home
   const handleLogout = async () => {
-    try {
-      await signOut(auth);
-      navigate("/");
-    } catch (error) {
-      console.error("Error logging out:", error.message);
+    const performLogout = async () => {
+      try {
+        await signOut(auth);
+        setMobileMenuOpen(false);
+        navigate("/");
+      } catch (error) {
+        console.error("Error logging out:", error.message);
+      }
+    };
+
+    // Check if timer is running before logout
+    const isBlocked = checkTimerBeforeNavigation(performLogout);
+    
+    if (!isBlocked) {
+      // No timer running, proceed with logout
+      await performLogout();
     }
   };
 
@@ -105,7 +150,11 @@ function TopBar() {
             whileHover={{ scale: 1.05 }}
             whileTap={{ scale: 0.95 }}
           >
-            <Link to="/" className="studybuddy-logo-link" onClick={handleLinkClick}>
+            <div 
+              className="studybuddy-logo-link" 
+              onClick={() => handleNavigation("/")}
+              style={{ cursor: 'pointer' }}
+            >
               <motion.div 
                 className="studybuddy-logo-icon"
                 animate={{ 
@@ -124,7 +173,7 @@ function TopBar() {
               <span className="studybuddy-logo-text">
                 Study<span className="studybuddy-logo-accent">Buddy</span>
               </span>
-            </Link>
+            </div>
           </motion.div>
 
           {/* Desktop Navigation */}
@@ -132,28 +181,29 @@ function TopBar() {
             {navItems.map((item, index) => {
               if (item.authRequired && !user) return null;
               const IconComponent = item.icon;
+              const isActive = location.pathname === item.path;
               
               return (
                 <motion.div
                   key={item.path}
-                  className="studybuddy-nav-item"
+                  className={`studybuddy-nav-item ${isActive ? 'active' : ''}`}
                   whileHover={{ y: -3, scale: 1.05 }}
                   whileTap={{ y: 0, scale: 0.95 }}
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: index * 0.1 }}
                 >
-                  <Link 
-                    to={item.path} 
+                  <div 
                     className="studybuddy-nav-link" 
-                    onClick={handleLinkClick}
+                    onClick={() => handleNavigation(item.path)}
                     title={item.description}
+                    style={{ cursor: 'pointer' }}
                   >
                     <motion.div className="studybuddy-nav-icon">
                       <IconComponent />
                     </motion.div>
                     <span className="studybuddy-nav-text">{item.label}</span>
-                  </Link>
+                  </div>
                 </motion.div>
               );
             })}
@@ -177,14 +227,14 @@ function TopBar() {
                 whileHover={{ scale: 1.05, boxShadow: "0 8px 25px rgba(168, 85, 247, 0.4)" }} 
                 whileTap={{ scale: 0.95 }}
               >
-                <Link 
-                  to="/login" 
+                <div 
                   className="studybuddy-action-button studybuddy-login-button" 
-                  onClick={handleLinkClick}
+                  onClick={() => handleNavigation("/login")}
+                  style={{ cursor: 'pointer' }}
                 >
                   <FaSignInAlt className="studybuddy-button-icon" />
                   <span>Login</span>
-                </Link>
+                </div>
               </motion.div>
             )}
           </div>
@@ -239,21 +289,22 @@ function TopBar() {
                 {navItems.map((item, index) => {
                   if (item.authRequired && !user) return null;
                   const IconComponent = item.icon;
+                  const isActive = location.pathname === item.path;
                   
                   return (
                     <motion.div
                       key={item.path}
-                      className="studybuddy-mobile-menu-item"
+                      className={`studybuddy-mobile-menu-item ${isActive ? 'active' : ''}`}
                       initial={{ x: 50, opacity: 0 }}
                       animate={{ x: 0, opacity: 1 }}
                       transition={{ delay: index * 0.1 }}
                       whileHover={{ x: 10, scale: 1.02 }}
                       whileTap={{ scale: 0.98 }}
                     >
-                      <Link 
-                        to={item.path} 
+                      <div 
                         className="studybuddy-mobile-menu-link" 
-                        onClick={handleLinkClick}
+                        onClick={() => handleNavigation(item.path)}
+                        style={{ cursor: 'pointer' }}
                       >
                         <div className="studybuddy-mobile-link-content">
                           <motion.div 
@@ -276,7 +327,7 @@ function TopBar() {
                         >
                           →
                         </motion.div>
-                      </Link>
+                      </div>
                     </motion.div>
                   );
                 })}
@@ -291,10 +342,7 @@ function TopBar() {
               >
                 {user ? (
                   <motion.button
-                    onClick={() => {
-                      handleLogout();
-                      handleLinkClick();
-                    }}
+                    onClick={handleLogout}
                     className="studybuddy-mobile-action-button studybuddy-mobile-logout"
                     whileHover={{ scale: 1.02 }}
                     whileTap={{ scale: 0.98 }}
@@ -307,14 +355,14 @@ function TopBar() {
                     whileHover={{ scale: 1.02 }}
                     whileTap={{ scale: 0.98 }}
                   >
-                    <Link
-                      to="/login"
+                    <div
                       className="studybuddy-mobile-action-button studybuddy-mobile-login"
-                      onClick={handleLinkClick}
+                      onClick={() => handleNavigation("/login")}
+                      style={{ cursor: 'pointer' }}
                     >
                       <FaSignInAlt className="studybuddy-button-icon" />
                       <span>Login to StudyBuddy</span>
-                    </Link>
+                    </div>
                   </motion.div>
                 )}
               </motion.div>

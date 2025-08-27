@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
-import { doc, onSnapshot, updateDoc, deleteDoc, deleteField } from "firebase/firestore";
+import { doc, onSnapshot, updateDoc, setDoc, increment, serverTimestamp } from "firebase/firestore";
 import { auth, db } from "../components/firebase";
 import { onAuthStateChanged } from "firebase/auth";
 import toast from "react-hot-toast";
@@ -40,6 +40,10 @@ function StartSession() {
   const [filterOption, setFilterOption] = useState("All");
   const [lastDeletedTask, setLastDeletedTask] = useState(null);
   
+  // Tab change warning state
+  const [showTabWarning, setShowTabWarning] = useState(false);
+  const [pendingNavigation, setPendingNavigation] = useState(null);
+  
   // Refs for background timer
   const timerRef = useRef(null);
   const startTimeRef = useRef(null);
@@ -63,31 +67,30 @@ function StartSession() {
       .padStart(2, "0")}:${seconds.toString().padStart(2, "0")}`;
   }, []);
 
-const localYMD = (d = new Date()) => {
-  const year = d.getFullYear();
-  const month = String(d.getMonth() + 1).padStart(2, "0");
-  const day = String(d.getDate()).padStart(2, "0");
-  return `${year}-${month}-${day}`;
-};
+  const localYMD = (d = new Date()) => {
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, "0");
+    const day = String(d.getDate()).padStart(2, "0");
+    return `${year}-${month}-${day}`;
+  };
 
-const localYearMonth = (d = new Date()) => {
-  const year = d.getFullYear();
-  const month = String(d.getMonth() + 1).padStart(2, "0");
-  return `${year}-${month}`;
-};
+  const localYearMonth = (d = new Date()) => {
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, "0");
+    return `${year}-${month}`;
+  };
 
-const localWeekStart = (d = new Date(), weekStartsOn = 1 /* 1=Mon */) => {
-  const day = d.getDay() === 0 ? 7 : d.getDay(); // 1..7
-  const diff = day - weekStartsOn;
-  const start = new Date(d);
-  start.setDate(d.getDate() - diff);
-  return localYMD(start);
-};
+  const localWeekStart = (d = new Date(), weekStartsOn = 1 /* 1=Mon */) => {
+    const day = d.getDay() === 0 ? 7 : d.getDay(); // 1..7
+    const diff = day - weekStartsOn;
+    const start = new Date(d);
+    start.setDate(d.getDate() - diff);
+    return localYMD(start);
+  };
 
-
- const getTodayKey = useCallback(() => localYMD(), []);
- const getWeekKey = useCallback(() => localWeekStart(), []);
- const getMonthKey = useCallback(() => localYearMonth(), []);
+  const getTodayKey = useCallback(() => localYMD(), []);
+  const getWeekKey = useCallback(() => localWeekStart(), []);
+  const getMonthKey = useCallback(() => localYearMonth(), []);
 
   // Background timer that works even when tab is not active
   const updateTimer = useCallback(() => {
@@ -96,13 +99,16 @@ const localWeekStart = (d = new Date(), weekStartsOn = 1 /* 1=Mon */) => {
       const elapsed = Math.floor((now - startTimeRef.current) / 1000) + accumulatedTimeRef.current;
       
       if (pomodoroModeRef.current) {
-        const remaining = 25 * 60 - (elapsed % (25 * 60));
+        const sessionLength = 25 * 60; // 25 minutes
+        const currentSessionTime = elapsed % sessionLength;
+        const remaining = sessionLength - currentSessionTime;
+        
         setPomodoroTime(Math.max(0, remaining));
         setElapsedPomodoroTime(elapsed);
         
-        if (remaining <= 0 && elapsed > 0) {
+        if (remaining <= 0 && elapsed >= sessionLength) {
           // Pomodoro session completed
-          const rounds = Math.floor(elapsed / (25 * 60)) + 1;
+          const rounds = Math.floor(elapsed / sessionLength) + 1;
           setPomodoroRounds(rounds);
           
           if (rounds % 4 === 0) {
@@ -133,6 +139,53 @@ const localWeekStart = (d = new Date(), weekStartsOn = 1 /* 1=Mon */) => {
       }
     };
   }, [updateTimer]);
+
+  // Tab visibility change detection
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.hidden && isRunningRef.current) {
+        // Tab is being hidden and timer is running
+        toast.error("Timer paused - tab changed while studying!");
+        stopTimer();
+      }
+    };
+
+    const handleBeforeUnload = (e) => {
+      if (isRunningRef.current) {
+        const message = "Timer is running! Are you sure you want to leave?";
+        e.returnValue = message;
+        return message;
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    window.addEventListener('beforeunload', handleBeforeUnload);
+
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+    };
+  }, []);
+
+  // Navigation warning effect
+  useEffect(() => {
+    // Set timer running state in window for TopBar access
+    window.studyBuddyTimerState = {
+      isRunning: isRunning,
+      showWarning: (callback) => {
+        if (isRunning) {
+          setShowTabWarning(true);
+          setPendingNavigation(() => callback);
+          return true; // Prevent navigation
+        }
+        return false; // Allow navigation
+      }
+    };
+
+    return () => {
+      delete window.studyBuddyTimerState;
+    };
+  }, [isRunning]);
 
   // Real-time data synchronization with better error handling
   const setupRealtimeListener = useCallback((userId) => {
@@ -279,68 +332,6 @@ const localWeekStart = (d = new Date(), weekStartsOn = 1 /* 1=Mon */) => {
     selectedFieldRef.current = selectedField;
   }, [selectedField]);
 
-  // Timer Controls with enhanced database updates
-  const startTimer = useCallback(() => {
-    if (!user) {
-      toast.error("Please log in to start a study session");
-      return;
-    }
-    
-    setIsRunning(true);
-    setIsBreakTime(false);
-    startTimeRef.current = Date.now();
-    accumulatedTimeRef.current = pomodoroMode ? elapsedPomodoroTime : time;
-    
-    toast.success(`Study session started for ${selectedField}!`);
-  }, [user, pomodoroMode, elapsedPomodoroTime, time, selectedField]);
-
-  const stopTimer = useCallback(async () => {
-    console.log("Stopping timer...");
-    setIsRunning(false);
-    
-    if (!user || !userRef.current) {
-      console.log("No user found, cannot save session");
-      return;
-    }
-    
-    const currentTime = Date.now();
-    const sessionTime = startTimeRef.current ? 
-      Math.floor((currentTime - startTimeRef.current) / 1000) + accumulatedTimeRef.current : 0;
-    
-    console.log("Session time calculated:", sessionTime, "seconds");
-    
-    if (sessionTime > 5) { // Only save sessions longer than 5 seconds
-      try {
-        await saveStudySession(sessionTime);
-        
-        const formattedTime = formatTime(sessionTime);
-        toast.success(`Session saved! ${formattedTime} added to ${selectedField}`);
-      } catch (error) {
-        console.error("Error saving session:", error);
-        toast.error("Failed to save session data");
-      }
-    }
-
-    // Reset timer state
-    setTime(0);
-    setElapsedPomodoroTime(0);
-    setPomodoroTime(25 * 60);
-    accumulatedTimeRef.current = 0;
-    startTimeRef.current = null;
-  }, [user, formatTime, selectedField]);
-
-  const resetTimer = useCallback(() => {
-    setIsRunning(false);
-    setTime(0);
-    setElapsedPomodoroTime(0);
-    setPomodoroTime(25 * 60);
-    setIsBreakTime(false);
-    setPomodoroRounds(0);
-    accumulatedTimeRef.current = 0;
-    startTimeRef.current = null;
-    toast.info("Timer reset");
-  }, []);
-
   // Enhanced study session saving with atomic updates - matches your database structure exactly
   const saveStudySession = useCallback(async (sessionTime) => {
     if (!user || !userRef.current || sessionTime <= 0) {
@@ -392,6 +383,87 @@ const localWeekStart = (d = new Date(), weekStartsOn = 1 /* 1=Mon */) => {
       throw error;
     }
   }, [user, getTodayKey, getWeekKey, getMonthKey]);
+
+  // Timer Controls with enhanced database updates
+  const startTimer = useCallback(() => {
+    if (!user) {
+      toast.error("Please log in to start a study session");
+      return;
+    }
+    
+    setIsRunning(true);
+    setIsBreakTime(false);
+    startTimeRef.current = Date.now();
+    accumulatedTimeRef.current = pomodoroMode ? elapsedPomodoroTime : time;
+    
+    toast.success(`Study session started for ${selectedField}!`);
+  }, [user, pomodoroMode, elapsedPomodoroTime, time, selectedField]);
+
+  const stopTimer = useCallback(async () => {
+    console.log("Stopping timer...");
+    setIsRunning(false);
+    
+    if (!user || !userRef.current) {
+      console.log("No user found, cannot save session");
+      return;
+    }
+    
+    const currentTime = Date.now();
+    const sessionTime = startTimeRef.current ? 
+      Math.floor((currentTime - startTimeRef.current) / 1000) + accumulatedTimeRef.current : 0;
+    
+    console.log("Session time calculated:", sessionTime, "seconds");
+    
+    if (sessionTime > 5) { // Only save sessions longer than 5 seconds
+      try {
+        await saveStudySession(sessionTime);
+        
+        const formattedTime = formatTime(sessionTime);
+        toast.success(`Session saved! ${formattedTime} added to ${selectedField}`);
+      } catch (error) {
+        console.error("Error saving session:", error);
+        toast.error("Failed to save session data");
+      }
+    }
+
+    // Reset timer state
+    setTime(0);
+    setElapsedPomodoroTime(0);
+    setPomodoroTime(25 * 60);
+    accumulatedTimeRef.current = 0;
+    startTimeRef.current = null;
+  }, [user, formatTime, selectedField, saveStudySession]);
+
+  const resetTimer = useCallback(() => {
+    setIsRunning(false);
+    setTime(0);
+    setElapsedPomodoroTime(0);
+    setPomodoroTime(25 * 60);
+    setIsBreakTime(false);
+    setPomodoroRounds(0);
+    accumulatedTimeRef.current = 0;
+    startTimeRef.current = null;
+    toast.info("Timer reset");
+  }, []);
+
+  // Handle tab warning responses
+  const handleContinueWithTimer = () => {
+    setShowTabWarning(false);
+    setPendingNavigation(null);
+    toast.info("Navigation cancelled - timer still running");
+  };
+
+  const handlePauseAndNavigate = async () => {
+    await stopTimer();
+    setShowTabWarning(false);
+    
+    if (pendingNavigation) {
+      setTimeout(() => {
+        pendingNavigation();
+        setPendingNavigation(null);
+      }, 100);
+    }
+  };
 
   // Task Management with optimized updates - matching your database structure
   const handleAddTask = useCallback(async () => {
@@ -499,7 +571,7 @@ const localWeekStart = (d = new Date(), weekStartsOn = 1 /* 1=Mon */) => {
     if (!user || !userRef.current) return;
 
     try {
-     const wasCompleted = !!todoList.find(t => t.id === taskId)?.completed;
+      const wasCompleted = !!todoList.find(t => t.id === taskId)?.completed;
       const updatedList = todoList.map((task) =>
         task.id === taskId 
           ? { ...task, completed: !task.completed, completedAt: !task.completed ? new Date().toISOString() : null }
@@ -509,13 +581,13 @@ const localWeekStart = (d = new Date(), weekStartsOn = 1 /* 1=Mon */) => {
       const userDocRef = doc(db, "users", userRef.current.uid);
       await updateDoc(userDocRef, { todoList: updatedList });
 
-
-     toast.success(wasCompleted ? "Task marked as pending" : "Task completed!");
+      toast.success(wasCompleted ? "Task marked as pending" : "Task completed!");
     } catch (error) {
       console.error("Error toggling task:", error);
       toast.error("Failed to update task status");
     }
   }, [user, todoList]);
+
   // Study Field Management
   const addStudyField = useCallback(async () => {
     if (!newFieldName.trim()) {
@@ -586,7 +658,7 @@ const localWeekStart = (d = new Date(), weekStartsOn = 1 /* 1=Mon */) => {
   }, [studyFields, user, userData?.fieldTimes, selectedField]);
 
   // Sorting functions
-  const sortTasksByPriority = useCallback(() => {
+  const sortTasksByPriority = useCallback(async () => {
     if (!user || !userRef.current) return;
 
     const priorityOrder = { High: 1, Medium: 2, Low: 3 };
@@ -594,13 +666,17 @@ const localWeekStart = (d = new Date(), weekStartsOn = 1 /* 1=Mon */) => {
       priorityOrder[a.priority] - priorityOrder[b.priority]
     );
     
-    const userDocRef = doc(db, "users", userRef.current.uid);
-    updateDoc(userDocRef, { todoList: sortedTasks });
-    
-    toast.info("Tasks sorted by priority");
+    try {
+      const userDocRef = doc(db, "users", userRef.current.uid);
+      await updateDoc(userDocRef, { todoList: sortedTasks });
+      toast.info("Tasks sorted by priority");
+    } catch (error) {
+      console.error("Error sorting tasks:", error);
+      toast.error("Failed to sort tasks");
+    }
   }, [user, todoList]);
 
-  const sortTasksByDeadline = useCallback(() => {
+  const sortTasksByDeadline = useCallback(async () => {
     if (!user || !userRef.current) return;
 
     const sortedTasks = [...todoList].sort((a, b) => {
@@ -609,10 +685,14 @@ const localWeekStart = (d = new Date(), weekStartsOn = 1 /* 1=Mon */) => {
       return deadlineA - deadlineB;
     });
     
-    const userDocRef = doc(db, "users", userRef.current.uid);
-    updateDoc(userDocRef, { todoList: sortedTasks });
-    
-    toast.info("Tasks sorted by deadline");
+    try {
+      const userDocRef = doc(db, "users", userRef.current.uid);
+      await updateDoc(userDocRef, { todoList: sortedTasks });
+      toast.info("Tasks sorted by deadline");
+    } catch (error) {
+      console.error("Error sorting tasks:", error);
+      toast.error("Failed to sort tasks");
+    }
   }, [user, todoList]);
 
   // Memoized calculations for better performance
@@ -718,6 +798,80 @@ const localWeekStart = (d = new Date(), weekStartsOn = 1 /* 1=Mon */) => {
 
   return (
     <div className="session-container">
+      {/* Tab Warning Modal */}
+      <AnimatePresence>
+        {showTabWarning && (
+          <motion.div
+            className="warning-overlay"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            style={{
+              position: 'fixed',
+              top: 0,
+              left: 0,
+              width: '100vw',
+              height: '100vh',
+              backgroundColor: 'rgba(0, 0, 0, 0.7)',
+              zIndex: 9999,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center'
+            }}
+          >
+            <motion.div
+              className="warning-modal"
+              initial={{ scale: 0.8, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.8, opacity: 0 }}
+              style={{
+                background: 'white',
+                padding: '2rem',
+                borderRadius: '1rem',
+                maxWidth: '400px',
+                textAlign: 'center',
+                boxShadow: '0 20px 60px rgba(0, 0, 0, 0.3)'
+              }}
+            >
+              <h3 style={{ marginBottom: '1rem', color: '#f39c12' }}>Timer is Running!</h3>
+              <p style={{ marginBottom: '1.5rem', color: '#666' }}>
+                You have an active study timer running. Please pause it before navigating to another page to save your progress.
+              </p>
+              <div style={{ display: 'flex', gap: '1rem', justifyContent: 'center' }}>
+                <button
+                  onClick={handlePauseAndNavigate}
+                  style={{
+                    padding: '0.75rem 1.5rem',
+                    backgroundColor: '#e74c3c',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '0.5rem',
+                    cursor: 'pointer',
+                    fontWeight: 'bold'
+                  }}
+                >
+                  Pause & Navigate
+                </button>
+                <button
+                  onClick={handleContinueWithTimer}
+                  style={{
+                    padding: '0.75rem 1.5rem',
+                    backgroundColor: '#27ae60',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '0.5rem',
+                    cursor: 'pointer',
+                    fontWeight: 'bold'
+                  }}
+                >
+                  Continue Studying
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* Header */}
       <header className="session-header">
         <motion.div
