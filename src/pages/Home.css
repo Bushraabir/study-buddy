@@ -25,26 +25,6 @@ body {
   overflow: hidden;
 }
 
-/* Enhanced Scrollbar */
-::-webkit-scrollbar {
-  width: 10px;
-}
-
-::-webkit-scrollbar-track {
-  background: rgba(15, 15, 35, 0.5);
-  border-radius: 5px;
-}
-
-::-webkit-scrollbar-thumb {
-  background: linear-gradient(135deg, #5a67d8, #667eea);
-  border-radius: 5px;
-  border: 2px solid rgba(15, 15, 35, 0.3);
-}
-
-::-webkit-scrollbar-thumb:hover {
-  background: linear-gradient(135deg, #667eea, #764ba2);
-}
-
 /* Enhanced Cursor */
 .enhanced-cursor {
   position: fixed;
@@ -194,6 +174,7 @@ body {
 }
 
 .study-hero-title {
+  font-family: 'Dancing Script', cursive, sans-serif;
   font-size: clamp(2.8rem, 6vw, 4.5rem);
   font-weight: 900;
   line-height: 1.1;
@@ -713,6 +694,7 @@ body {
 }
 
 .features-main-title {
+  font-family: 'Dancing Script', cursive, sans-serif;
   font-size: clamp(2.5rem, 5vw, 3.5rem);
   font-weight: 800;
   color: #ffffff;
@@ -932,8 +914,7 @@ body {
 .study-cta-section {
   position: relative;
   padding: 6rem 2rem;
-  background: linear-gradient(135deg, #5a67d8, #667eea, #764ba2);
-  color: #ffffff;
+
   text-align: center;
   overflow: hidden;
 }
@@ -1002,6 +983,7 @@ body {
 }
 
 .cta-main-title {
+  font-family: 'Dancing Script', cursive, sans-serif;
   font-size: clamp(2.8rem, 5vw, 3.8rem);
   font-weight: 800;
   line-height: 1.2;

@@ -333,6 +333,15 @@ function Profile() {
               </>
             )}
           </div>
+
+          <div className="stat-card highlight">
+            <div className="stat-icon">🔥</div>
+            <div className="stat-content">
+              <h3>{profileStats.studyStreak}</h3>
+              <p>Day Streak</p>
+            </div>
+          </div>
+          
         </div>
         
         {userData && (
@@ -351,14 +360,7 @@ function Profile() {
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.2, duration: 0.5 }}
         >
-          <div className="stat-card highlight">
-            <div className="stat-icon">🔥</div>
-            <div className="stat-content">
-              <h3>{profileStats.studyStreak}</h3>
-              <p>Day Streak</p>
-            </div>
-          </div>
-          
+
           <div className="stat-card">
             <div className="stat-icon">⏱️</div>
             <div className="stat-content">
@@ -466,10 +468,7 @@ function Profile() {
               <h3>Pending</h3>
               <div className="task-stat-value">{profileStats.pendingTasks}</div>
             </div>
-            <div className="task-stat-card rate">
-              <h3>Completion Rate</h3>
-              <div className="task-stat-value">{profileStats.completionRate}%</div>
-            </div>
+
           </div>
         </motion.div>
       )}
