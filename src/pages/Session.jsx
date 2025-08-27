@@ -30,6 +30,11 @@ function StartSession() {
   const [selectedField, setSelectedField] = useState("General");
   const [newFieldName, setNewFieldName] = useState("");
   
+  // Field removal modal state
+  const [showFieldRemovalModal, setShowFieldRemovalModal] = useState(false);
+  const [fieldToRemove, setFieldToRemove] = useState(null);
+  const [keepTimeOnRemoval, setKeepTimeOnRemoval] = useState(false);
+  
   // Tasks
   const [todoList, setTodoList] = useState([]);
   const [newTaskText, setNewTaskText] = useState("");
@@ -620,8 +625,9 @@ function StartSession() {
     }
   }, [newFieldName, studyFields, user]);
 
-  const removeStudyField = useCallback(async (fieldToRemove) => {
-    if (fieldToRemove === "General") {
+  // Initiate field removal confirmation
+  const initiateFieldRemoval = useCallback((fieldName) => {
+    if (fieldName === "General") {
       toast.error("Cannot remove the General field");
       return;
     }
@@ -631,45 +637,120 @@ function StartSession() {
       return;
     }
 
-    if (!user || !userRef.current) return;
+    setFieldToRemove(fieldName);
+    setKeepTimeOnRemoval(false);
+    setShowFieldRemovalModal(true);
+  }, [studyFields]);
+
+  // Confirm field removal with time handling
+  const confirmFieldRemoval = useCallback(async () => {
+    if (!fieldToRemove || !user || !userRef.current) return;
 
     try {
       const updatedFields = studyFields.filter(field => field !== fieldToRemove);
+      const userDocRef = doc(db, "users", userRef.current.uid);
+      
+      // Get current field time
+      const fieldTime = userData?.fieldTimes?.[fieldToRemove] || 0;
+      
       const updateData = { studyFields: updatedFields };
 
-      // Also remove the field from fieldTimes if it exists
-      const currentFieldTimes = userData?.fieldTimes || {};
-      if (currentFieldTimes[fieldToRemove]) {
-        updateData[`fieldTimes.${fieldToRemove}`] = null; // Delete the field
+      if (keepTimeOnRemoval && fieldTime > 0) {
+        // Add field time to total time and remove from field times
+        updateData.totalTimeAllTime = increment(fieldTime);
+        updateData[`fieldTimes.${fieldToRemove}`] = null; // This will delete the field from fieldTimes
+        
+        // Also need to handle stats removal but add time to totals
+        const todayKey = getTodayKey();
+        const weekKey = getWeekKey();
+        const monthKey = getMonthKey();
+        
+        // Add to daily stats total if field time exists in daily stats
+        const dailyFieldTime = userData?.dailyStats?.[todayKey]?.fieldTimes?.[fieldToRemove] || 0;
+        if (dailyFieldTime > 0) {
+          updateData[`dailyStats.${todayKey}.fieldTimes.${fieldToRemove}`] = null;
+        }
+        
+        // Add to weekly stats total if field time exists in weekly stats
+        const weeklyFieldTime = userData?.weeklyStats?.[weekKey]?.fieldTimes?.[fieldToRemove] || 0;
+        if (weeklyFieldTime > 0) {
+          updateData[`weeklyStats.${weekKey}.fieldTimes.${fieldToRemove}`] = null;
+        }
+        
+        // Add to monthly stats total if field time exists in monthly stats
+        const monthlyFieldTime = userData?.monthlyStats?.[monthKey]?.fieldTimes?.[fieldToRemove] || 0;
+        if (monthlyFieldTime > 0) {
+          updateData[`monthlyStats.${monthKey}.fieldTimes.${fieldToRemove}`] = null;
+        }
+        
+        toast.success(`Field "${fieldToRemove}" removed and ${formatTime(fieldTime)} added to total time`);
+      } else {
+        // Remove field and its time completely
+        updateData[`fieldTimes.${fieldToRemove}`] = null;
+        updateData.totalTimeAllTime = increment(-fieldTime); // Subtract from total
+        
+        // Remove from all stats
+        const todayKey = getTodayKey();
+        const weekKey = getWeekKey();
+        const monthKey = getMonthKey();
+        
+        updateData[`dailyStats.${todayKey}.fieldTimes.${fieldToRemove}`] = null;
+        updateData[`weeklyStats.${weekKey}.fieldTimes.${fieldToRemove}`] = null;
+        updateData[`monthlyStats.${monthKey}.fieldTimes.${fieldToRemove}`] = null;
+        
+        if (fieldTime > 0) {
+          toast.success(`Field "${fieldToRemove}" and ${formatTime(fieldTime)} of study time removed`);
+        } else {
+          toast.success(`Field "${fieldToRemove}" removed`);
+        }
       }
 
-      const userDocRef = doc(db, "users", userRef.current.uid);
       await updateDoc(userDocRef, updateData);
 
+      // Update selected field if necessary
       if (selectedField === fieldToRemove) {
         setSelectedField(updatedFields[0]);
       }
 
-      toast.success("Study field removed");
+      // Reset modal state
+      setShowFieldRemovalModal(false);
+      setFieldToRemove(null);
+      setKeepTimeOnRemoval(false);
     } catch (error) {
       console.error("Error removing field:", error);
       toast.error("Failed to remove study field");
     }
-  }, [studyFields, user, userData?.fieldTimes, selectedField]);
+  }, [fieldToRemove, studyFields, user, userData, keepTimeOnRemoval, selectedField, formatTime, getTodayKey, getWeekKey, getMonthKey]);
 
-  // Sorting functions
+  const cancelFieldRemoval = useCallback(() => {
+    setShowFieldRemovalModal(false);
+    setFieldToRemove(null);
+    setKeepTimeOnRemoval(false);
+  }, []);
+
+  // Fixed sorting functions with proper async updates
   const sortTasksByPriority = useCallback(async () => {
-    if (!user || !userRef.current) return;
+    if (!user || !userRef.current || todoList.length === 0) return;
 
     const priorityOrder = { High: 1, Medium: 2, Low: 3 };
-    const sortedTasks = [...todoList].sort((a, b) => 
-      priorityOrder[a.priority] - priorityOrder[b.priority]
-    );
+    const sortedTasks = [...todoList].sort((a, b) => {
+      const priorityA = priorityOrder[a.priority] || 4;
+      const priorityB = priorityOrder[b.priority] || 4;
+      return priorityA - priorityB;
+    });
+    
+    // Only update if the order actually changed
+    const hasChanged = sortedTasks.some((task, index) => task.id !== todoList[index]?.id);
+    
+    if (!hasChanged) {
+      toast.info("Tasks are already sorted by priority");
+      return;
+    }
     
     try {
       const userDocRef = doc(db, "users", userRef.current.uid);
       await updateDoc(userDocRef, { todoList: sortedTasks });
-      toast.info("Tasks sorted by priority");
+      toast.success("Tasks sorted by priority");
     } catch (error) {
       console.error("Error sorting tasks:", error);
       toast.error("Failed to sort tasks");
@@ -677,18 +758,31 @@ function StartSession() {
   }, [user, todoList]);
 
   const sortTasksByDeadline = useCallback(async () => {
-    if (!user || !userRef.current) return;
+    if (!user || !userRef.current || todoList.length === 0) return;
 
     const sortedTasks = [...todoList].sort((a, b) => {
-      const deadlineA = new Date(a.deadline || "2100-01-01");
-      const deadlineB = new Date(b.deadline || "2100-01-01");
+      // Handle tasks without deadlines
+      if (!a.deadline && !b.deadline) return 0;
+      if (!a.deadline) return 1; // Tasks without deadline go to end
+      if (!b.deadline) return -1; // Tasks without deadline go to end
+      
+      const deadlineA = new Date(a.deadline);
+      const deadlineB = new Date(b.deadline);
       return deadlineA - deadlineB;
     });
+    
+    // Only update if the order actually changed
+    const hasChanged = sortedTasks.some((task, index) => task.id !== todoList[index]?.id);
+    
+    if (!hasChanged) {
+      toast.info("Tasks are already sorted by deadline");
+      return;
+    }
     
     try {
       const userDocRef = doc(db, "users", userRef.current.uid);
       await updateDoc(userDocRef, { todoList: sortedTasks });
-      toast.info("Tasks sorted by deadline");
+      toast.success("Tasks sorted by deadline");
     } catch (error) {
       console.error("Error sorting tasks:", error);
       toast.error("Failed to sort tasks");
@@ -697,7 +791,11 @@ function StartSession() {
 
   // Memoized calculations for better performance
   const filteredTasks = useMemo(() => {
+    if (!Array.isArray(todoList)) return [];
+    
     return todoList.filter((task) => {
+      if (!task) return false;
+      
       if (filterOption === "All") return true;
       if (filterOption === "Completed") return task.completed;
       if (filterOption === "Pending") return !task.completed;
@@ -710,10 +808,13 @@ function StartSession() {
 
   // Get task statistics
   const taskStats = useMemo(() => {
-    const total = todoList.length;
-    const completed = todoList.filter(task => task && task.completed).length;
+    if (!Array.isArray(todoList)) return { total: 0, completed: 0, pending: 0, highPriority: 0 };
+    
+    const validTasks = todoList.filter(task => task);
+    const total = validTasks.length;
+    const completed = validTasks.filter(task => task.completed).length;
     const pending = total - completed;
-    const highPriority = todoList.filter(task => task && task.priority === "High").length;
+    const highPriority = validTasks.filter(task => task.priority === "High").length;
     
     return { total, completed, pending, highPriority };
   }, [todoList]);
@@ -872,6 +973,106 @@ function StartSession() {
         )}
       </AnimatePresence>
 
+      {/* Field Removal Confirmation Modal */}
+      <AnimatePresence>
+        {showFieldRemovalModal && (
+          <motion.div
+            className="warning-overlay"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            style={{
+              position: 'fixed',
+              top: 0,
+              left: 0,
+              width: '100vw',
+              height: '100vh',
+              backgroundColor: 'rgba(0, 0, 0, 0.7)',
+              zIndex: 9999,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center'
+            }}
+          >
+            <motion.div
+              className="warning-modal"
+              initial={{ scale: 0.8, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.8, opacity: 0 }}
+              style={{
+                background: 'white',
+                padding: '2rem',
+                borderRadius: '1rem',
+                maxWidth: '450px',
+                textAlign: 'center',
+                boxShadow: '0 20px 60px rgba(0, 0, 0, 0.3)'
+              }}
+            >
+              <h3 style={{ marginBottom: '1rem', color: '#e74c3c' }}>Remove Study Field</h3>
+              <p style={{ marginBottom: '1rem', color: '#666' }}>
+                Are you sure you want to remove the field "{fieldToRemove}"?
+              </p>
+              {userData?.fieldTimes?.[fieldToRemove] > 0 && (
+                <p style={{ marginBottom: '1.5rem', color: '#666', fontSize: '0.9rem' }}>
+                  This field has {formatTime(userData.fieldTimes[fieldToRemove])} of study time.
+                </p>
+              )}
+              
+              {userData?.fieldTimes?.[fieldToRemove] > 0 && (
+                <div style={{ marginBottom: '1.5rem', textAlign: 'left' }}>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}>
+                    <input
+                      type="checkbox"
+                      checked={keepTimeOnRemoval}
+                      onChange={(e) => setKeepTimeOnRemoval(e.target.checked)}
+                    />
+                    <span style={{ fontSize: '0.9rem' }}>
+                      Keep the study time and add it to total time
+                    </span>
+                  </label>
+                  <p style={{ fontSize: '0.8rem', color: '#888', marginTop: '0.5rem', marginLeft: '1.5rem' }}>
+                    {keepTimeOnRemoval 
+                      ? "Time will be preserved and added to your total study time" 
+                      : "Time will be permanently deleted"}
+                  </p>
+                </div>
+              )}
+              
+              <div style={{ display: 'flex', gap: '1rem', justifyContent: 'center' }}>
+                <button
+                  onClick={cancelFieldRemoval}
+                  style={{
+                    padding: '0.75rem 1.5rem',
+                    backgroundColor: '#95a5a6',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '0.5rem',
+                    cursor: 'pointer',
+                    fontWeight: 'bold'
+                  }}
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={confirmFieldRemoval}
+                  style={{
+                    padding: '0.75rem 1.5rem',
+                    backgroundColor: keepTimeOnRemoval ? '#f39c12' : '#e74c3c',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '0.5rem',
+                    cursor: 'pointer',
+                    fontWeight: 'bold'
+                  }}
+                >
+                  {keepTimeOnRemoval ? 'Remove Field (Keep Time)' : 'Remove Field (Delete Time)'}
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* Header */}
       <header className="session-header">
         <motion.div
@@ -880,6 +1081,23 @@ function StartSession() {
           transition={{ duration: 0.5 }}
         >
           <h1>Study Session</h1>
+        </motion.div>
+      </header>
+
+      {/* Timer Section */}
+      <div className="timer-section">
+        <div className="animation-container">
+          <Lottie 
+            animationData={clockAnimation} 
+            loop={isRunning} 
+            className="clock-animation" 
+          />
+        
+        <motion.div
+          initial={{ opacity: 0, y: -20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5 }}
+        >
           <div className="time-stats">
             <p>Today: <strong>{formatTime(timeStats.today)}</strong></p>
             <p>This Week: <strong>{formatTime(timeStats.week)}</strong></p>
@@ -892,16 +1110,6 @@ function StartSession() {
             <span>High Priority: {taskStats.highPriority}</span>
           </div>
         </motion.div>
-      </header>
-
-      {/* Timer Section */}
-      <div className="timer-section">
-        <div className="animation-container">
-          <Lottie 
-            animationData={clockAnimation} 
-            loop={isRunning} 
-            className="clock-animation" 
-          />
         </div>
         
         <motion.div
@@ -910,10 +1118,10 @@ function StartSession() {
           animate={{ opacity: 1, scale: 1 }}
           transition={{ delay: 0.2, duration: 0.5 }}
         >
+          <h2>{pomodoroMode ? "Pomodoro Timer" : "Stopwatch"}</h2>
           <h2 className="selected-field-heading">
             Study Field: <span>{selectedField}</span>
           </h2>
-          <h2>{pomodoroMode ? "Pomodoro Timer" : "Stopwatch"}</h2>
           
           {pomodoroMode && pomodoroRounds > 0 && (
             <div className="pomodoro-rounds">
@@ -1012,7 +1220,7 @@ function StartSession() {
                     </div>
                     {field !== "General" && (
                       <button 
-                        onClick={() => removeStudyField(field)}
+                        onClick={() => initiateFieldRemoval(field)}
                         className="remove-field-button"
                         title="Remove field"
                       >
@@ -1079,7 +1287,7 @@ function StartSession() {
             value={filterOption}
             onChange={(e) => setFilterOption(e.target.value)}
           >
-            <option value="All">All Tasks ({todoList.length})</option>
+            <option value="All">All Tasks ({taskStats.total})</option>
             <option value="Completed">Completed ({taskStats.completed})</option>
             <option value="Pending">Pending ({taskStats.pending})</option>
             <option value="High">High Priority ({taskStats.highPriority})</option>
