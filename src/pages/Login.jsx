@@ -41,29 +41,25 @@ function Login() {
 
   return (
     <div className="login-container">
-      {/* Left Section: Animation */}
+      {/* Animation Section */}
       <motion.div
-        className="login-animation-container"
+        className="animation-container"
         initial={{ opacity: 0, x: -100 }}
         animate={{ opacity: 1, x: 0 }}
         transition={{ duration: 1 }}
       >
-        <Lottie
-          animationData={loginAnimation}
-          loop={true}
-          className="login-animation"
-        />
+        <Lottie animationData={loginAnimation} loop={true} />
       </motion.div>
 
-      {/* Right Section: Form */}
+      {/* Form Section */}
       <motion.div
-        className="login-card"
-        initial={{ opacity: 0, scale: 0.8 }}
+        className="form-container"
+        initial={{ opacity: 0, scale: 0.9 }}
         animate={{ opacity: 1, scale: 1 }}
-        transition={{ duration: 0.6, ease: "easeInOut" }}
+        transition={{ duration: 0.8 }}
       >
-        <h1 className="login-title">Welcome Back!</h1>
-        <p className="login-subtitle">Please log in to your account</p>
+        <h2>Welcome Back!</h2>
+        <p>Please log in to your account</p>
 
         <Formik
           initialValues={{ email: "", password: "" }}
@@ -73,69 +69,58 @@ function Login() {
           {({ isSubmitting }) => (
             <Form className="login-form">
               {/* Email Field */}
-              <motion.div
-                className="form-group"
-                initial={{ opacity: 0, x: -30 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ duration: 0.5, delay: 0.2 }}
-              >
-                <div className="input-icon">
-                  <FaUser className="icon" />
-                  <Field
-                    type="email"
-                    name="email"
-                    placeholder="Email Address"
-                    className="form-input"
-                  />
-                </div>
+              <div className="form-group">
+                <label htmlFor="email">
+                  <FaUser /> Email
+                </label>
+                <Field
+                  type="email"
+                  name="email"
+                  placeholder="Enter your email"
+                  className="form-control"
+                />
                 <ErrorMessage
                   name="email"
                   component="div"
                   className="error-message"
                 />
-              </motion.div>
+              </div>
 
               {/* Password Field */}
-              <motion.div
-                className="form-group"
-                initial={{ opacity: 0, x: -30 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ duration: 0.5, delay: 0.4 }}
-              >
-                <div className="input-icon">
-                  <FaLock className="icon" />
+              <div className="form-group">
+                <label htmlFor="password">
+                  <FaLock /> Password
+                </label>
+                <div className="password-field">
                   <Field
                     type={passwordVisible ? "text" : "password"}
                     name="password"
-                    placeholder="Password"
-                    className="form-input"
+                    placeholder="Enter your password"
+                    className="form-control"
                   />
-                  <div
-                    className="password-toggle"
+                  <button
+                    type="button"
+                    className="toggle-password"
                     onClick={() => setPasswordVisible(!passwordVisible)}
                   >
-                    {passwordVisible ? (
-                      <FaEyeSlash className="icon" />
-                    ) : (
-                      <FaEye className="icon" />
-                    )}
-                  </div>
+                    {passwordVisible ? <FaEyeSlash /> : <FaEye />}
+                  </button>
                 </div>
                 <ErrorMessage
                   name="password"
                   component="div"
                   className="error-message"
                 />
-              </motion.div>
+              </div>
 
               {/* Submit Button */}
               <motion.button
                 type="submit"
-                className="login-button"
+                className="submit-button"
                 disabled={isSubmitting}
-                initial={{ opacity: 0, y: 20 }}
+                initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.4, delay: 0.8 }}
+                transition={{ duration: 0.4 }}
               >
                 {isSubmitting ? "Logging in..." : "Login"}
               </motion.button>

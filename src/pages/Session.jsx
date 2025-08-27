@@ -1086,7 +1086,7 @@ function StartSession() {
 
       {/* Timer Section */}
       <div className="timer-section">
-        <div className="animation-container">
+        <div className="session-animation-container">
           <Lottie 
             animationData={clockAnimation} 
             loop={isRunning} 

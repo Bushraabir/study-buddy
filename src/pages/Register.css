@@ -1,93 +1,94 @@
-/* Import premium fonts */
-@import url('https://fonts.googleapis.com/css2?family=Dancing+Script:wght@500;700&family=Inter:wght@400;500;600;700&display=swap');
 
-/* Overall Container */
+
+/* Register Container */
 .register-container {
   display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 90%;
+  max-width: 3000px;
+
+  padding: 30px;
+  border-radius: 10px;
+ ;
+  box-sizing: border-box;
+  overflow: hidden;
   justify-content: center;
   align-items: center;
-  flex-wrap: wrap;
-  min-height: 100vh;
-  background: linear-gradient(145deg, #1a1a1a, #2d2d3a); /* Premium dark gradient */
-  padding: 2rem;
-  color: #e4e4e7; /* Light text color */
 }
 
 /* Animation Section */
 .animation-container {
-  flex: 1;
-  max-width: 400px;
-  margin-right: 2rem;
+  width: 45%;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 100%;
 }
 
-/* Form Container */
+/* Form Section */
 .form-container {
-  flex: 1;
-  max-width: 500px;
-  background: #2d2d3a; /* Card background */
-  border-radius: 16px;
-  padding: 2rem;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4); /* Subtle shadow */
+  width: 50%;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 20px;
+  margin-left: 90px;
 }
 
-/* Title */
+/* Heading and Description */
 .form-container h2 {
-  font-family: 'Dancing Script', cursive;
-  font-size: 2.5rem;
-  font-weight: 700;
-  color: #ffffff;
-  margin-bottom: 0.5rem;
-  text-align: center;
+  font-family: 'Dancing Script', cursive, sans-serif;
+  font-size: 40px;
+  font-weight: 600;
+  color: #fff;
+  margin-bottom: 10px;
 }
 
 .form-container p {
-  font-family: 'Inter', sans-serif;
-  font-size: 1rem;
-  color: #a8a8b3;
-  margin-bottom: 1.5rem;
-  text-align: center;
+  font-size: 16px;
+  color: #ccc;
+  margin-bottom: 40px;
 }
 
-/* Form */
-.register-form {
-  display: flex;
-  flex-direction: column;
-  gap: 1.5rem;
-}
-
-/* Form Group */
+/* Form Fields */
 .form-group {
-  display: flex;
-  flex-direction: column;
+  width: 250%;
+  margin-bottom: 20px;
+  position: relative;
 }
 
 .form-group label {
-  font-family: 'Inter', sans-serif;
-  font-size: 1rem;
-  font-weight: 600;
-  color: #e4e4e7;
-  margin-bottom: 0.5rem;
+  font-size: 16px;
+  color: #fff;
+  margin-bottom: 8px;
+  display: flex;
+  align-items: center;
 }
 
-/* Input Fields */
-.form-control {
-  padding: 0.75rem 1rem;
-  border: 1px solid #3e3e4a;
+.form-group .form-control {
+  width: 100%;
+  padding: 12px;
+  border: none;
   border-radius: 8px;
-  background: #1a1a1a;
-  color: #e4e4e7;
-  font-family: 'Inter', sans-serif;
-  font-size: 1rem;
-  transition: border-color 0.3s ease;
-}
-
-.form-control:focus {
+  background-color: #3e2b75;
+  color: #fff;
+  font-size: 16px;
   outline: none;
-  border-color: #5a67d8; /* Premium purple focus */
-  box-shadow: 0 0 5px rgba(90, 103, 216, 0.5);
+  transition: all 0.3s ease;
 }
 
-/* Password Field (with toggle) */
+.form-group .form-control:focus {
+  background-color: #6a4fff;
+}
+
+.error-message {
+  color: #ff5e5e;
+  font-size: 14px;
+  margin-top: 8px;
+}
+
 .password-field {
   display: flex;
   align-items: center;
@@ -96,58 +97,68 @@
 
 .toggle-password {
   position: absolute;
-  right: 1rem;
-  background: none;
+  right: 10px;
+  background: transparent;
   border: none;
-  color: #a8a8b3;
-  font-size: 1.2rem;
+  color: #fff;
   cursor: pointer;
 }
 
-.toggle-password:hover {
-  color: #ffffff;
-}
-
-/* Error Message */
-.error-message {
-  margin-top: 0.25rem;
-  color: #ff6b6b;
-  font-size: 0.875rem;
-  font-family: 'Inter', sans-serif;
+.toggle-password svg {
+  width: 20px;
+  height: 20px;
 }
 
 /* Submit Button */
 .submit-button {
-  padding: 0.75rem;
-  background: #5a67d8; /* Premium purple */
-  color: #ffffff;
-  font-family: 'Inter', sans-serif;
-  font-size: 1rem;
+  width: 100%;
+  padding: 15px;
+  background-color: #9c2aff;
+  color: #fff;
+  font-size: 18px;
   font-weight: 600;
   border: none;
-  border-radius: 12px;
+  border-radius: 8px;
   cursor: pointer;
-  transition: all 0.3s ease-in-out;
-  box-shadow: 0 4px 12px rgba(90, 103, 216, 0.5);
+  transition: background-color 0.3s ease;
 }
 
 .submit-button:hover {
-  background: #434190; /* Darker premium purple */
-  transform: scale(1.05);
+  background-color: #6a4fff;
 }
 
-/* Responsive Design */
+.submit-button:disabled {
+  background-color: #ccc;
+  cursor: not-allowed;
+}
+
+/* Footer Link */
+.login-footer {
+  margin-top: 20px;
+  text-align: center;
+}
+
+.signup-link {
+  color: #fff;
+  text-decoration: none;
+  font-weight: 600;
+}
+
+.signup-link:hover {
+  color: #6a4fff;
+  text-decoration: underline;
+}
+
+/* Mobile Responsiveness */
 @media (max-width: 768px) {
-  .animation-container {
-    display: none; /* Hide animation on small screens */
-  }
-
-  .form-container {
-    max-width: 100%;
-    margin: 0;
-  }
-
   .register-container {
-    padding: 1rem;
+    flex-direction: column;
+    width: 100%;
+    padding: 20px;
+  }
+
+  .animation-container, .form-container {
+    width: 100%;
+    margin-bottom: 20px;
   }
 }
