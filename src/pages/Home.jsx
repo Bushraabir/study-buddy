@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { motion, useAnimation, useScroll, useTransform } from "framer-motion";
 import { useInView } from "react-intersection-observer";
+import { useNavigate } from "react-router-dom";
 import './Home.css'
 import Lottie from "lottie-react";
 import heroAnimation from "../assets/hero-animation.json";
@@ -13,7 +14,9 @@ function Home() {
   const [currentQuote, setCurrentQuote] = useState(0);
   const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 });
   const [isScrolled, setIsScrolled] = useState(false);
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
   
+  const navigate = useNavigate();
   const controls = useAnimation();
   const [ref, inView] = useInView({ threshold: 0.1 });
   const { scrollY } = useScroll();
@@ -49,7 +52,8 @@ function Home() {
       icon: "🧠",
       lottie: flashcardsAnimation,
       gradient: "from-purple-600 to-purple-400",
-      benefits: ["Spaced Repetition", "Progress Tracking", "Custom Categories"]
+      benefits: ["Spaced Repetition", "Progress Tracking", "Custom Categories"],
+     
     },
     {
       title: "Organized Notes",
@@ -57,7 +61,8 @@ function Home() {
       icon: "📚",
       lottie: flashcardsAnimation,
       gradient: "from-blue-600 to-blue-400",
-      benefits: ["Smart Search", "Topic Linking", "Export Options"]
+      benefits: ["Smart Search", "Topic Linking", "Export Options"],
+     
     },
     {
       title: "Visual Learning",
@@ -65,11 +70,27 @@ function Home() {
       icon: "📊",
       lottie: flashcardsAnimation,
       gradient: "from-green-600 to-green-400",
-      benefits: ["Interactive Graphs", "3D Models", "Step-by-Step"]
+      benefits: ["Interactive Graphs", "3D Models", "Step-by-Step"],
+    
     },
   ];
 
+  // Check login status on component mount
+  useEffect(() => {
+    // Check if user is logged in - you can replace this with your actual authentication logic
+    const token = localStorage.getItem('authToken') || sessionStorage.getItem('authToken');
+    const userLoggedIn = localStorage.getItem('isLoggedIn') === 'true';
+    setIsLoggedIn(!!token || userLoggedIn);
+  }, []);
 
+  // Navigation handler for protected routes
+  const handleProtectedNavigation = (route) => {
+    if (isLoggedIn) {
+      navigate(route);
+    } else {
+      navigate('/login');
+    }
+  };
 
   useEffect(() => {
     if (inView) {
@@ -186,8 +207,6 @@ function Home() {
               and proven techniques that make complex subjects simple and engaging.
             </motion.p>
 
-
-
             <motion.div 
               className="study-hero-actions"
               initial={{ opacity: 0, y: 30 }}
@@ -201,7 +220,7 @@ function Home() {
                   boxShadow: "0 20px 40px rgba(90, 103, 216, 0.3)"
                 }}
                 whileTap={{ scale: 0.98 }}
-                onClick={() => alert('Start Learning Today!')}
+                onClick={() => handleProtectedNavigation("/session")}
               >
                 <span>Start Learning Today</span>
                 <span className="button-arrow">→</span>
@@ -303,9 +322,6 @@ function Home() {
         </motion.div>
       </section>
 
-
-   
-
       {/* Features Section */}
       <section id="features" className="study-features-section">
         <div className="features-background-grid">
@@ -359,7 +375,6 @@ function Home() {
                 </div>
 
                 <div className="feature-text-content">
-                 
                   <p className="feature-card-description">{feature.description}</p>
                   
                   <div className="feature-benefits-list">
@@ -372,25 +387,7 @@ function Home() {
                   </div>
                 </div>
 
-                <motion.div 
-                  className="feature-action-area"
-                  initial={{ opacity: 0 }}
-                  whileInView={{ opacity: 1 }}
-                  transition={{ delay: 0.3 }}
-                >
-                  <motion.button 
-                    className="feature-explore-button"
-                    whileHover={{ 
-                      scale: 1.02,
-                      backgroundColor: "rgba(90, 103, 216, 0.1)"
-                    }}
-                    whileTap={{ scale: 0.98 }}
-                    onClick={() => alert(`Try ${feature.title}!`)}
-                  >
-                    Try {feature.title}
-                    <span className="explore-arrow">→</span>
-                  </motion.button>
-                </motion.div>
+
               </motion.div>
             ))}
           </div>
@@ -496,7 +493,7 @@ function Home() {
                 boxShadow: "0 25px 50px rgba(255, 255, 255, 0.25)"
               }}
               whileTap={{ scale: 0.98 }}
-              onClick={() => alert('Begin Your Journey!')}
+              onClick={() => handleProtectedNavigation("/session")}
             >
               <motion.div 
                 className="button-shimmer"
