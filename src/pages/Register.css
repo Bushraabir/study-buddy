@@ -1,164 +1,26 @@
 
-
-/* Register Container */
-.register-container {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  width: 90%;
-  max-width: 3000px;
-
-  padding: 30px;
-  border-radius: 10px;
- ;
-  box-sizing: border-box;
-  overflow: hidden;
-  justify-content: center;
-  align-items: center;
+/* Register has more fields → slightly more compact spacing */
+.studybuddy-auth-form--register .studybuddy-auth-form {
+  gap: 14px;
 }
 
-/* Animation Section */
-.animation-container {
-  width: 45%;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  height: 100%;
-}
-
-/* Form Section */
-.form-container {
-  width: 50%;
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  justify-content: center;
-  padding: 20px;
-  margin-left: 90px;
-}
-
-/* Heading and Description */
-.form-container h2 {
-  font-family: 'Dancing Script', cursive, sans-serif;
-  font-size: 40px;
-  font-weight: 600;
-  color: #fff;
-  margin-bottom: 10px;
-}
-
-.form-container p {
-  font-size: 16px;
-  color: #ccc;
-  margin-bottom: 40px;
-}
-
-/* Form Fields */
-.form-group {
-  width: 250%;
-  margin-bottom: 20px;
-  position: relative;
-}
-
-.form-group label {
-  font-size: 16px;
-  color: #fff;
-  margin-bottom: 8px;
-  display: flex;
-  align-items: center;
-}
-
-.form-group .form-control {
-  width: 100%;
-  padding: 12px;
-  border: none;
-  border-radius: 8px;
-  background-color: #3e2b75;
-  color: #fff;
-  font-size: 16px;
-  outline: none;
-  transition: all 0.3s ease;
-}
-
-.form-group .form-control:focus {
-  background-color: #6a4fff;
-}
-
-.error-message {
-  color: #ff5e5e;
-  font-size: 14px;
-  margin-top: 8px;
-}
-
-.password-field {
-  display: flex;
-  align-items: center;
-  position: relative;
-}
-
-.toggle-password {
-  position: absolute;
-  right: 10px;
-  background: transparent;
-  border: none;
-  color: #fff;
-  cursor: pointer;
-}
-
-.toggle-password svg {
-  width: 20px;
-  height: 20px;
-}
-
-/* Submit Button */
-.submit-button {
-  width: 100%;
-  padding: 15px;
-  background-color: #9c2aff;
-  color: #fff;
-  font-size: 18px;
-  font-weight: 600;
-  border: none;
-  border-radius: 8px;
-  cursor: pointer;
-  transition: background-color 0.3s ease;
-}
-
-.submit-button:hover {
-  background-color: #6a4fff;
-}
-
-.submit-button:disabled {
-  background-color: #ccc;
-  cursor: not-allowed;
-}
-
-/* Footer Link */
-.login-footer {
-  margin-top: 20px;
-  text-align: center;
-}
-
-.signup-link {
-  color: #fff;
-  text-decoration: none;
-  font-weight: 600;
-}
-
-.signup-link:hover {
-  color: #6a4fff;
-  text-decoration: underline;
-}
-
-/* Mobile Responsiveness */
+/* On very short screens, reduce illustration height in register */
 @media (max-width: 768px) {
-  .register-container {
-    flex-direction: column;
-    width: 100%;
-    padding: 20px;
+  .studybuddy-auth-card--register .studybuddy-auth-illustration {
+    padding: 24px 24px 20px;
   }
 
-  .animation-container, .form-container {
-    width: 100%;
-    margin-bottom: 20px;
+  .studybuddy-auth-card--register .studybuddy-auth-lottie {
+    max-width: 140px;
+  }
+}
+
+@media (max-width: 480px) {
+  .studybuddy-auth-card--register .studybuddy-auth-lottie {
+    max-width: 110px;
+  }
+
+  .studybuddy-auth-card--register .studybuddy-auth-form-panel {
+    padding: 20px 18px 24px;
   }
 }

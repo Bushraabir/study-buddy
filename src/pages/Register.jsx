@@ -1,231 +1,316 @@
-import React, { useState } from "react";
+import React, { useState, useCallback } from "react";
 import { FaUser, FaEnvelope, FaLock, FaEye, FaEyeSlash } from "react-icons/fa";
 import { Formik, Form, Field, ErrorMessage } from "formik";
 import * as Yup from "yup";
 import { motion } from "framer-motion";
-import { createUserWithEmailAndPassword } from "firebase/auth";
-import { doc, setDoc } from "firebase/firestore";
+import { createUserWithEmailAndPassword, updateProfile } from "firebase/auth";
+import { doc, setDoc, serverTimestamp } from "firebase/firestore";
 import { Link, useNavigate } from "react-router-dom";
 import { auth, db } from "../components/firebase";
 import toast from "react-hot-toast";
 import Lottie from "lottie-react";
-import registrationAnimation from "../assets/login-animation.json"; // Lottie file
-import "./Register.css";
+import registrationAnimation from "../assets/login-animation.json";
+import "./Login.css";   // shared auth design system
+import "./Register.css"; // register-specific overrides
 
+// ── Validation Schema ──────────────────────────────────────────
+const registerSchema = Yup.object({
+  name: Yup.string()
+    .trim()
+    .required("Name is required")
+    .min(2, "Name must be at least 2 characters")
+    .max(50, "Name must be 50 characters or fewer"),
+  email: Yup.string()
+    .email("Please enter a valid email address")
+    .required("Email is required"),
+  password: Yup.string()
+    .required("Password is required")
+    .min(6, "Password must be at least 6 characters")
+    .matches(
+      /^(?=.*[A-Za-z])(?=.*\d)/,
+      "Password must contain at least one letter and one number"
+    ),
+  confirmPassword: Yup.string()
+    .oneOf([Yup.ref("password")], "Passwords do not match")
+    .required("Please confirm your password"),
+});
 
+// ── Firebase error → human-readable message ────────────────────
+const getFirebaseErrorMessage = (code) => {
+  switch (code) {
+    case "auth/email-already-in-use":
+      return "This email is already registered. Try logging in instead.";
+    case "auth/invalid-email":
+      return "Invalid email address format.";
+    case "auth/weak-password":
+      return "Password is too weak. Please choose a stronger one.";
+    case "auth/network-request-failed":
+      return "Network error. Check your internet connection.";
+    case "auth/too-many-requests":
+      return "Too many requests. Please wait a moment and try again.";
+    default:
+      return "Registration failed. Please try again.";
+  }
+};
 
+// ── Animation Variants ─────────────────────────────────────────
+const cardVariants = {
+  hidden: { opacity: 0, y: 30 },
+  visible: { opacity: 1, y: 0, transition: { duration: 0.6, ease: "easeOut" } },
+};
+
+const illustrationVariants = {
+  hidden: { opacity: 0, x: -40 },
+  visible: { opacity: 1, x: 0, transition: { duration: 0.7, ease: "easeOut", delay: 0.1 } },
+};
+
+const formVariants = {
+  hidden: { opacity: 0, x: 40 },
+  visible: { opacity: 1, x: 0, transition: { duration: 0.7, ease: "easeOut", delay: 0.2 } },
+};
+
+// ── Component ──────────────────────────────────────────────────
 function Register() {
   const [passwordVisible, setPasswordVisible] = useState(false);
-  const [confirmPasswordVisible, setConfirmPasswordVisible] = useState(false);
+  const [confirmVisible, setConfirmVisible] = useState(false);
   const navigate = useNavigate();
 
-  // Validation Schema
-  const validationSchema = Yup.object({
-    name: Yup.string()
-      .required("Name is required")
-      .min(3, "Name must be at least 3 characters"),
-    email: Yup.string()
-      .email("Invalid email address")
-      .required("Email is required"),
-    password: Yup.string()
-      .required("Password is required")
-      .min(6, "Password must be at least 6 characters")
-      .matches(
-        /^(?=.*[A-Za-z])(?=.*\d)[A-Za-z\d@$!%*?&]{6,}$/,
-        "Password must contain letters and numbers"
-      ),
-    confirmPassword: Yup.string()
-      .oneOf([Yup.ref("password"), null], "Passwords must match")
-      .required("Confirm Password is required"),
-  });
+  const togglePassword = useCallback(() => setPasswordVisible((p) => !p), []);
+  const toggleConfirm = useCallback(() => setConfirmVisible((p) => !p), []);
 
-  // Form Submission
-  const handleSubmit = async (values, { setSubmitting }) => {
+  const handleSubmit = useCallback(async (values, { setSubmitting }) => {
     try {
-      const userCredential = await createUserWithEmailAndPassword(
+      // 1. Create Firebase Auth user
+      const { user } = await createUserWithEmailAndPassword(
         auth,
-        values.email,
+        values.email.trim(),
         values.password
       );
-      const user = userCredential.user;
 
-      // Save user data to Firestore
+      // 2. Set displayName on the Auth profile
+      await updateProfile(user, { displayName: values.name.trim() });
+
+      // 3. Write user document to Firestore
       await setDoc(doc(db, "users", user.uid), {
-        name: values.name,
+        name: values.name.trim(),
         email: user.email,
-        createdAt: new Date(),
+        createdAt: serverTimestamp(),
+        lastStudyDate: null,
         totalTimeToday: 0,
-        todoList: [],
+        totalTimeWeek: 0,
+        totalTimeMonth: 0,
+        totalTimeAllTime: 0,
         studyFields: ["General"],
-        fieldTimes: {}
+        fieldTimes: {},
+        todoList: [],
+        dailyStats: {},
+        weeklyStats: {},
+        monthlyStats: {},
       });
 
-      toast.success("Registration successful!");
+      toast.success("Account created! Let's start studying 🚀");
       navigate("/session");
     } catch (error) {
-      console.error("Registration error:", error.message);
-      let errorMessage = "Registration failed. Please try again.";
-      
-      if (error.code === "auth/email-already-in-use") {
-        errorMessage = "Email is already registered. Please use a different email.";
-      } else if (error.code === "auth/weak-password") {
-        errorMessage = "Password is too weak. Please use a stronger password.";
-      }
-      
-      toast.error(errorMessage);
+      const message = getFirebaseErrorMessage(error.code);
+      toast.error(message);
+    } finally {
+      setSubmitting(false);
     }
-    setSubmitting(false);
-  };
+  }, [navigate]);
 
   return (
-    <div className="register-container">
-      {/* Animation Section */}
+    <div className="studybuddy-auth-page">
       <motion.div
-        className="animation-container"
-        initial={{ opacity: 0, x: -100 }}
-        animate={{ opacity: 1, x: 0 }}
-        transition={{ duration: 1 }}
+        className="studybuddy-auth-card studybuddy-auth-card--register"
+        variants={cardVariants}
+        initial="hidden"
+        animate="visible"
       >
-        <Lottie animationData={registrationAnimation} loop={true} />
-      </motion.div>
-
-      {/* Form Section */}
-      <motion.div
-        className="form-container"
-        initial={{ opacity: 0, scale: 0.9 }}
-        animate={{ opacity: 1, scale: 1 }}
-        transition={{ duration: 0.8 }}
-      >
-        <h2>Create an Account</h2>
-        <p>Join us and unlock the full potential of your study experience!</p>
-
-        <Formik
-          initialValues={{
-            name: "",
-            email: "",
-            password: "",
-            confirmPassword: "",
-          }}
-          validationSchema={validationSchema}
-          onSubmit={handleSubmit}
+        {/* ── Left: Illustration ── */}
+        <motion.div
+          className="studybuddy-auth-illustration"
+          variants={illustrationVariants}
+          initial="hidden"
+          animate="visible"
         >
-          {({ isSubmitting }) => (
-            <Form className="register-form">
-              {/* Name Field */}
-              <div className="form-group">
-                <label htmlFor="name">
-                  <FaUser /> Name
-                </label>
-                <Field
-                  type="text"
-                  name="name"
-                  placeholder="Enter your name"
-                  className="form-control"
-                />
-                <ErrorMessage
-                  name="name"
-                  component="div"
-                  className="error-message"
-                />
-              </div>
+          <div className="studybuddy-auth-lottie">
+            <Lottie animationData={registrationAnimation} loop={true} />
+          </div>
+          <div className="studybuddy-auth-illustration-text">
+            <h3>Join StudyBuddy</h3>
+            <p>Build habits, track progress,<br />and ace every exam.</p>
+          </div>
+        </motion.div>
 
-              {/* Email Field */}
-              <div className="form-group">
-                <label htmlFor="email">
-                  <FaEnvelope /> Email
-                </label>
-                <Field
-                  type="email"
-                  name="email"
-                  placeholder="Enter your email"
-                  className="form-control"
-                />
-                <ErrorMessage
-                  name="email"
-                  component="div"
-                  className="error-message"
-                />
-              </div>
+        {/* ── Right: Form ── */}
+        <motion.div
+          className="studybuddy-auth-form-panel studybuddy-auth-form--register"
+          variants={formVariants}
+          initial="hidden"
+          animate="visible"
+        >
+          <div className="studybuddy-auth-header">
+            <h2>Create Account</h2>
+            <p>It's free — get started in seconds</p>
+          </div>
 
-              {/* Password Field */}
-              <div className="form-group">
-                <label htmlFor="password">
-                  <FaLock /> Password
-                </label>
-                <div className="password-field">
-                  <Field
-                    type={passwordVisible ? "text" : "password"}
+          <Formik
+            initialValues={{ name: "", email: "", password: "", confirmPassword: "" }}
+            validationSchema={registerSchema}
+            onSubmit={handleSubmit}
+          >
+            {({ isSubmitting, errors, touched }) => (
+              <Form className="studybuddy-auth-form" noValidate>
+
+                {/* Name */}
+                <div className="studybuddy-form-group">
+                  <label className="studybuddy-form-label" htmlFor="reg-name">
+                    <FaUser className="label-icon" />
+                    Full Name
+                  </label>
+                  <div className="studybuddy-input-wrapper">
+                    <Field
+                      id="reg-name"
+                      type="text"
+                      name="name"
+                      placeholder="Your full name"
+                      className={`studybuddy-form-control ${
+                        errors.name && touched.name ? "input-error" : ""
+                      }`}
+                      autoComplete="name"
+                    />
+                  </div>
+                  <ErrorMessage
+                    name="name"
+                    render={(msg) => (
+                      <span className="studybuddy-field-error">⚠ {msg}</span>
+                    )}
+                  />
+                </div>
+
+                {/* Email */}
+                <div className="studybuddy-form-group">
+                  <label className="studybuddy-form-label" htmlFor="reg-email">
+                    <FaEnvelope className="label-icon" />
+                    Email Address
+                  </label>
+                  <div className="studybuddy-input-wrapper">
+                    <Field
+                      id="reg-email"
+                      type="email"
+                      name="email"
+                      placeholder="you@example.com"
+                      className={`studybuddy-form-control ${
+                        errors.email && touched.email ? "input-error" : ""
+                      }`}
+                      autoComplete="email"
+                    />
+                  </div>
+                  <ErrorMessage
+                    name="email"
+                    render={(msg) => (
+                      <span className="studybuddy-field-error">⚠ {msg}</span>
+                    )}
+                  />
+                </div>
+
+                {/* Password */}
+                <div className="studybuddy-form-group">
+                  <label className="studybuddy-form-label" htmlFor="reg-password">
+                    <FaLock className="label-icon" />
+                    Password
+                  </label>
+                  <div className="studybuddy-input-wrapper">
+                    <Field
+                      id="reg-password"
+                      type={passwordVisible ? "text" : "password"}
+                      name="password"
+                      placeholder="Min 6 chars, letters + numbers"
+                      className={`studybuddy-form-control has-toggle ${
+                        errors.password && touched.password ? "input-error" : ""
+                      }`}
+                      autoComplete="new-password"
+                    />
+                    <button
+                      type="button"
+                      className="studybuddy-toggle-pw"
+                      onClick={togglePassword}
+                      aria-label={passwordVisible ? "Hide password" : "Show password"}
+                    >
+                      {passwordVisible ? <FaEyeSlash /> : <FaEye />}
+                    </button>
+                  </div>
+                  <ErrorMessage
                     name="password"
-                    placeholder="Enter your password"
-                    className="form-control"
+                    render={(msg) => (
+                      <span className="studybuddy-field-error">⚠ {msg}</span>
+                    )}
                   />
-                  <button
-                    type="button"
-                    className="toggle-password"
-                    onClick={() => setPasswordVisible(!passwordVisible)}
-                  >
-                    {passwordVisible ? <FaEyeSlash /> : <FaEye />}
-                  </button>
                 </div>
-                <ErrorMessage
-                  name="password"
-                  component="div"
-                  className="error-message"
-                />
-              </div>
 
-              {/* Confirm Password Field */}
-              <div className="form-group">
-                <label htmlFor="confirmPassword">
-                  <FaLock /> Confirm Password
-                </label>
-                <div className="password-field">
-                  <Field
-                    type={confirmPasswordVisible ? "text" : "password"}
+                {/* Confirm Password */}
+                <div className="studybuddy-form-group">
+                  <label className="studybuddy-form-label" htmlFor="reg-confirm">
+                    <FaLock className="label-icon" />
+                    Confirm Password
+                  </label>
+                  <div className="studybuddy-input-wrapper">
+                    <Field
+                      id="reg-confirm"
+                      type={confirmVisible ? "text" : "password"}
+                      name="confirmPassword"
+                      placeholder="Re-enter your password"
+                      className={`studybuddy-form-control has-toggle ${
+                        errors.confirmPassword && touched.confirmPassword
+                          ? "input-error"
+                          : ""
+                      }`}
+                      autoComplete="new-password"
+                    />
+                    <button
+                      type="button"
+                      className="studybuddy-toggle-pw"
+                      onClick={toggleConfirm}
+                      aria-label={confirmVisible ? "Hide password" : "Show password"}
+                    >
+                      {confirmVisible ? <FaEyeSlash /> : <FaEye />}
+                    </button>
+                  </div>
+                  <ErrorMessage
                     name="confirmPassword"
-                    placeholder="Confirm your password"
-                    className="form-control"
+                    render={(msg) => (
+                      <span className="studybuddy-field-error">⚠ {msg}</span>
+                    )}
                   />
-                  <button
-                    type="button"
-                    className="toggle-password"
-                    onClick={() =>
-                      setConfirmPasswordVisible(!confirmPasswordVisible)
-                    }
-                  >
-                    {confirmPasswordVisible ? <FaEyeSlash /> : <FaEye />}
-                  </button>
                 </div>
-                <ErrorMessage
-                  name="confirmPassword"
-                  component="div"
-                  className="error-message"
-                />
-              </div>
 
-              {/* Submit Button */}
-              <motion.button
-                type="submit"
-                className="submit-button"
-                disabled={isSubmitting}
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.4 }}
-              >
-                {isSubmitting ? "Registering..." : "Register"}
-              </motion.button>
-            </Form>
-          )}
-        </Formik>
+                {/* Submit */}
+                <motion.button
+                  type="submit"
+                  className="studybuddy-submit-btn"
+                  disabled={isSubmitting}
+                  whileTap={{ scale: isSubmitting ? 1 : 0.98 }}
+                >
+                  {isSubmitting ? (
+                    <>
+                      <span className="studybuddy-btn-spinner" />
+                      Creating account…
+                    </>
+                  ) : (
+                    "Create Account"
+                  )}
+                </motion.button>
+              </Form>
+            )}
+          </Formik>
 
-        <div className="login-footer">
-          <p>
-            Already have an account?{" "}
-            <Link to="/login" className="signup-link">
-              Login here
-            </Link>
-          </p>
-        </div>
+          <div className="studybuddy-auth-footer">
+            <p>
+              Already have an account?{" "}
+              <Link to="/login">Sign in here</Link>
+            </p>
+          </div>
+        </motion.div>
       </motion.div>
     </div>
   );

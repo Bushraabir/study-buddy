@@ -1,161 +1,430 @@
-/* Login Container */
-.login-container {
+/* ============================================================
+   StudyBuddy — Login.css
+   Design: Glassmorphism purple dark, fully responsive
+   ============================================================ */
+
+@import url('https://fonts.googleapis.com/css2?family=Dancing+Script:wght@600;700&family=Inter:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap');
+
+/* ── Root & Page Shell ─────────────────────────────────────── */
+.studybuddy-auth-page {
+  min-height: 100vh;
+  width: 100%;
   display: flex;
-  justify-content: space-between;
   align-items: center;
-  width: 90%;
-  max-width: 3000px;
-  padding: 30px;
-  border-radius: 10px;
-  box-sizing: border-box;
+  justify-content: center;
+  background: linear-gradient(135deg, #0f0f23 0%, #1a1a2e 50%, #16213e 100%);
+  font-family: 'Inter', sans-serif;
+  position: relative;
   overflow: hidden;
-  justify-content: center;
-  align-items: center;
+  padding: 24px 16px;
+  box-sizing: border-box;
 }
 
-/* Animation Section */
-.animation-container {
-  width: 35%;
+/* Ambient background orbs */
+.studybuddy-auth-page::before,
+.studybuddy-auth-page::after {
+  content: '';
+  position: fixed;
+  border-radius: 50%;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.studybuddy-auth-page::before {
+  width: 600px;
+  height: 600px;
+  top: -200px;
+  left: -200px;
+  background: radial-gradient(circle, rgba(168, 85, 247, 0.12) 0%, transparent 70%);
+}
+
+.studybuddy-auth-page::after {
+  width: 500px;
+  height: 500px;
+  bottom: -150px;
+  right: -150px;
+  background: radial-gradient(circle, rgba(124, 58, 237, 0.10) 0%, transparent 70%);
+}
+
+/* ── Layout Card ───────────────────────────────────────────── */
+.studybuddy-auth-card {
+  position: relative;
+  z-index: 1;
   display: flex;
-  justify-content: center;
-  align-items: center;
-  height: 10%;
+  width: 100%;
+  max-width: 960px;
+  min-height: 560px;
+  border-radius: 24px;
+  background: rgba(168, 85, 247, 0.06);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border: 1px solid rgba(255, 255, 255, 0.10);
+  box-shadow: 0 8px 32px rgba(168, 85, 247, 0.12), 0 0 0 1px rgba(168, 85, 247, 0.08);
+  overflow: hidden;
 }
 
-/* Form Section */
-.form-container {
-  width: 50%;
+/* ── Illustration Panel (left) ─────────────────────────────── */
+.studybuddy-auth-illustration {
+  flex: 0 0 44%;
   display: flex;
   flex-direction: column;
-  align-items: flex-start;
+  align-items: center;
   justify-content: center;
-  padding: 20px;
-  margin-left: 90px;
-}
-
-/* Heading and Description */
-.form-container h2 {
-  font-family: 'Dancing Script', cursive, sans-serif;
-  font-size: 40px;
-  font-weight: 600;
-  color: #fff;
-  margin-bottom: 10px;
-}
-
-.form-container p {
-  font-size: 16px;
-  color: #ccc;
-  margin-bottom: 40px;
-}
-
-/* Form Fields */
-.form-group {
-  width: 250%;
-  margin-bottom: 20px;
+  padding: 48px 32px;
+  background: linear-gradient(160deg, rgba(168, 85, 247, 0.12) 0%, rgba(124, 58, 237, 0.06) 100%);
+  border-right: 1px solid rgba(255, 255, 255, 0.07);
   position: relative;
+  overflow: hidden;
 }
 
-.form-group label {
-  font-size: 16px;
-  color: #fff;
-  margin-bottom: 8px;
-  display: flex;
-  align-items: center;
-}
-
-.form-group .form-control {
-  width: 100%;
-  padding: 12px;
-  border: none;
-  border-radius: 8px;
-  background-color: #3e2b75;
-  color: #fff;
-  font-size: 16px;
-  outline: none;
-  transition: all 0.3s ease;
-}
-
-.form-group .form-control:focus {
-  background-color: #6a4fff;
-}
-
-.error-message {
-  color: #ff5e5e;
-  font-size: 14px;
-  margin-top: 8px;
-}
-
-/* Password Field */
-.password-field {
-  display: flex;
-  align-items: center;
-  position: relative;
-}
-
-.toggle-password {
+.studybuddy-auth-illustration::before {
+  content: '';
   position: absolute;
-  right: 10px;
+  width: 320px;
+  height: 320px;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  background: radial-gradient(circle, rgba(168, 85, 247, 0.15) 0%, transparent 70%);
+  border-radius: 50%;
+}
+
+.studybuddy-auth-lottie {
+  width: 100%;
+  max-width: 280px;
+  position: relative;
+  z-index: 1;
+}
+
+.studybuddy-auth-illustration-text {
+  margin-top: 24px;
+  text-align: center;
+  position: relative;
+  z-index: 1;
+}
+
+.studybuddy-auth-illustration-text h3 {
+  font-family: 'Dancing Script', cursive;
+  font-size: 28px;
+  font-weight: 700;
+  color: #e2e8f0;
+  margin: 0 0 8px;
+  line-height: 1.2;
+}
+
+.studybuddy-auth-illustration-text p {
+  font-size: 13px;
+  color: #94a3b8;
+  margin: 0;
+  line-height: 1.5;
+}
+
+/* ── Form Panel (right) ────────────────────────────────────── */
+.studybuddy-auth-form-panel {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 48px 44px;
+  overflow-y: auto;
+}
+
+.studybuddy-auth-header {
+  margin-bottom: 32px;
+}
+
+.studybuddy-auth-header h2 {
+  font-family: 'Dancing Script', cursive;
+  font-size: 38px;
+  font-weight: 700;
+  color: #ffffff;
+  margin: 0 0 8px;
+  line-height: 1.2;
+}
+
+.studybuddy-auth-header p {
+  font-size: 14px;
+  color: #94a3b8;
+  margin: 0;
+}
+
+/* ── Form Elements ─────────────────────────────────────────── */
+.studybuddy-auth-form {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.studybuddy-form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.studybuddy-form-label {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 13px;
+  font-weight: 500;
+  color: #e2e8f0;
+  letter-spacing: 0.02em;
+}
+
+.studybuddy-form-label svg,
+.studybuddy-form-label .label-icon {
+  color: #a855f7;
+  font-size: 13px;
+  flex-shrink: 0;
+}
+
+.studybuddy-input-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.studybuddy-form-control {
+  width: 100%;
+  padding: 12px 16px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 12px;
+  color: #ffffff;
+  font-size: 14px;
+  font-family: 'Inter', sans-serif;
+  outline: none;
+  transition: border-color 0.25s ease, background 0.25s ease, box-shadow 0.25s ease;
+  box-sizing: border-box;
+  -webkit-appearance: none;
+}
+
+.studybuddy-form-control::placeholder {
+  color: #475569;
+}
+
+.studybuddy-form-control:focus {
+  border-color: rgba(168, 85, 247, 0.6);
+  background: rgba(168, 85, 247, 0.08);
+  box-shadow: 0 0 0 3px rgba(168, 85, 247, 0.12);
+}
+
+.studybuddy-form-control:focus + .studybuddy-toggle-pw,
+.studybuddy-form-control:focus ~ .studybuddy-toggle-pw {
+  color: #a855f7;
+}
+
+/* Password toggle */
+.studybuddy-toggle-pw {
+  position: absolute;
+  right: 12px;
   background: transparent;
   border: none;
-  color: #fff;
+  color: #475569;
   cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px;
+  transition: color 0.2s ease;
+  font-size: 16px;
+  flex-shrink: 0;
 }
 
-.toggle-password svg {
-  width: 20px;
-  height: 20px;
+.studybuddy-toggle-pw:hover {
+  color: #a855f7;
 }
 
-/* Submit Button */
-.submit-button {
+.studybuddy-form-control.has-toggle {
+  padding-right: 44px;
+}
+
+/* Error messages */
+.studybuddy-field-error {
+  font-size: 12px;
+  color: #f87171;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 2px;
+}
+
+/* ── Submit Button ──────────────────────────────────────────── */
+.studybuddy-submit-btn {
   width: 100%;
-  padding: 15px;
-  background-color: #9c2aff;
-  color: #fff;
-  font-size: 18px;
+  padding: 14px 20px;
+  margin-top: 6px;
+  background: linear-gradient(135deg, #a855f7 0%, #7c3aed 100%);
+  color: #ffffff;
+  font-size: 15px;
   font-weight: 600;
+  font-family: 'Inter', sans-serif;
   border: none;
-  border-radius: 8px;
+  border-radius: 12px;
   cursor: pointer;
-  transition: background-color 0.3s ease;
+  transition: opacity 0.25s ease, transform 0.15s ease, box-shadow 0.25s ease;
+  box-shadow: 0 4px 20px rgba(168, 85, 247, 0.35);
+  letter-spacing: 0.02em;
+  position: relative;
+  overflow: hidden;
 }
 
-.submit-button:hover {
-  background-color: #6a4fff;
+.studybuddy-submit-btn::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(135deg, rgba(255,255,255,0.1) 0%, transparent 100%);
+  opacity: 0;
+  transition: opacity 0.2s;
 }
 
-.submit-button:disabled {
-  background-color: #ccc;
+.studybuddy-submit-btn:hover:not(:disabled)::after {
+  opacity: 1;
+}
+
+.studybuddy-submit-btn:hover:not(:disabled) {
+  box-shadow: 0 8px 30px rgba(168, 85, 247, 0.5);
+  transform: translateY(-1px);
+}
+
+.studybuddy-submit-btn:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+.studybuddy-submit-btn:disabled {
+  opacity: 0.5;
   cursor: not-allowed;
+  box-shadow: none;
 }
 
-/* Footer Link */
-.login-footer {
-  margin-top: 20px;
+.studybuddy-btn-spinner {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  border: 2px solid rgba(255,255,255,0.4);
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: studybuddy-spin 0.7s linear infinite;
+  margin-right: 8px;
+  vertical-align: middle;
+}
+
+@keyframes studybuddy-spin {
+  to { transform: rotate(360deg); }
+}
+
+/* ── Footer Link ───────────────────────────────────────────── */
+.studybuddy-auth-footer {
+  margin-top: 24px;
   text-align: center;
+  font-size: 13px;
+  color: #64748b;
 }
 
-.signup-link {
-  color: #fff;
+.studybuddy-auth-footer a {
+  color: #a855f7;
   text-decoration: none;
   font-weight: 600;
+  transition: color 0.2s ease;
 }
 
-.signup-link:hover {
-  color: #6a4fff;
+.studybuddy-auth-footer a:hover {
+  color: #c084fc;
   text-decoration: underline;
 }
 
-/* Mobile Responsiveness */
+/* ── Divider ───────────────────────────────────────────────── */
+.studybuddy-divider {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 4px 0;
+}
+
+.studybuddy-divider span {
+  flex: 1;
+  height: 1px;
+  background: rgba(255,255,255,0.08);
+}
+
+.studybuddy-divider p {
+  font-size: 12px;
+  color: #475569;
+  margin: 0;
+  white-space: nowrap;
+}
+
+/* ── Responsive ────────────────────────────────────────────── */
 @media (max-width: 768px) {
-  .login-container {
+  .studybuddy-auth-card {
     flex-direction: column;
-    width: 100%;
-    padding: 20px;
+    max-width: 480px;
+    min-height: unset;
+    border-radius: 20px;
   }
 
-  .animation-container, .form-container {
+  .studybuddy-auth-illustration {
+    flex: none;
     width: 100%;
-    margin-bottom: 20px;
+    border-right: none;
+    border-bottom: 1px solid rgba(255,255,255,0.07);
+    padding: 32px 24px 24px;
+  }
+
+  .studybuddy-auth-lottie {
+    max-width: 180px;
+  }
+
+  .studybuddy-auth-illustration-text h3 {
+    font-size: 22px;
+  }
+
+  .studybuddy-auth-illustration-text p {
+    font-size: 12px;
+  }
+
+  .studybuddy-auth-form-panel {
+    padding: 32px 28px 36px;
+  }
+
+  .studybuddy-auth-header h2 {
+    font-size: 30px;
+  }
+}
+
+@media (max-width: 480px) {
+  .studybuddy-auth-page {
+    padding: 16px 12px;
+    align-items: flex-start;
+  }
+
+  .studybuddy-auth-card {
+    border-radius: 16px;
+  }
+
+  .studybuddy-auth-illustration {
+    padding: 24px 16px 20px;
+  }
+
+  .studybuddy-auth-lottie {
+    max-width: 140px;
+  }
+
+  .studybuddy-auth-form-panel {
+    padding: 24px 20px 28px;
+  }
+
+  .studybuddy-auth-header {
+    margin-bottom: 24px;
+  }
+
+  .studybuddy-auth-header h2 {
+    font-size: 26px;
+  }
+}
+
+@media (min-width: 1440px) {
+  .studybuddy-auth-card {
+    max-width: 1040px;
   }
 }
