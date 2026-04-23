@@ -1,0 +1,3 @@
+User-agent: *
+Allow: /
+Sitemap: https://study-buddy-seven-blush.vercel.app/sitemap.xml
