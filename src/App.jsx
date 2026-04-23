@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { BrowserRouter as Router, Route, Routes, Navigate } from "react-router-dom";
 import { Toaster } from "react-hot-toast";
-
+import { onAuthStateChanged, isSignInWithEmailLink } from "firebase/auth";
 // Importing the individual page components
 import Home from "./pages/Home";
 import FlashCards from "./pages/FlashCards";
@@ -12,7 +12,6 @@ import { auth } from "./components/firebase";
 import StartSession from "./pages/Session";
 import PlotGraph from "./pages/PlotGraph";
 import AdvancedEquationVisualizer from "./pages/3D";
-import { onAuthStateChanged } from "firebase/auth";
 import "./App.css";
 import OTPAuth from "./pages/OTPAuth";
 
@@ -52,7 +51,14 @@ function App() {
 
         <div className="flex-1 overflow-y-auto">
           <Routes>
-            <Route path="/" element={<Home />} />
+            <Route
+              path="/"
+              element={
+                isSignInWithEmailLink(auth, window.location.href)
+                  ? <Navigate to={`/OTPAuth${window.location.search}`} replace />
+                  : <Home />
+              }
+            />
             <Route 
               path="/OTPAuth" 
               element={user ? <Navigate to="/session" replace /> : <OTPAuth />} 
