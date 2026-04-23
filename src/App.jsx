@@ -4,8 +4,6 @@ import { Toaster } from "react-hot-toast";
 
 // Importing the individual page components
 import Home from "./pages/Home";
-import Login from "./pages/Login";
-import Register from "./pages/Register";
 import FlashCards from "./pages/FlashCards";
 import Notes from "./pages/Notes";
 import Profile from "./pages/Profile";
@@ -16,6 +14,7 @@ import PlotGraph from "./pages/PlotGraph";
 import AdvancedEquationVisualizer from "./pages/3D";
 import { onAuthStateChanged } from "firebase/auth";
 import "./App.css";
+import OTPAuth from "./pages/OTPAuth";
 
 // Main App Component
 function App() {
@@ -40,7 +39,7 @@ function App() {
 
   const ProtectedRoute = ({ children }) => {
     if (!user) {
-      return <Navigate to="/login" replace />;
+      return <Navigate to="/OTPAuth" replace />;
     }
     return children;
   };
@@ -55,12 +54,8 @@ function App() {
           <Routes>
             <Route path="/" element={<Home />} />
             <Route 
-              path="/login" 
-              element={user ? <Navigate to="/session" replace /> : <Login />} 
-            />
-            <Route 
-              path="/register" 
-              element={user ? <Navigate to="/session" replace /> : <Register />} 
+              path="/OTPAuth" 
+              element={user ? <Navigate to="/session" replace /> : <OTPAuth />} 
             />
 
             {/* Protected Routes */}

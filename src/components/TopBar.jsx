@@ -197,10 +197,10 @@ function TopBar() {
               <motion.div whileHover={{ scale: 1.04 }} whileTap={{ scale: 0.96 }}>
                 <div
                   className="studybuddy-action-button studybuddy-login-button"
-                  onClick={() => handleNav("/login")}
+                  onClick={() => handleNav("/OTPAuth")}
                   role="link"
                   tabIndex={0}
-                  onKeyDown={(e) => e.key === "Enter" && handleNav("/login")}
+                  onKeyDown={(e) => e.key === "Enter" && handleNav("/OTPAuth")}
                   aria-label="Log in"
                 >
                   <span className="studybuddy-button-icon"><FaSignInAlt /></span>
