@@ -1,98 +1,69 @@
-# Study Buddy
+# 🎓 StudyBuddy
 
-**Study Buddy** is a modern, interactive web application designed to help students study smarter. The platform combines a variety of study tools—from flashcards and session management to advanced graph visualization and smart note-taking—all wrapped in an engaging, animated user interface.
+**StudyBuddy** is an all-in-one student productivity platform designed to streamline learning. From tracking deep-work sessions and mastering topics via flashcards to visualizing complex 3D mathematical models, StudyBuddy provides the tools students need to stay focused and organized—all without the friction of traditional passwords.
 
----
+![StudyBuddy Banner](https://study-buddy-seven-blush.vercel.app/og-image.png)
 
-## Table of Contents
+## ✨ Features
 
-- [Features](#features)
-- [Tech Stack](#tech-stack)
-- [Project Structure](#project-structure)
-- [Installation & Setup](#installation--setup)
-- [Usage](#usage)
-- [Future Enhancements](#future-enhancements)
-- [Contributing](#contributing)
-- [License](#license)
+-   **⏱️ Study Sessions:** Integrated focus timers and session tracking to manage your deep-work intervals.
+-   **🃏 Interactive Flashcards:** Create and review digital flashcards to master any subject through active recall.
+-   **📝 Rich Notes:** A digital notebook for capturing thoughts, lecture summaries, and study guides.
+-   **📊 Math Visualization:** -   **2D Sketch Curves:** Visualize 2D mathematical functions instantly.
+    -   **3D Graphs:** Explore 3D mathematical models with interactive rendering.
+-   **🔐 Passwordless Auth:** Secure, frictionless sign-in using Firebase OTP (One-Time Password) authentication.
+-   **📈 Progress Tracking:** Visualize your learning journey and study habits via a personalized profile dashboard.
+-   **💎 Modern UI:** A premium "Glassmorphic" design interface with smooth Framer Motion animations and responsive layouts.
 
----
+## 🚀 Tech Stack
 
-## Features
+-   **Frontend:** [React.js](https://reactjs.org/) + [Vite](https://vitejs.dev/)
+-   **Styling:** CSS3 with Custom Design Tokens (Glassmorphism)
+-   **Animations:** [Framer Motion](https://www.framer.com/motion/)
+-   **Backend/Database:** [Firebase](https://firebase.google.com/) (Firestore, Auth, Storage)
+-   **Icons:** [React Icons](https://react-icons.github.io/react-icons/)
+-   **Notifications:** [React Hot Toast](https://react-hot-toast.com/)
 
-### User Authentication & Registration
-- **Secure Authentication:** Uses Firebase Authentication to manage user logins and registrations.
-- **Interactive Registration:** Built with Formik and Yup, the registration form features real-time validations, password visibility toggles, tooltips, and engaging Lottie animations.
+## 🛠️ Installation & Setup
 
-### Interactive Study Tools
+1.  **Clone the repository:**
+    ```bash
+    git clone [https://github.com/your-username/study-buddy.git](https://github.com/your-username/study-buddy.git)
+    cd study-buddy
+    ```
 
-- **Flashcards Module:**
-  - **Creation & Management:** Create, view, and delete flashcards that include questions, answers, and tags for effective organization.
-  - **Engaging Experience:** Flashcards flip smoothly (powered by Framer Motion and GSAP) and support a quiz mode with randomized multiple-choice questions and a dynamic progress bar.
-  - **Search & Filter:** Quickly find flashcards through keyword searches or by filtering tags/categories.
+2.  **Install dependencies:**
+    ```bash
+    npm install
+    ```
 
-- **Study Session Manager:**
-  - **Timers:** Choose between a Pomodoro timer (25-minute sessions with automatic reset and toast notifications) and a stopwatch for tracking study time.
-  - **Study Fields:** Organize sessions by selecting or adding custom study fields; each field tracks the accumulated study time.
-  - **To-Do List:** Manage study tasks with features to add, edit, delete (with an undo option), toggle completion, and sort by priority or deadline.
-  - **Real-Time Sync:** Utilizes Firebase onSnapshot to ensure that task and study field updates are synchronized in real time.
+3.  **Environment Variables:**
+    Create a `.env` file in the root directory and add your Firebase configuration:
+    ```env
+    VITE_FIREBASE_API_KEY=your_api_key
+    VITE_FIREBASE_AUTH_DOMAIN=your_auth_domain
+    VITE_FIREBASE_PROJECT_ID=your_project_id
+    VITE_FIREBASE_STORAGE_BUCKET=your_storage_bucket
+    VITE_FIREBASE_MESSAGING_SENDER_ID=your_sender_id
+    VITE_FIREBASE_APP_ID=your_app_id
+    ```
 
-- **Advanced Graphing Calculator (PlotGraph):**
-  - **Multi-Type Equation Support:** Plot equations in various forms:
-    - **Explicit:** e.g., `y = f(x)`
-    - **Implicit:** e.g., `F(x,y)=0`
-    - **Parametric:** e.g., `x = f(t), y = g(t)`
-    - **Polar:** e.g., `r = f(θ)`
-  - **Advanced Computations:** For explicit equations, display the derivative, integral, roots, and asymptotes.
-  - **Customizable Graph Options:** Adjust grid visibility, axis titles, axis scales (linear or logarithmic), ranges, and aspect ratio.
-  - **Interactive Variables:** Custom variables appear as sliders, letting you adjust values and see immediate changes in the graph.
+4.  **Run the development server:**
+    ```bash
+    npm run dev
+    ```
 
-- **Smart Notes:**
-  - **Rich Text Editing:** Create and edit notes using ReactQuill with a full suite of rich text formatting options.
-  - **Customization:** Choose background and text colors and add tags. Notes can be marked as favorites or pinned.
-  - **Search & Filter:** Quickly search for notes by keywords or tags, with options to filter for favorites.
-  - **Real-Time Sync:** All note changes are synchronized live with Firebase Firestore.
+## 🔍 SEO & Performance
 
-- **Login:**
-  - **Modern Interface:** The login page features smooth animations (with Framer Motion and Lottie) and interactive elements such as password visibility toggles.
-  - **User Feedback:** Provides immediate toast notifications for both successful and failed login attempts.
+StudyBuddy is built with search visibility in mind:
+-   **Semantic HTML5:** Structured for screen readers and search crawlers.
+-   **Meta Optimization:** Includes Open Graph (OG) tags for high-quality social sharing and Twitter Cards.
+-   **Performance:** Optimized assets and code-splitting via Vite for lightning-fast load times.
+-   **Sitemap:** Auto-generated `sitemap.xml` for better Google indexing.
 
----
+## 🛡️ Smart Navigation
+The app features **Timer-Aware Routing**. If a user attempts to navigate away while a study timer is active, the system triggers a warning to prevent accidental loss of session data.
 
-## Tech Stack
-
-- **Frontend:**  
-  - React  
-  - React Router DOM  
-  - React Hot Toast
-
-- **State & Form Management:**  
-  - React Hooks  
-  - Formik, Yup
-
-- **Animations & UI Effects:**  
-  - Framer Motion  
-  - GSAP  
-  - Lottie React  
-  - React Scroll  
-  - React Tooltip  
-  - React Icons (FontAwesome)
-
-- **Graphing & Math:**  
-  - Plotly.js (via react-plotly.js)  
-  - Math.js
-
-- **Rich Text Editing:**  
-  - ReactQuill
-
-- **Backend & Database:**  
-  - Firebase Authentication  
-  - Firebase Firestore  
-  - Firebase Storage
-
-- **Styling:**  
-  - CSS (with utility classes inspired by Tailwind CSS)
 
 ---
-
-## Project Structure
-
+*Built with ❤️ for students, by students.*
