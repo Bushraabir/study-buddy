@@ -100,10 +100,8 @@ export default function OTPAuth() {
   // Firebase Console → Authentication → Settings → Authorized domains.
   const getActionCodeSettings = useCallback(() => {
     return {
-      // Use the current page origin + pathname so the link returns
-      // to whichever host/port you're running on (localhost or prod).
-      url: window.location.origin + window.location.pathname,
-      handleCodeInApp: true,
+    url: `${window.location.origin}/`,
+    handleCodeInApp: true,
     };
   }, []);
 
