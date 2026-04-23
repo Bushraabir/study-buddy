@@ -2,7 +2,7 @@
 
 **StudyBuddy** is an all-in-one student productivity platform designed to streamline learning. From tracking deep-work sessions and mastering topics via flashcards to visualizing complex 3D mathematical models, StudyBuddy provides the tools students need to stay focused and organized—all without the friction of traditional passwords.
 
-![StudyBuddy Banner](https://study-buddy-seven-blush.vercel.app/og-image.png)
+![StudyBuddy Banner](https://github.com/Bushraabir/study-buddy/blob/main/public/og-image.png)
 
 ## ✨ Features
 
