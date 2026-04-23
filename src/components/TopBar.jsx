@@ -12,40 +12,40 @@ import "./TopBar.css";
 
 /* ─── Nav item definitions ──────────────────────────────────────────────── */
 const NAV_ITEMS = [
-  { path: "/session",    label: "Study Session", icon: FaGraduationCap, authRequired: true,  desc: "Focus mode & timers" },
-  { path: "/flash-cards",label: "Flashcards",    icon: FaBook,          authRequired: false, desc: "Interactive learning cards" },
-  { path: "/notes",      label: "Notes",         icon: FaStickyNote,    authRequired: false, desc: "Rich digital notebook" },
-  { path: "/plot-graph", label: "Sketch Curves", icon: FaChartLine,     authRequired: false, desc: "2D math visualization" },
-  { path: "/3d-graph",   label: "3D Graphs",     icon: FaCube,          authRequired: false, desc: "3D mathematical models" },
-  { path: "/profile",    label: "Profile",       icon: FaUser,          authRequired: true,  desc: "Your study progress" },
+  { path: "/session", label: "Study Session", icon: FaGraduationCap, authRequired: true, desc: "Focus mode & timers" },
+  { path: "/flash-cards", label: "Flashcards", icon: FaBook, authRequired: false, desc: "Interactive learning cards" },
+  { path: "/notes", label: "Notes", icon: FaStickyNote, authRequired: false, desc: "Rich digital notebook" },
+  { path: "/plot-graph", label: "Sketch Curves", icon: FaChartLine, authRequired: false, desc: "2D math visualization" },
+  { path: "/3d-graph", label: "3D Graphs", icon: FaCube, authRequired: false, desc: "3D mathematical models" },
+  { path: "/profile", label: "Profile", icon: FaUser, authRequired: true, desc: "Your study progress" },
 ];
 
 /* ─── Animation variants ────────────────────────────────────────────────── */
 const backdropVariants = {
-  hidden:  { opacity: 0 },
+  hidden: { opacity: 0 },
   visible: { opacity: 1 },
-  exit:    { opacity: 0 },
+  exit: { opacity: 0 },
 };
 
 const drawerVariants = {
-  hidden:  { x: "100%", opacity: 0 },
-  visible: { x: 0,      opacity: 1, transition: { type: "spring", stiffness: 320, damping: 32 } },
-  exit:    { x: "100%", opacity: 0, transition: { duration: 0.22, ease: [0.4, 0, 1, 1] } },
+  hidden: { x: "100%", opacity: 0 },
+  visible: { x: 0, opacity: 1, transition: { type: "spring", stiffness: 320, damping: 32 } },
+  exit: { x: "100%", opacity: 0, transition: { duration: 0.22, ease: [0.4, 0, 1, 1] } },
 };
 
 const navItemVariants = {
-  hidden:  { x: 40, opacity: 0 },
+  hidden: { x: 40, opacity: 0 },
   visible: (i) => ({ x: 0, opacity: 1, transition: { delay: i * 0.06, duration: 0.28 } }),
 };
 
 /* ─── Component ─────────────────────────────────────────────────────────── */
 function TopBar() {
-  const [drawerOpen,  setDrawerOpen]  = useState(false);
-  const [user,        setUser]        = useState(null);
-  const [isScrolled,  setIsScrolled]  = useState(false);
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  const [user, setUser] = useState(null);
+  const [isScrolled, setIsScrolled] = useState(false);
 
-  const navigate  = useNavigate();
-  const location  = useLocation();
+  const navigate = useNavigate();
+  const location = useLocation();
 
   /* Auth listener */
   useEffect(() => {
@@ -76,7 +76,7 @@ function TopBar() {
   /* Close drawer on route change */
   useEffect(() => { setDrawerOpen(false); }, [location.pathname]);
 
-  /* Timer-aware navigation */
+  /* Timer-aware navigation logic */
   const checkTimer = useCallback((callback) => {
     if (window.studyBuddyTimerState?.isRunning) {
       return window.studyBuddyTimerState.showWarning(callback);
@@ -99,70 +99,52 @@ function TopBar() {
         navigate("/");
         toast.success("Logged out successfully");
       } catch (err) {
-        toast.error("Logout failed. Please try again.");
+        toast.error("Logout failed");
         console.error("Logout error:", err.message);
       }
     };
     if (!checkTimer(doLogout)) doLogout();
   }, [navigate, checkTimer]);
 
-  const visibleItems = NAV_ITEMS.filter(
-    (item) => !item.authRequired || user
-  );
+  const visibleItems = NAV_ITEMS.filter((item) => !item.authRequired || user);
 
   return (
     <>
-      {/* ── Sticky TopBar ───────────────────────────────────────────────── */}
+      {/* ── Sticky TopBar Header ─────────────────────────────────────────── */}
       <motion.header
         className={`studybuddy-topbar${isScrolled ? " studybuddy-topbar--scrolled" : ""}`}
         initial={{ y: -80, opacity: 0 }}
-        animate={{ y: 0,   opacity: 1 }}
+        animate={{ y: 0, opacity: 1 }}
         transition={{ duration: 0.55, ease: [0.4, 0, 0.2, 1] }}
       >
         <div className="studybuddy-topbar__container">
-
-          {/* Logo */}
-          <motion.div
-            className="studybuddy-topbar__logo"
-            whileHover={{ scale: 1.04 }}
-            whileTap={  { scale: 0.96 }}
-          >
+          
+          {/* Brand Logo */}
+          <div className="studybuddy-topbar__logo">
             <div
               className="studybuddy-logo-link"
               onClick={() => handleNav("/")}
               role="link"
               tabIndex={0}
               onKeyDown={(e) => e.key === "Enter" && handleNav("/")}
-              aria-label="StudyBuddy home"
+              aria-label="StudyBuddy Home"
             >
-              <motion.span
-                className="studybuddy-logo-icon"
-                animate={{ rotate: [0, 8, -8, 0], scale: [1, 1.08, 1] }}
-                transition={{ duration: 3, repeat: Infinity, repeatType: "reverse", ease: "easeInOut" }}
-              >
+              <span className="studybuddy-logo-icon">
                 <FaGraduationCap />
-              </motion.span>
+              </span>
               <span className="studybuddy-logo-text">
                 Study<span className="studybuddy-logo-accent">Buddy</span>
               </span>
             </div>
-          </motion.div>
+          </div>
 
-          {/* Desktop nav */}
-          <nav className="studybuddy-topbar__nav studybuddy-topbar__nav--desktop" aria-label="Main navigation">
+          {/* Desktop Navigation */}
+          <nav className="studybuddy-topbar__nav studybuddy-topbar__nav--desktop" aria-label="Desktop Navigation">
             {visibleItems.map((item, i) => {
-              const Icon     = item.icon;
+              const Icon = item.icon;
               const isActive = location.pathname === item.path;
               return (
-                <motion.div
-                  key={item.path}
-                  className={`studybuddy-nav-item${isActive ? " active" : ""}`}
-                  whileHover={{ y: -2, scale: 1.04 }}
-                  whileTap={  { y: 0,  scale: 0.96 }}
-                  initial={{ opacity: 0, y: 12 }}
-                  animate={{ opacity: 1, y: 0  }}
-                  transition={{ delay: i * 0.07 }}
-                >
+                <div key={item.path} className={`studybuddy-nav-item${isActive ? " active" : ""}`}>
                   <div
                     className={`studybuddy-nav-link${isActive ? " active" : ""}`}
                     onClick={() => handleNav(item.path)}
@@ -170,70 +152,57 @@ function TopBar() {
                     role="link"
                     tabIndex={0}
                     onKeyDown={(e) => e.key === "Enter" && handleNav(item.path)}
-                    aria-current={isActive ? "page" : undefined}
                   >
                     <span className="studybuddy-nav-icon"><Icon /></span>
                     <span className="studybuddy-nav-text">{item.label}</span>
                   </div>
-                </motion.div>
+                </div>
               );
             })}
           </nav>
 
-          {/* Desktop actions */}
+          {/* Desktop Actions */}
           <div className="studybuddy-topbar__actions">
             {user ? (
-              <motion.button
-                onClick={handleLogout}
-                className="studybuddy-action-button studybuddy-logout-button"
-                whileHover={{ scale: 1.04 }}
-                whileTap={  { scale: 0.96 }}
-                aria-label="Log out"
-              >
+              <button onClick={handleLogout} className="studybuddy-action-button studybuddy-logout-button">
                 <span className="studybuddy-button-icon"><FaSignOutAlt /></span>
                 <span>Logout</span>
-              </motion.button>
+              </button>
             ) : (
-              <motion.div whileHover={{ scale: 1.04 }} whileTap={{ scale: 0.96 }}>
-                <div
-                  className="studybuddy-action-button studybuddy-login-button"
-                  onClick={() => handleNav("/OTPAuth")}
-                  role="link"
-                  tabIndex={0}
-                  onKeyDown={(e) => e.key === "Enter" && handleNav("/OTPAuth")}
-                  aria-label="Log in"
-                >
-                  <span className="studybuddy-button-icon"><FaSignInAlt /></span>
-                  <span>Login</span>
-                </div>
-              </motion.div>
+              <div
+                className="studybuddy-action-button studybuddy-login-button"
+                onClick={() => handleNav("/OTPAuth")}
+                role="link"
+                tabIndex={0}
+                onKeyDown={(e) => e.key === "Enter" && handleNav("/OTPAuth")}
+              >
+                <span className="studybuddy-button-icon"><FaSignInAlt /></span>
+                <span>Login</span>
+              </div>
             )}
           </div>
 
-          {/* Mobile hamburger */}
+          {/* Mobile Hamburger Toggle */}
           <div className="studybuddy-topbar__toggle">
-            <motion.button
+            <button
               className="studybuddy-mobile-toggle-btn"
               onClick={() => setDrawerOpen((v) => !v)}
               aria-label={drawerOpen ? "Close menu" : "Open menu"}
-              aria-expanded={drawerOpen}
-              whileTap={{ scale: 0.92 }}
             >
               <AnimatePresence mode="wait" initial={false}>
                 <motion.span
                   key={drawerOpen ? "close" : "open"}
                   initial={{ rotate: -90, opacity: 0 }}
-                  animate={{ rotate: 0,   opacity: 1 }}
-                  exit={{    rotate:  90, opacity: 0 }}
+                  animate={{ rotate: 0, opacity: 1 }}
+                  exit={{ rotate: 90, opacity: 0 }}
                   transition={{ duration: 0.18 }}
-                  style={{ display: "flex", alignItems: "center" }}
+                  style={{ display: "flex" }}
                 >
                   {drawerOpen ? <FaTimes /> : <FaBars />}
                 </motion.span>
               </AnimatePresence>
-            </motion.button>
+            </button>
           </div>
-
         </div>
       </motion.header>
 
@@ -249,21 +218,19 @@ function TopBar() {
               animate="visible"
               exit="exit"
               onClick={() => setDrawerOpen(false)}
-              aria-hidden="true"
             />
 
-            {/* Drawer panel */}
+            {/* Side Drawer */}
             <motion.nav
               className="studybuddy-mobile-menu"
               variants={drawerVariants}
               initial="hidden"
               animate="visible"
               exit="exit"
-              aria-label="Mobile navigation"
+              aria-label="Mobile Navigation"
               role="dialog"
               aria-modal="true"
             >
-              {/* Drawer header */}
               <div className="studybuddy-mobile-menu__header">
                 <div className="studybuddy-mobile-logo">
                   <span className="studybuddy-mobile-logo-icon"><FaGraduationCap /></span>
@@ -272,18 +239,16 @@ function TopBar() {
                 <button
                   className="studybuddy-mobile-close-btn"
                   onClick={() => setDrawerOpen(false)}
-                  aria-label="Close navigation menu"
+                  aria-label="Close menu"
                 >
                   <FaTimes />
                 </button>
               </div>
 
-              {/* Nav links */}
               <div className="studybuddy-mobile-menu__content">
                 <div className="studybuddy-mobile-section-label">Navigation</div>
-
                 {visibleItems.map((item, i) => {
-                  const Icon     = item.icon;
+                  const Icon = item.icon;
                   const isActive = location.pathname === item.path;
                   return (
                     <motion.div
@@ -293,15 +258,10 @@ function TopBar() {
                       variants={navItemVariants}
                       initial="hidden"
                       animate="visible"
-                      whileTap={{ scale: 0.97 }}
                     >
                       <div
                         className="studybuddy-mobile-menu-link"
                         onClick={() => handleNav(item.path)}
-                        role="link"
-                        tabIndex={0}
-                        onKeyDown={(e) => e.key === "Enter" && handleNav(item.path)}
-                        aria-current={isActive ? "page" : undefined}
                       >
                         <span className="studybuddy-mobile-link-icon"><Icon /></span>
                         <div className="studybuddy-mobile-link-text">
@@ -315,39 +275,22 @@ function TopBar() {
                 })}
               </div>
 
-              {/* Footer auth button */}
-              <motion.div
-                className="studybuddy-mobile-actions"
-                initial={{ y: 30, opacity: 0 }}
-                animate={{ y: 0,  opacity: 1 }}
-                transition={{ delay: visibleItems.length * 0.06 + 0.1 }}
-              >
+              <div className="studybuddy-mobile-actions">
                 {user ? (
-                  <motion.button
-                    onClick={handleLogout}
-                    className="studybuddy-mobile-action-button studybuddy-mobile-logout"
-                    whileTap={{ scale: 0.97 }}
-                    aria-label="Log out"
-                  >
+                  <button onClick={handleLogout} className="studybuddy-mobile-action-button studybuddy-mobile-logout">
                     <span className="studybuddy-button-icon"><FaSignOutAlt /></span>
                     <span>Logout</span>
-                  </motion.button>
+                  </button>
                 ) : (
-                  <motion.div whileTap={{ scale: 0.97 }}>
-                    <div
-                      className="studybuddy-mobile-action-button studybuddy-mobile-login"
-                      onClick={() => handleNav("/login")}
-                      role="link"
-                      tabIndex={0}
-                      onKeyDown={(e) => e.key === "Enter" && handleNav("/login")}
-                      aria-label="Log in to StudyBuddy"
-                    >
-                      <span className="studybuddy-button-icon"><FaSignInAlt /></span>
-                      <span>Login to StudyBuddy</span>
-                    </div>
-                  </motion.div>
+                  <div
+                    className="studybuddy-mobile-action-button studybuddy-mobile-login"
+                    onClick={() => handleNav("/OTPAuth")}
+                  >
+                    <span className="studybuddy-button-icon"><FaSignInAlt /></span>
+                    <span>Login to StudyBuddy</span>
+                  </div>
                 )}
-              </motion.div>
+              </div>
             </motion.nav>
           </>
         )}
