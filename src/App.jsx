@@ -86,11 +86,7 @@ function App() {
               element={user ? <Navigate to="/session" replace /> : <Register />}
             />
 
-            {/* ── Forgot Password ── NEW ──
-                Also handles the Firebase reset callback URL:
-                /forgot-password?mode=resetPassword&oobCode=...
-                ForgotPass reads oobCode from useSearchParams internally.   */}
-            <Route
+           <Route
               path="/forgot-password"
               element={<ForgotPass />}
             />
@@ -160,7 +156,7 @@ function App() {
         </div>
       </div>
 
-      {/* Toast for notifications */}
+
       <Toaster position="top-right" />
     </Router>
   );
