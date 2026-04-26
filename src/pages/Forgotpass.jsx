@@ -12,9 +12,9 @@ import { auth } from "../components/firebase";
 import toast from "react-hot-toast";
 import { Formik, Form, Field, ErrorMessage } from "formik";
 import * as Yup from "yup";
-import "./ForgotPass.css";
+import "./Forgotpass.css";
 
-// ── Validation Schemas ────────────────────────────────────────
+// ── Validation Schemas 
 const emailSchema = Yup.object({
   email: Yup.string()
     .email("Please enter a valid email address")
