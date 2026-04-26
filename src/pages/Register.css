@@ -1,0 +1,32 @@
+/* ============================================================
+   StudyBuddy — Register.css
+   Reuses the shared auth design system from Login.css.
+   Only register-specific overrides live here.
+   Import Login.css FIRST, then this file in Register.jsx.
+   ============================================================ */
+
+/* Register has more fields → slightly more compact spacing */
+.studybuddy-auth-form--register .studybuddy-auth-form {
+  gap: 14px;
+}
+
+/* On very short screens, reduce illustration height in register */
+@media (max-width: 768px) {
+  .studybuddy-auth-card--register .studybuddy-auth-illustration {
+    padding: 24px 24px 20px;
+  }
+
+  .studybuddy-auth-card--register .studybuddy-auth-lottie {
+    max-width: 140px;
+  }
+}
+
+@media (max-width: 480px) {
+  .studybuddy-auth-card--register .studybuddy-auth-lottie {
+    max-width: 110px;
+  }
+
+  .studybuddy-auth-card--register .studybuddy-auth-form-panel {
+    padding: 20px 18px 24px;
+  }
+}

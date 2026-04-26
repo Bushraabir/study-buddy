@@ -14,6 +14,8 @@ import PlotGraph from "./pages/PlotGraph";
 import AdvancedEquationVisualizer from "./pages/3D";
 import "./App.css";
 import OTPAuth from "./pages/OTPAuth";
+import Login from "./pages/Login";
+import Register from "./pages/Register";
 
 // Main App Component
 function App() {
@@ -38,10 +40,14 @@ function App() {
 
   const ProtectedRoute = ({ children }) => {
     if (!user) {
-      return <Navigate to="/OTPAuth" replace />;
+      return <Navigate to="/login" replace />;
     }
     return children;
   };
+
+  // If the current URL is a magic link sign-in link, send user to OTPAuth
+  // regardless of which path they're on, so the link can be consumed.
+  const isMagicLink = isSignInWithEmailLink(auth, window.location.href);
 
   return (
     <Router>
@@ -51,17 +57,42 @@ function App() {
 
         <div className="flex-1 overflow-y-auto">
           <Routes>
+            {/* Home — if the URL is a magic link, intercept and send to OTPAuth */}
             <Route
               path="/"
               element={
-                isSignInWithEmailLink(auth, window.location.href)
+                isMagicLink
                   ? <Navigate to={`/OTPAuth${window.location.search}`} replace />
                   : <Home />
               }
             />
-            <Route 
-              path="/OTPAuth" 
-              element={user ? <Navigate to="/session" replace /> : <OTPAuth />} 
+
+            {/* Standard email/password login — default auth entry point */}
+            <Route
+              path="/login"
+              element={user ? <Navigate to="/session" replace /> : <Login />}
+            />
+
+            {/* Register page */}
+            <Route
+              path="/register"
+              element={user ? <Navigate to="/session" replace /> : <Register />}
+            />
+
+            {/* Magic link / OTP auth — reached via "Login with Magic Link" button
+                or by clicking a magic link email that redirects back here */}
+            <Route
+              path="/OTPAuth"
+              element={
+                // Allow entry even if user is already signed in when arriving
+                // from a magic link, so OTPAuth can finish the sign-in flow.
+                // Once OTPAuth completes it navigates to /session itself.
+                isMagicLink
+                  ? <OTPAuth />
+                  : user
+                    ? <Navigate to="/session" replace />
+                    : <OTPAuth />
+              }
             />
 
             {/* Protected Routes */}
