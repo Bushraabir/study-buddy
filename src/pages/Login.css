@@ -417,7 +417,26 @@
   position: relative;
   z-index: 1;
 }
-
+/* Forgot password link row */
+.studybuddy-forgot-row {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: -4px;   /* pull up slightly to sit under the password error */
+}
+ 
+.studybuddy-forgot-link {
+  font-size: 12px;
+  font-weight: 500;
+  color: #94a3b8;
+  text-decoration: none;
+  transition: color 0.2s ease;
+  letter-spacing: 0.01em;
+}
+ 
+.studybuddy-forgot-link:hover {
+  color: #a855f7;
+  text-decoration: underline;
+}
 /* ── Footer Link ───────────────────────────────────────────── */
 .studybuddy-auth-footer {
   margin-top: 20px;

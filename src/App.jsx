@@ -16,6 +16,7 @@ import "./App.css";
 import OTPAuth from "./pages/OTPAuth";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
+import ForgotPass from "./pages/ForgotPass"; 
 
 // Main App Component
 function App() {
@@ -46,8 +47,12 @@ function App() {
   };
 
   // If the current URL is a magic link sign-in link, send user to OTPAuth
-  // regardless of which path they're on, so the link can be consumed.
   const isMagicLink = isSignInWithEmailLink(auth, window.location.href);
+
+  // Detect Firebase password-reset link (mode=resetPassword in URL)
+  const urlParams = new URLSearchParams(window.location.search);
+  const isResetLink =
+    urlParams.get("mode") === "resetPassword" && urlParams.get("oobCode");
 
   return (
     <Router>
@@ -63,11 +68,13 @@ function App() {
               element={
                 isMagicLink
                   ? <Navigate to={`/OTPAuth${window.location.search}`} replace />
-                  : <Home />
+                  : isResetLink
+                    ? <Navigate to={`/forgot-password${window.location.search}`} replace />
+                    : <Home />
               }
             />
 
-            {/* Standard email/password login — default auth entry point */}
+            {/* Standard email/password login */}
             <Route
               path="/login"
               element={user ? <Navigate to="/session" replace /> : <Login />}
@@ -79,14 +86,19 @@ function App() {
               element={user ? <Navigate to="/session" replace /> : <Register />}
             />
 
-            {/* Magic link / OTP auth — reached via "Login with Magic Link" button
-                or by clicking a magic link email that redirects back here */}
+            {/* ── Forgot Password ── NEW ──
+                Also handles the Firebase reset callback URL:
+                /forgot-password?mode=resetPassword&oobCode=...
+                ForgotPass reads oobCode from useSearchParams internally.   */}
+            <Route
+              path="/forgot-password"
+              element={<ForgotPass />}
+            />
+
+            {/* Magic link / OTP auth */}
             <Route
               path="/OTPAuth"
               element={
-                // Allow entry even if user is already signed in when arriving
-                // from a magic link, so OTPAuth can finish the sign-in flow.
-                // Once OTPAuth completes it navigates to /session itself.
                 isMagicLink
                   ? <OTPAuth />
                   : user

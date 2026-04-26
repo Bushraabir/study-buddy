@@ -187,6 +187,13 @@ function Login() {
                       <span className="studybuddy-field-error">⚠ {msg}</span>
                     )}
                   />
+
+                  {/* ── Forgot Password Link ── */}
+                  <div className="studybuddy-forgot-row">
+                    <Link to="/forgot-password" className="studybuddy-forgot-link">
+                      Forgot password?
+                    </Link>
+                  </div>
                 </div>
 
                 {/* Submit */}
