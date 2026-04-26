@@ -16,7 +16,7 @@ import "./App.css";
 import OTPAuth from "./pages/OTPAuth";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
-import ForgotPass from "./pages/ForgotPass"; 
+import ForgotPass from "./pages/Forgotpass"; 
 
 // Main App Component
 function App() {
