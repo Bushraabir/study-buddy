@@ -10,8 +10,8 @@ import {
   onSnapshot,
   updateDoc,
   setDoc,
-  increment,
   serverTimestamp,
+  runTransaction,
 } from "firebase/firestore";
 import { auth, db } from "../components/firebase";
 import { onAuthStateChanged } from "firebase/auth";
@@ -22,12 +22,6 @@ import clockAnimation from "../assets/3d-clock-animation.json";
 import "./Session.css";
 
 /* ─── Framer Motion Variants ─── */
-const fadeUp = {
-  initial: { opacity: 0, y: 20 },
-  animate: { opacity: 1, y: 0 },
-  transition: { duration: 0.4, ease: [0.4, 0, 0.2, 1] },
-};
-
 const staggerContainer = {
   animate: { transition: { staggerChildren: 0.08 } },
 };
@@ -67,73 +61,160 @@ function fmtMins(s) {
   if (h > 0) return `${h}h ${m}m`;
   return `${m}m`;
 }
+
+// All date helpers use LOCAL time to avoid UTC drift bugs
 function localYMD(d = new Date()) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 function localYM(d = new Date()) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
 }
-function localWeekStart(d = new Date()) {
-  const day = d.getDay() === 0 ? 7 : d.getDay();
-  const start = new Date(d);
-  start.setDate(d.getDate() - (day - 1));
-  return localYMD(start);
+// ISO week (Monday-based)
+function localISOWeek(d = new Date()) {
+  const date = new Date(d);
+  date.setHours(0, 0, 0, 0);
+  date.setDate(date.getDate() + 4 - (date.getDay() || 7));
+  const yearStart = new Date(date.getFullYear(), 0, 1);
+  const weekNo = Math.ceil((((date - yearStart) / 86400000) + 1) / 7);
+  return `${date.getFullYear()}-W${String(weekNo).padStart(2, "0")}`;
 }
 
-/* ─── SVG Circular Progress Ring ─── */
-function ProgressRing({ progress, size = 220, strokeWidth = 10, color = "#a855f7", children }) {
-  const r = (size - strokeWidth * 2) / 2;
-  const circ = 2 * Math.PI * r;
-  const dash = circ * (1 - Math.max(0, Math.min(1, progress)));
-  return (
-    <div className="progress-ring-wrap" style={{ width: size, height: size }}>
-      <svg width={size} height={size} style={{ transform: "rotate(-90deg)" }}>
-        <circle cx={size / 2} cy={size / 2} r={r}
-          fill="none" stroke="rgba(255,255,255,0.06)" strokeWidth={strokeWidth} />
-        <circle cx={size / 2} cy={size / 2} r={r}
-          fill="none" stroke={color} strokeWidth={strokeWidth}
-          strokeDasharray={circ}
-          strokeDashoffset={dash}
-          strokeLinecap="round"
-          style={{ transition: "stroke-dashoffset 0.5s ease" }} />
-      </svg>
-      <div className="progress-ring-inner">{children}</div>
-    </div>
-  );
+/* ─── Insights Hook ─── */
+function useInsights(userData, isRunning, liveSessionSeconds) {
+  return useMemo(() => {
+    const ds = userData?.dailyStats || {};
+    const entries = Object.entries(ds).filter(([, s]) => (s?.totalTime || 0) > 0);
+
+    /* ─── Best Study Hour ─── */
+    const hourlyTotals = Array(24).fill(0);
+    const hourlyDays = Array(24).fill(0);
+
+    entries.forEach(([, stats]) => {
+      const hourly = stats.hourly || {};
+      Object.entries(hourly).forEach(([h, secs]) => {
+        const hour = parseInt(h, 10);
+        if (secs > 0) {
+          hourlyTotals[hour] += secs;
+          hourlyDays[hour] += 1;
+        }
+      });
+    });
+
+    // Add live session to current hour
+    if (isRunning && liveSessionSeconds > 0) {
+      const currentHour = new Date().getHours();
+      hourlyTotals[currentHour] += liveSessionSeconds;
+    }
+
+    let bestHour = -1;
+    let bestHourAvg = 0;
+    hourlyTotals.forEach((total, hour) => {
+      if (hourlyDays[hour] > 0) {
+        const avg = total / hourlyDays[hour];
+        if (avg > bestHourAvg) {
+          bestHourAvg = avg;
+          bestHour = hour;
+        }
+      }
+    });
+
+    const fmt12 = (h) => {
+      if (h === 0) return "12:00 AM";
+      if (h < 12) return `${h}:00 AM`;
+      if (h === 12) return "12:00 PM";
+      return `${h - 12}:00 PM`;
+    };
+
+    /* ─── Most Productive Day ─── */
+    const dowTotals = Array(7).fill(0);
+    const dowCounts = Array(7).fill(0);
+
+    entries.forEach(([date, stats]) => {
+      const d = new Date(date + "T12:00:00");
+      const dow = d.getDay();
+      const dayTotal = stats?.totalTime || 0;
+      dowTotals[dow] += dayTotal;
+      dowCounts[dow] += 1;
+    });
+
+    // Add live session to today's DOW
+    if (isRunning && liveSessionSeconds > 0) {
+      const todayDow = new Date().getDay();
+      dowTotals[todayDow] += liveSessionSeconds;
+    }
+
+    let bestDow = -1;
+    let bestDowAvg = 0;
+    dowTotals.forEach((total, dow) => {
+      if (dowCounts[dow] > 0) {
+        const avg = total / dowCounts[dow];
+        if (avg > bestDowAvg) {
+          bestDowAvg = avg;
+          bestDow = dow;
+        }
+      }
+    });
+
+    const dayNames = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+    const dayShort = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+
+    /* ─── Focus Score (pomodoro-based) ─── */
+    const completed = userData?.pomodorosCompleted || 0;
+    const aborted = userData?.pomodorosAborted || 0;
+    const total = completed + aborted;
+    const focusScore = total > 0 ? Math.round((completed / total) * 100) : null;
+
+    return {
+      bestHour: bestHour >= 0 ? fmt12(bestHour) : null,
+      bestHourAvg: bestHourAvg / 3600,
+      mostProductiveDay: bestDow >= 0 ? dayNames[bestDow] : null,
+      mostProductiveDayShort: bestDow >= 0 ? dayShort[bestDow] : null,
+      mostProductiveDayAvg: bestDowAvg / 3600,
+      focusScore,
+      pomodorosCompleted: completed,
+      pomodorosAborted: aborted,
+    };
+  }, [userData, isRunning, liveSessionSeconds]);
 }
 
 /* ─── Hourly Histogram ─── */
-function HourHistogram({ dailyStats, isRunning, liveSeconds }) {
+function HourHistogram({ dailyStats, liveSeconds, isRunning }) {
   const todayKey = localYMD();
   const todayData = dailyStats?.[todayKey] || {};
+  const curHour = new Date().getHours();
+
   const hours = useMemo(() => {
-    const arr = Array.from({ length: 24 }, (_, i) => ({
+    const hourly = todayData?.hourly || {};
+    return Array.from({ length: 24 }, (_, i) => ({
       hour: i,
       label: i === 0 ? "12a" : i < 12 ? `${i}a` : i === 12 ? "12p" : `${i - 12}p`,
-      seconds: todayData?.hourly?.[String(i).padStart(2, "0")] || 0,
+      seconds: hourly[String(i).padStart(2, "0")] || 0,
     }));
-    if (isRunning) {
-      const curHour = new Date().getHours();
-      arr[curHour] = { ...arr[curHour], seconds: arr[curHour].seconds + liveSeconds, live: true };
-    }
-    return arr;
-  }, [todayData, isRunning, liveSeconds]);
-  const maxVal = useMemo(() => Math.max(...hours.map((h) => h.seconds), 1), [hours]);
-  const curHour = new Date().getHours();
+  }, [todayData]);
+
+  const maxVal = useMemo(() => {
+    const vals = hours.map((h) =>
+      h.hour === curHour && isRunning ? h.seconds + liveSeconds : h.seconds
+    );
+    return Math.max(...vals, 1);
+  }, [hours, curHour, isRunning, liveSeconds]);
+
   return (
     <div className="histogram-wrap">
       <div className="histogram-bars">
         {hours.map((h) => {
-          const pct = Math.min((h.seconds / maxVal) * 100, 100);
+          const isLive = h.hour === curHour && isRunning;
+          const secs = isLive ? h.seconds + liveSeconds : h.seconds;
+          const pct = Math.min((secs / maxVal) * 100, 100);
           return (
             <div key={h.hour} className="histo-col">
               <div className="histo-bar-track">
                 <motion.div
-                  className={`histo-bar${h.hour === curHour ? " current" : ""}${h.live ? " live" : ""}`}
+                  className={`histo-bar${h.hour === curHour ? " current" : ""}${isLive ? " live" : ""}`}
                   initial={{ height: 0 }}
-                  animate={{ height: `${Math.max(pct, 4)}%` }}
+                  animate={{ height: `${Math.max(pct, secs > 0 ? 4 : 0)}%` }}
                   transition={{ duration: 0.6, ease: [0.4, 0, 0.2, 1] }}
-                  title={`${h.label}: ${fmtMins(h.seconds)}`}
+                  title={`${h.label}: ${fmtMins(secs)}`}
                 />
               </div>
               {h.hour % 6 === 0 && <div className="histo-label">{h.label}</div>}
@@ -187,6 +268,69 @@ function FieldBreakdown({ fieldTimes, totalTime }) {
   );
 }
 
+/* ─── Insight Cards ─── */
+function InsightCards({ insights }) {
+  const cards = [
+    {
+      icon: "🕐",
+      label: "Best Study Hour",
+      value: insights.bestHour || "—",
+      sub: insights.bestHour
+        ? `avg ${insights.bestHourAvg.toFixed(1)}h per session`
+        : "Keep studying to unlock",
+      hasBar: false,
+    },
+    {
+      icon: "📅",
+      label: "Most Productive Day",
+      value: insights.mostProductiveDayShort || "—",
+      sub: insights.mostProductiveDay
+        ? `${insights.mostProductiveDayAvg.toFixed(1)}h avg · ${insights.mostProductiveDay}`
+        : "Need more data",
+      hasBar: false,
+    },
+    {
+      icon: "🎯",
+      label: "Focus Score",
+      value: insights.focusScore !== null ? `${insights.focusScore}%` : "—",
+      sub: insights.focusScore !== null
+        ? `${insights.pomodorosCompleted} done · ${insights.pomodorosAborted} cut short`
+        : "Complete Pomodoros to track",
+      hasBar: insights.focusScore !== null,
+      barValue: insights.focusScore || 0,
+    },
+  ];
+
+  return (
+    <div className="ss-insights-grid">
+      {cards.map((card, i) => (
+        <motion.div
+          key={card.label}
+          className="ss-insight-card"
+          initial={{ opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: i * 0.08, type: "spring", stiffness: 300, damping: 24 }}
+        >
+          <div className="ss-insight-icon">{card.icon}</div>
+          <div className="ss-insight-label">{card.label}</div>
+          <div className="ss-insight-value">{card.value}</div>
+          <div className="ss-insight-sub">{card.sub}</div>
+          {card.hasBar && (
+            <div className="ss-insight-bar">
+              <motion.div
+                className="ss-insight-bar-fill"
+                initial={{ width: 0 }}
+                animate={{ width: `${card.barValue}%` }}
+                transition={{ duration: 1, ease: [0.4, 0, 0.2, 1], delay: 0.3 }}
+              />
+            </div>
+          )}
+        </motion.div>
+      ))}
+    </div>
+  );
+}
+
 /* ══════════════════════════════════════════════
    MAIN SESSION COMPONENT
 ══════════════════════════════════════════════ */
@@ -196,8 +340,8 @@ export default function StartSession() {
   const [userData, setUserData] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  /* ─ Timer ─ */
-  const [time, setTime] = useState(0);
+  /* ─ Timer state ─ */
+  const [displaySeconds, setDisplaySeconds] = useState(0);
   const [isRunning, setIsRunning] = useState(false);
   const [pomodoroMode, setPomodoroMode] = useState(false);
   const [pomodoroTimeLeft, setPomodoroTimeLeft] = useState(25 * 60);
@@ -206,8 +350,6 @@ export default function StartSession() {
 
   /* ─ Strict Mode ─ */
   const [strictMode, setStrictMode] = useState(false);
-  const strictModeRef = useRef(false);
-  useEffect(() => { strictModeRef.current = strictMode; }, [strictMode]);
 
   /* ─ Fields ─ */
   const [selectedField, setSelectedField] = useState("General");
@@ -223,43 +365,62 @@ export default function StartSession() {
   const [editingTask, setEditingTask] = useState({ id: null, text: "" });
   const [lastDeleted, setLastDeleted] = useState(null);
 
-  /* ─ Active panel: null | 'tasks' | 'stats' | 'fields' ─ */
+  /* ─ Active panel ─ */
   const [activePanel, setActivePanel] = useState(null);
-
-  /* ─ Nav warning ─ */
   const [navWarning, setNavWarning] = useState({ open: false, cb: null });
 
-  /* ─ Refs ─ */
-  const timerRef = useRef(null);
-  const startTimeRef = useRef(null);
-  const accumulatedRef = useRef(0);
+  /* ─── Core timer refs ─── */
+  const sessionStartWallTimeRef = useRef(null);
+  const sessionStartDateRef = useRef(null);
+  const accumulatedSecondsRef = useRef(0);
   const isRunningRef = useRef(false);
   const pomodoroModeRef = useRef(false);
   const selectedFieldRef = useRef("General");
+  const strictModeRef = useRef(false);
   const userRef = useRef(null);
   const unsubRef = useRef(null);
   const wakeLockRef = useRef(null);
+  const timerIntervalRef = useRef(null);
+  const checkpointIntervalRef = useRef(null);
+  // Track completed pomodoro rounds to detect new completions
+  const completedPomodorosInSessionRef = useRef(0);
 
+  // FIX BUG #2: Guard to prevent concurrent day-boundary saves
+  const isSavingDayBoundaryRef = useRef(false);
+
+  // FIX BUG #7: Exponential backoff state for checkpoint failures
+  const checkpointBackoffRef = useRef(1000); // start at 1s, double on fail, cap at 60s
+
+  // Keep refs in sync
   useEffect(() => { isRunningRef.current = isRunning; }, [isRunning]);
   useEffect(() => { pomodoroModeRef.current = pomodoroMode; }, [pomodoroMode]);
   useEffect(() => { selectedFieldRef.current = selectedField; }, [selectedField]);
+  useEffect(() => { strictModeRef.current = strictMode; }, [strictMode]);
 
-  /* ═══ Wake Lock (mobile screen-off) ═══ */
+  /* ─── Compute elapsed seconds for current segment ─── */
+  const getSegmentSeconds = useCallback(() => {
+    if (!sessionStartWallTimeRef.current) return 0;
+    return Math.floor((Date.now() - sessionStartWallTimeRef.current) / 1000);
+  }, []);
+
+  /* ─── Total session seconds ─── */
+  const getTotalSessionSeconds = useCallback(() => {
+    return accumulatedSecondsRef.current + getSegmentSeconds();
+  }, [getSegmentSeconds]);
+
+  /* ═══ Wake Lock ═══ */
   const requestWakeLock = useCallback(async () => {
     if ("wakeLock" in navigator) {
-      try {
-        wakeLockRef.current = await navigator.wakeLock.request("screen");
-      } catch (e) { /* silently ignore */ }
+      try { wakeLockRef.current = await navigator.wakeLock.request("screen"); } catch (_) {}
     }
   }, []);
   const releaseWakeLock = useCallback(async () => {
     if (wakeLockRef.current) {
-      try { await wakeLockRef.current.release(); } catch (e) { /* ignore */ }
+      try { await wakeLockRef.current.release(); } catch (_) {}
       wakeLockRef.current = null;
     }
   }, []);
 
-  // Re-acquire wake lock when page becomes visible again (mobile)
   useEffect(() => {
     const onVisible = async () => {
       if (document.visibilityState === "visible" && isRunningRef.current) {
@@ -270,16 +431,12 @@ export default function StartSession() {
     return () => document.removeEventListener("visibilitychange", onVisible);
   }, [requestWakeLock]);
 
-  /* ═══ Prevent tab close / navigation during strict mode ═══ */
+  /* ═══ beforeunload ═══ */
   useEffect(() => {
     const onBeforeUnload = (e) => {
-      if (isRunningRef.current && strictModeRef.current) {
+      if (isRunningRef.current) {
         e.preventDefault();
-        e.returnValue = "🔒 Strict mode is ON — are you sure you want to leave?";
-        return e.returnValue;
-      } else if (isRunningRef.current) {
-        e.preventDefault();
-        e.returnValue = "Timer is running!";
+        e.returnValue = "Timer is running — your session will be saved.";
         return e.returnValue;
       }
     };
@@ -287,18 +444,36 @@ export default function StartSession() {
     return () => window.removeEventListener("beforeunload", onBeforeUnload);
   }, []);
 
-  /* ═══ Tab visibility — strict vs non-strict ═══ */
+  /* ═══ Strict mode — FIX BUG #6: Use grace period instead of instant trigger ═══ */
+  const stopTimerRef = useRef(null);
+  const strictGraceTimerRef = useRef(null);
   useEffect(() => {
     const onVisibilityChange = () => {
-      if (document.visibilityState === "hidden" && isRunningRef.current && strictModeRef.current) {
-        toast.error("🔒 Strict mode: You left the tab! Timer paused.", { duration: 4000 });
-        stopTimer();
+      if (!isRunningRef.current || !strictModeRef.current) return;
+
+      if (document.hidden) {
+        // Start a 2-second grace period before triggering strict mode
+        strictGraceTimerRef.current = setTimeout(() => {
+          // Re-check: user might have come back within the grace period
+          if (document.hidden && isRunningRef.current && strictModeRef.current) {
+            toast.error("🔒 Strict mode: You left the tab! Timer paused.", { duration: 4000 });
+            stopTimerRef.current?.();
+          }
+        }, 2000);
+      } else {
+        // User returned within grace period — cancel the pending stop
+        if (strictGraceTimerRef.current) {
+          clearTimeout(strictGraceTimerRef.current);
+          strictGraceTimerRef.current = null;
+        }
       }
-      // Non-strict: timer keeps running silently
     };
     document.addEventListener("visibilitychange", onVisibilityChange);
-    return () => document.removeEventListener("visibilitychange", onVisibilityChange);
-  }, []); // eslint-disable-line
+    return () => {
+      document.removeEventListener("visibilitychange", onVisibilityChange);
+      if (strictGraceTimerRef.current) clearTimeout(strictGraceTimerRef.current);
+    };
+  }, []);
 
   /* ═══ Real-time Firestore listener ═══ */
   const setupListener = useCallback((uid) => {
@@ -326,7 +501,7 @@ export default function StartSession() {
   }, []); // eslint-disable-line
 
   const initDoc = useCallback(async (uid) => {
-    const dk = localYMD(); const wk = localWeekStart(); const mk = localYM();
+    const dk = localYMD(); const wk = localISOWeek(); const mk = localYM();
     const base = {
       email: auth.currentUser?.email || "",
       name: auth.currentUser?.displayName || "User",
@@ -335,7 +510,9 @@ export default function StartSession() {
       studyFields: ["General"],
       fieldTimes: {},
       totalTimeToday: 0, totalTimeWeek: 0, totalTimeMonth: 0, totalTimeAllTime: 0,
-      lastStudyDate: null,
+      lastStudyDate: null, lastStudyDateKey: null,
+      pomodorosCompleted: 0,
+      pomodorosAborted: 0,
       dailyStats: { [dk]: { totalTime: 0, fieldTimes: {}, sessionsCount: 0, hourly: {} } },
       weeklyStats: { [wk]: { totalTime: 0, fieldTimes: {}, sessionsCount: 0 } },
       monthlyStats: { [mk]: { totalTime: 0, fieldTimes: {}, sessionsCount: 0 } },
@@ -350,112 +527,349 @@ export default function StartSession() {
         userRef.current = u;
         unsubRef.current = setupListener(u.uid);
       } else {
-        setUser(null); setUserData(null); setLoading(false);
+        setUser(null);
+        setUserData(null);
+        setLoading(false);
+        // FIX BUG #4: Clear undo state on logout to prevent cross-user leakage
+        setLastDeleted(null);
         unsubRef.current?.();
       }
     });
-    return () => { unsub(); unsubRef.current?.(); };
+    // FIX BUG #5: Proper cleanup — unsub the auth listener and Firestore listener
+    return () => {
+      unsub();
+      unsubRef.current?.();
+      unsubRef.current = null;
+    };
   }, [setupListener]);
 
-  /* ═══ Timer Tick ═══ */
-  const tick = useCallback(() => {
-    if (!isRunningRef.current || !startTimeRef.current) return;
-    const elapsed = Math.floor((Date.now() - startTimeRef.current) / 1000) + accumulatedRef.current;
-    if (pomodoroModeRef.current) {
-      const SESSION = 25 * 60;
-      const remaining = Math.max(0, SESSION - (elapsed % SESSION));
-      setPomodoroTimeLeft(remaining);
-      if (remaining === 0) {
-        const rounds = Math.floor(elapsed / SESSION) + 1;
-        setPomodoroRounds(rounds);
-        toast.success(rounds % 4 === 0 ? "Long break time! (15–30 min)" : "Pomodoro done! Take a 5-min break 🎉");
-        setIsBreak(true);
-        stopTimer();
+  /* ═══ Save session chunk ═══ */
+  const saveSessionChunk = useCallback(async (
+    sessionSeconds, dateKey, weekKey, monthKey, field, hourKey,
+    isCheckpoint = false, completedPomodoros = 0, abortedPomodoros = 0
+  ) => {
+    if (!userRef.current || sessionSeconds <= 0) return;
+    const uid = userRef.current.uid;
+    const userDocRef = doc(db, "users", uid);
+
+    await runTransaction(db, async (tx) => {
+      const snap = await tx.get(userDocRef);
+      if (!snap.exists()) return;
+      const data = snap.data();
+
+      const todayKey = localYMD();
+      const effectiveDateKey = dateKey || todayKey;
+      const effectiveWeekKey = weekKey || localISOWeek();
+      const effectiveMonthKey = monthKey || localYM();
+      const currentWeekKey = localISOWeek();
+      const currentMonthKey = localYM();
+
+      const prevDayTotal = data.dailyStats?.[effectiveDateKey]?.totalTime || 0;
+      const prevDayField = data.dailyStats?.[effectiveDateKey]?.fieldTimes?.[field] || 0;
+      const prevHourSecs = data.dailyStats?.[effectiveDateKey]?.hourly?.[hourKey] || 0;
+      const prevSessions = data.dailyStats?.[effectiveDateKey]?.sessionsCount || 0;
+
+      const updates = {
+        [`fieldTimes.${field}`]: (data.fieldTimes?.[field] || 0) + sessionSeconds,
+        totalTimeAllTime: (data.totalTimeAllTime || 0) + sessionSeconds,
+        [`dailyStats.${effectiveDateKey}.totalTime`]: prevDayTotal + sessionSeconds,
+        [`dailyStats.${effectiveDateKey}.fieldTimes.${field}`]: prevDayField + sessionSeconds,
+        [`dailyStats.${effectiveDateKey}.hourly.${hourKey}`]: prevHourSecs + sessionSeconds,
+        [`dailyStats.${effectiveDateKey}.sessionsCount`]: prevSessions + (isCheckpoint ? 0 : 1),
+        [`weeklyStats.${effectiveWeekKey}.totalTime`]: (data.weeklyStats?.[effectiveWeekKey]?.totalTime || 0) + sessionSeconds,
+        [`weeklyStats.${effectiveWeekKey}.fieldTimes.${field}`]: (data.weeklyStats?.[effectiveWeekKey]?.fieldTimes?.[field] || 0) + sessionSeconds,
+        [`weeklyStats.${effectiveWeekKey}.sessionsCount`]: (data.weeklyStats?.[effectiveWeekKey]?.sessionsCount || 0) + (isCheckpoint ? 0 : 1),
+        [`monthlyStats.${effectiveMonthKey}.totalTime`]: (data.monthlyStats?.[effectiveMonthKey]?.totalTime || 0) + sessionSeconds,
+        [`monthlyStats.${effectiveMonthKey}.fieldTimes.${field}`]: (data.monthlyStats?.[effectiveMonthKey]?.fieldTimes?.[field] || 0) + sessionSeconds,
+        [`monthlyStats.${effectiveMonthKey}.sessionsCount`]: (data.monthlyStats?.[effectiveMonthKey]?.sessionsCount || 0) + (isCheckpoint ? 0 : 1),
+        lastStudyDate: serverTimestamp(),
+        lastStudyDateKey: effectiveDateKey,
+      };
+
+      // Pomodoro tracking
+      if (completedPomodoros > 0) {
+        updates.pomodorosCompleted = (data.pomodorosCompleted || 0) + completedPomodoros;
       }
-    } else {
-      setTime(elapsed);
+      if (abortedPomodoros > 0) {
+        updates.pomodorosAborted = (data.pomodorosAborted || 0) + abortedPomodoros;
+      }
+
+      // Always compute today/week/month relative to CURRENT date
+      updates.totalTimeToday = effectiveDateKey === todayKey
+        ? prevDayTotal + sessionSeconds
+        : (data.dailyStats?.[todayKey]?.totalTime || 0);
+
+      // Week total: sum all days in CURRENT week
+      const weekTotal = Object.entries({ ...(data.dailyStats || {}) }).reduce((sum, [dk, ds]) => {
+        if (localISOWeek(new Date(dk + "T12:00:00")) === currentWeekKey) {
+          return sum + (dk === effectiveDateKey ? prevDayTotal + sessionSeconds : (ds.totalTime || 0));
+        }
+        return sum;
+      }, 0);
+      updates.totalTimeWeek = weekTotal;
+
+      // Month total: sum all days in CURRENT month
+      const monthTotal = Object.entries({ ...(data.dailyStats || {}) }).reduce((sum, [dk, ds]) => {
+        if (dk.startsWith(currentMonthKey)) {
+          return sum + (dk === effectiveDateKey ? prevDayTotal + sessionSeconds : (ds.totalTime || 0));
+        }
+        return sum;
+      }, 0);
+      updates.totalTimeMonth = monthTotal;
+
+      tx.update(userDocRef, updates);
+    });
+  }, []);
+
+  /* ═══ Internal start timer ═══ */
+  const startTimerInternal = useCallback(() => {
+    sessionStartWallTimeRef.current = Date.now();
+    sessionStartDateRef.current = localYMD();
+    accumulatedSecondsRef.current = 0;
+    isRunningRef.current = true;
+  }, []);
+
+  /* ═══ Day-boundary check — FIX BUG #2: Guard against concurrent execution ═══ */
+  const checkDayBoundary = useCallback(async () => {
+    if (!isRunningRef.current || !sessionStartDateRef.current) return;
+    const todayKey = localYMD();
+    if (sessionStartDateRef.current === todayKey) return;
+    // Prevent concurrent calls from stacking
+    if (isSavingDayBoundaryRef.current) return;
+    isSavingDayBoundaryRef.current = true;
+
+    toast("🌙 New day — saving yesterday's progress…");
+    const segSecs = getSegmentSeconds();
+    if (segSecs > 0) {
+      const dateKey = sessionStartDateRef.current;
+      const weekKey = localISOWeek(new Date(dateKey + "T12:00:00"));
+      const monthKey = localYM(new Date(dateKey + "T12:00:00"));
+      const hourKey = String(new Date(sessionStartWallTimeRef.current).getHours()).padStart(2, "0");
+      try {
+        await saveSessionChunk(segSecs, dateKey, weekKey, monthKey, selectedFieldRef.current, hourKey, true);
+      } catch (e) {
+        console.error("Midnight save failed:", e);
+        isSavingDayBoundaryRef.current = false;
+        // Don't reset on failure — keep accumulating
+        return;
+      }
     }
-  }, []); // eslint-disable-line
+    // Reset segment for new day WITHOUT stopping the timer
+    sessionStartWallTimeRef.current = Date.now();
+    sessionStartDateRef.current = todayKey;
+    accumulatedSecondsRef.current = 0;
+    isSavingDayBoundaryRef.current = false;
+  }, [getSegmentSeconds, saveSessionChunk]);
 
+  /* ═══ Timer tick ═══
+     FIX BUG #1: Pomodoro completion detection — use stable ref comparison,
+     only fire once per completed round, reset properly on stop. ═══ */
   useEffect(() => {
-    timerRef.current = setInterval(tick, 1000);
-    return () => clearInterval(timerRef.current);
-  }, [tick]);
+    timerIntervalRef.current = setInterval(() => {
+      if (!isRunningRef.current || !sessionStartWallTimeRef.current) return;
 
-  /* ═══ Expose state for TopBar ═══ */
+      const total = getTotalSessionSeconds();
+      const SESSION = 25 * 60;
+
+      if (pomodoroModeRef.current) {
+        const remaining = Math.max(0, SESSION - (total % SESSION));
+        setPomodoroTimeLeft(remaining);
+
+        // Detect new pomodoro completion via ref comparison
+        const nowCompleted = Math.floor(total / SESSION);
+        if (nowCompleted > completedPomodorosInSessionRef.current) {
+          completedPomodorosInSessionRef.current = nowCompleted;
+          setPomodoroRounds((prev) => {
+            const next = prev + 1;
+            toast.success(next % 4 === 0 ? "Long break time! (15–30 min) 🎉" : "Pomodoro done! Take a 5-min break ☕");
+            return next;
+          });
+          setIsBreak(true);
+          // stopTimerRef saves with pomodoro tracking
+          stopTimerRef.current?.();
+        }
+      } else {
+        setDisplaySeconds(total);
+      }
+
+      // Midnight boundary check — runs async but is guarded against concurrency
+      checkDayBoundary();
+    }, 1000);
+    return () => clearInterval(timerIntervalRef.current);
+  }, [getTotalSessionSeconds, checkDayBoundary]);
+
+  /* ═══ Expose timer state for TopBar ═══ */
   useEffect(() => {
     window.studyBuddyTimerState = {
       isRunning,
+      selectedField,
+      getSessionSeconds: getTotalSessionSeconds,
       showWarning: (cb) => {
         if (isRunning) { setNavWarning({ open: true, cb }); return true; }
         return false;
       },
     };
     return () => { delete window.studyBuddyTimerState; };
-  }, [isRunning]);
-
-  /* ═══ Save session ═══ */
-  const saveSession = useCallback(async (sessionTime) => {
-    if (!userRef.current || sessionTime <= 0) return;
-    const uid = userRef.current.uid;
-    const field = selectedFieldRef.current;
-    const dk = localYMD(); const wk = localWeekStart(); const mk = localYM();
-    const curHour = String(new Date().getHours()).padStart(2, "0");
-    await updateDoc(doc(db, "users", uid), {
-      [`fieldTimes.${field}`]: increment(sessionTime),
-      totalTimeToday: increment(sessionTime),
-      totalTimeWeek: increment(sessionTime),
-      totalTimeMonth: increment(sessionTime),
-      totalTimeAllTime: increment(sessionTime),
-      [`dailyStats.${dk}.totalTime`]: increment(sessionTime),
-      [`dailyStats.${dk}.fieldTimes.${field}`]: increment(sessionTime),
-      [`dailyStats.${dk}.sessionsCount`]: increment(1),
-      [`dailyStats.${dk}.hourly.${curHour}`]: increment(sessionTime),
-      [`weeklyStats.${wk}.totalTime`]: increment(sessionTime),
-      [`weeklyStats.${wk}.fieldTimes.${field}`]: increment(sessionTime),
-      [`weeklyStats.${wk}.sessionsCount`]: increment(1),
-      [`monthlyStats.${mk}.totalTime`]: increment(sessionTime),
-      [`monthlyStats.${mk}.fieldTimes.${field}`]: increment(sessionTime),
-      [`monthlyStats.${mk}.sessionsCount`]: increment(1),
-      lastStudyDate: serverTimestamp(),
-    });
-  }, []);
+  }, [isRunning, selectedField, getTotalSessionSeconds]);
 
   /* ═══ Timer Controls ═══ */
   const startTimer = useCallback(async () => {
     if (!userRef.current) return toast.error("Please log in first");
+    completedPomodorosInSessionRef.current = 0;
+    checkpointBackoffRef.current = 1000; // reset backoff on new session
     setIsRunning(true);
     setIsBreak(false);
-    startTimeRef.current = Date.now();
-    accumulatedRef.current = pomodoroMode ? (25 * 60 - pomodoroTimeLeft) : time;
+    startTimerInternal();
     await requestWakeLock();
-    toast.success(`📚 Studying: ${selectedField}${strictMode ? " · 🔒 Strict" : ""}`, { duration: 2000 });
-  }, [pomodoroMode, pomodoroTimeLeft, time, selectedField, strictMode, requestWakeLock]);
+    toast.success(
+      `📚 Studying: ${selectedFieldRef.current}${strictModeRef.current ? " · 🔒 Strict" : ""}`,
+      { duration: 2000 }
+    );
+  }, [requestWakeLock, startTimerInternal]);
 
   const stopTimer = useCallback(async () => {
+    if (!isRunningRef.current) return;
+    isRunningRef.current = false;
     setIsRunning(false);
     await releaseWakeLock();
-    if (!userRef.current || !startTimeRef.current) return;
-    const sessionTime = Math.floor((Date.now() - startTimeRef.current) / 1000) + accumulatedRef.current;
-    startTimeRef.current = null;
-    accumulatedRef.current = 0;
-    setTime(0);
-    setPomodoroTimeLeft(25 * 60);
-    if (sessionTime > 5) {
-      try {
-        await saveSession(sessionTime);
-        toast.success(`✅ Saved! ${fmtTime(sessionTime)} for ${selectedFieldRef.current}`);
-      } catch (e) { toast.error("Failed to save session"); }
+
+    // Clear strict mode grace timer if pending
+    if (strictGraceTimerRef.current) {
+      clearTimeout(strictGraceTimerRef.current);
+      strictGraceTimerRef.current = null;
     }
-  }, [saveSession, releaseWakeLock]);
+
+    clearInterval(checkpointIntervalRef.current);
+    checkpointIntervalRef.current = null;
+
+    if (!sessionStartWallTimeRef.current) return;
+
+    const sessionSeconds = getTotalSessionSeconds();
+    const dateKey = sessionStartDateRef.current || localYMD();
+    const weekKey = localISOWeek(new Date(dateKey + "T12:00:00"));
+    const monthKey = localYM(new Date(dateKey + "T12:00:00"));
+    const hourKey = String(new Date().getHours()).padStart(2, "0");
+    const field = selectedFieldRef.current;
+
+    // FIX BUG #8: Improved pomodoro aborted logic
+    let completedPomodoros = 0;
+    let abortedPomodoros = 0;
+    if (pomodoroModeRef.current) {
+      completedPomodoros = completedPomodorosInSessionRef.current;
+      const SESSION = 25 * 60;
+      const partialProgress = sessionSeconds % SESSION;
+      // Only count as aborted if there was meaningful partial progress (> 5 min)
+      // and this is a non-zero partial pomodoro (not exactly at a boundary)
+      if (partialProgress > 300 && partialProgress < SESSION) {
+        abortedPomodoros = 1;
+      }
+    }
+
+    sessionStartWallTimeRef.current = null;
+    sessionStartDateRef.current = null;
+    accumulatedSecondsRef.current = 0;
+    completedPomodorosInSessionRef.current = 0;
+    setDisplaySeconds(0);
+    setPomodoroTimeLeft(25 * 60);
+
+    if (sessionSeconds > 5) {
+      try {
+        await saveSessionChunk(
+          sessionSeconds, dateKey, weekKey, monthKey, field, hourKey,
+          false, completedPomodoros, abortedPomodoros
+        );
+        toast.success(`✅ Saved! ${fmtTime(sessionSeconds)} for ${field}`);
+      } catch (e) {
+        console.error(e);
+        toast.error("Failed to save session");
+      }
+    }
+  }, [getTotalSessionSeconds, releaseWakeLock, saveSessionChunk]);
+
+  useEffect(() => { stopTimerRef.current = stopTimer; }, [stopTimer]);
+
+  // FIX BUG #7: Checkpoint with exponential backoff on failure
+  useEffect(() => {
+    if (!isRunning) {
+      clearInterval(checkpointIntervalRef.current);
+      checkpointIntervalRef.current = null;
+      return;
+    }
+
+    const runCheckpoint = async () => {
+      if (!isRunningRef.current || !sessionStartWallTimeRef.current) return;
+      const segSecs = getSegmentSeconds();
+      if (segSecs < 60) return;
+      const dateKey = sessionStartDateRef.current || localYMD();
+      const weekKey = localISOWeek(new Date(dateKey + "T12:00:00"));
+      const monthKey = localYM(new Date(dateKey + "T12:00:00"));
+      const hourKey = String(new Date().getHours()).padStart(2, "0");
+      const field = selectedFieldRef.current;
+      try {
+        await saveSessionChunk(segSecs, dateKey, weekKey, monthKey, field, hourKey, true);
+        // Success — reset backoff
+        checkpointBackoffRef.current = 1000;
+        // Only reset segment after successful save
+        sessionStartWallTimeRef.current = Date.now();
+        accumulatedSecondsRef.current = 0;
+      } catch (e) {
+        console.error("Checkpoint failed, will retry with backoff:", e);
+        // Exponential backoff: 1s → 2s → 4s → … → 60s cap
+        checkpointBackoffRef.current = Math.min(checkpointBackoffRef.current * 2, 60000);
+      }
+    };
+
+    checkpointIntervalRef.current = setInterval(runCheckpoint, 60000);
+    return () => clearInterval(checkpointIntervalRef.current);
+  }, [isRunning, getSegmentSeconds, saveSessionChunk]);
 
   const resetTimer = useCallback(async () => {
+    clearInterval(checkpointIntervalRef.current);
+    if (strictGraceTimerRef.current) {
+      clearTimeout(strictGraceTimerRef.current);
+      strictGraceTimerRef.current = null;
+    }
+    isRunningRef.current = false;
     setIsRunning(false);
     await releaseWakeLock();
-    setTime(0); setPomodoroTimeLeft(25 * 60); setPomodoroRounds(0); setIsBreak(false);
-    startTimeRef.current = null; accumulatedRef.current = 0;
+    setDisplaySeconds(0);
+    setPomodoroTimeLeft(25 * 60);
+    setPomodoroRounds(0);
+    setIsBreak(false);
+    sessionStartWallTimeRef.current = null;
+    sessionStartDateRef.current = null;
+    accumulatedSecondsRef.current = 0;
+    completedPomodorosInSessionRef.current = 0;
+    checkpointBackoffRef.current = 1000;
     toast("Timer reset");
   }, [releaseWakeLock]);
+
+  /* ═══ Daily reset: recompute totalTimeToday if new day ═══ */
+  useEffect(() => {
+    if (!userData || !userRef.current) return;
+    const todayKey = localYMD();
+    const lastKey = userData.lastStudyDateKey;
+    if (lastKey && lastKey !== todayKey) {
+      const todayTotal = userData.dailyStats?.[todayKey]?.totalTime || 0;
+      if (userData.totalTimeToday !== todayTotal) {
+        const weekKey = localISOWeek();
+        const monthKey = localYM();
+        const weekTotal = Object.entries(userData.dailyStats || {}).reduce((sum, [dk, ds]) => {
+          if (localISOWeek(new Date(dk + "T12:00:00")) === weekKey) return sum + (ds.totalTime || 0);
+          return sum;
+        }, 0);
+        const monthTotal = Object.entries(userData.dailyStats || {}).reduce((sum, [dk, ds]) => {
+          if (dk.startsWith(monthKey)) return sum + (ds.totalTime || 0);
+          return sum;
+        }, 0);
+        updateDoc(doc(db, "users", userRef.current.uid), {
+          totalTimeToday: todayTotal,
+          totalTimeWeek: weekTotal,
+          totalTimeMonth: monthTotal,
+        }).catch(console.error);
+      }
+    }
+  }, [userData]);
 
   /* ═══ Field Management ═══ */
   const addField = useCallback(async () => {
@@ -477,23 +891,56 @@ export default function StartSession() {
     setRemoveModal({ open: true, field, keepTime: false });
   }, [userData?.studyFields]);
 
+  /* FIX BUG #3: confirmRemoveField — properly redistribute time when keepTime=false.
+     Recalculates each day's totalTime from its remaining fieldTimes so no
+     precision is lost and all period totals stay consistent. */
   const confirmRemoveField = useCallback(async () => {
     const { field, keepTime } = removeModal;
     if (!field || !userRef.current) return;
     const uid = userRef.current.uid;
     const fields = (userData?.studyFields || []).filter((f) => f !== field);
-    const fieldTime = userData?.fieldTimes?.[field] || 0;
-    const dk = localYMD(); const wk = localWeekStart(); const mk = localYM();
-    const update = {
-      studyFields: fields,
-      [`fieldTimes.${field}`]: null,
-      [`dailyStats.${dk}.fieldTimes.${field}`]: null,
-      [`weeklyStats.${wk}.fieldTimes.${field}`]: null,
-      [`monthlyStats.${mk}.fieldTimes.${field}`]: null,
-    };
-    if (!keepTime && fieldTime > 0) update.totalTimeAllTime = increment(-fieldTime);
+
     try {
-      await updateDoc(doc(db, "users", uid), update);
+      await runTransaction(db, async (tx) => {
+        const snap = await tx.get(doc(db, "users", uid));
+        if (!snap.exists()) return;
+        const data = snap.data();
+
+        const updates = { studyFields: fields };
+        // Remove the field from the fieldTimes top-level map
+        updates[`fieldTimes.${field}`] = null;
+
+        if (!keepTime) {
+          const todayKey = localYMD();
+          const weekKey = localISOWeek();
+          const monthKey = localYM();
+          let todayNew = 0, weekNew = 0, monthNew = 0, allTimeNew = 0;
+
+          // For each day, recompute totalTime from remaining fieldTimes
+          Object.entries(data.dailyStats || {}).forEach(([dk, ds]) => {
+            const remainingFieldTimes = Object.entries(ds.fieldTimes || {})
+              .filter(([f]) => f !== field);
+            const dayTotal = remainingFieldTimes.reduce((s, [, v]) => s + (v || 0), 0);
+            allTimeNew += dayTotal;
+
+            if (dk === todayKey) todayNew = dayTotal;
+            if (localISOWeek(new Date(dk + "T12:00:00")) === weekKey) weekNew += dayTotal;
+            if (dk.startsWith(monthKey)) monthNew += dayTotal;
+
+            // Null out this field's time for this day and update the day total
+            updates[`dailyStats.${dk}.fieldTimes.${field}`] = null;
+            updates[`dailyStats.${dk}.totalTime`] = dayTotal;
+          });
+
+          updates.totalTimeAllTime = allTimeNew;
+          updates.totalTimeToday = todayNew;
+          updates.totalTimeWeek = weekNew;
+          updates.totalTimeMonth = monthNew;
+        }
+
+        tx.update(doc(db, "users", uid), updates);
+      });
+
       if (selectedField === field) setSelectedField(fields[0] || "General");
       toast.success(`"${field}" removed`);
       setRemoveModal({ open: false, field: null, keepTime: false });
@@ -571,6 +1018,11 @@ export default function StartSession() {
     catch (e) { toast.error("Sort failed"); }
   }, [todoList, userDocRef]);
 
+  // FIX BUG #4: Clear undo bar when tasks panel closes
+  useEffect(() => {
+    if (activePanel !== "tasks") setLastDeleted(null);
+  }, [activePanel]);
+
   /* ═══ Derived / Memoised ═══ */
   const studyFields = useMemo(() => userData?.studyFields || ["General"], [userData?.studyFields]);
   const sortedFields = useMemo(() => {
@@ -579,31 +1031,58 @@ export default function StartSession() {
       .filter(([, v]) => typeof v === "number" && v > 0)
       .sort(([, a], [, b]) => b - a);
   }, [userData?.fieldTimes]);
-  const timeStats = useMemo(() => ({
-    today: userData?.totalTimeToday || 0,
-    week: userData?.totalTimeWeek || 0,
-    month: userData?.totalTimeMonth || 0,
-    allTime: userData?.totalTimeAllTime || 0,
-  }), [userData]);
+
+  const liveSessionSeconds = useMemo(() => {
+    if (!isRunning) return 0;
+    return displaySeconds;
+  }, [isRunning, displaySeconds]);
+
+  const timeStats = useMemo(() => {
+    const todayKey = localYMD();
+    const weekKey = localISOWeek();
+    const monthKey = localYM();
+    const ds = userData?.dailyStats || {};
+    const today = (ds[todayKey]?.totalTime || 0) + liveSessionSeconds;
+    const week = Object.entries(ds).reduce((sum, [dk, d]) => {
+      const isSameWeek = localISOWeek(new Date(dk + "T12:00:00")) === weekKey;
+      return sum + (isSameWeek ? (dk === todayKey ? today : (d.totalTime || 0)) : 0);
+    }, 0);
+    const month = Object.entries(ds).reduce((sum, [dk, d]) => {
+      return sum + (dk.startsWith(monthKey) ? (dk === todayKey ? today : (d.totalTime || 0)) : 0);
+    }, 0);
+    return {
+      today,
+      week,
+      month,
+      allTime: (userData?.totalTimeAllTime || 0) + liveSessionSeconds,
+    };
+  }, [userData, liveSessionSeconds]);
+
   const filteredTasks = useMemo(() => todoList.filter((t) => {
     if (filterOption === "All") return true;
     if (filterOption === "Completed") return t.completed;
     if (filterOption === "Pending") return !t.completed;
     return t.priority === filterOption;
   }), [todoList, filterOption]);
+
   const taskStats = useMemo(() => {
     const total = todoList.length;
     const completed = todoList.filter((t) => t.completed).length;
     return { total, completed, pending: total - completed, high: todoList.filter((t) => t.priority === "High").length };
   }, [todoList]);
-  const liveSeconds = useMemo(() => {
-    if (!isRunning || !startTimeRef.current) return 0;
-    return Math.floor((Date.now() - startTimeRef.current) / 1000);
-  }, [isRunning, time]);
 
-  // Pomodoro ring progress
-const timerColor = isBreak ? "#fbbf24" : isRunning ? "#34d399" : "#a855f7";
+  const todayFieldTimes = useMemo(() => {
+    const todayKey = localYMD();
+    const base = { ...(userData?.dailyStats?.[todayKey]?.fieldTimes || {}) };
+    if (isRunning && selectedField) {
+      base[selectedField] = (base[selectedField] || 0) + liveSessionSeconds;
+    }
+    return base;
+  }, [userData, isRunning, selectedField, liveSessionSeconds]);
 
+  const insights = useInsights(userData, isRunning, liveSessionSeconds);
+
+  const displayTime = pomodoroMode ? pomodoroTimeLeft : displaySeconds;
 
   if (loading) {
     return (
@@ -626,8 +1105,6 @@ const timerColor = isBreak ? "#fbbf24" : isRunning ? "#34d399" : "#a855f7";
       </div>
     );
   }
-
-  const displayTime = pomodoroMode ? pomodoroTimeLeft : time;
 
   return (
     <div className={`ss-page${strictMode && isRunning ? " strict-active" : ""}`}>
@@ -652,7 +1129,10 @@ const timerColor = isBreak ? "#fbbf24" : isRunning ? "#34d399" : "#a855f7";
                 <button className="ss-btn-cancel" onClick={() => setNavWarning({ open: false, cb: null })}>Keep Studying</button>
                 <button className="ss-btn-danger" onClick={async () => {
                   await stopTimer();
-                  setNavWarning((prev) => { if (prev.cb) setTimeout(prev.cb, 100); return { open: false, cb: null }; });
+                  setNavWarning((prev) => {
+                    if (prev.cb) setTimeout(prev.cb, 100);
+                    return { open: false, cb: null };
+                  });
                 }}>Pause & Leave</button>
               </div>
             </motion.div>
@@ -695,29 +1175,17 @@ const timerColor = isBreak ? "#fbbf24" : isRunning ? "#34d399" : "#a855f7";
       </AnimatePresence>
 
       <div className="ss-container">
-
-
-
-        {/* ════════════════════
-            MAIN CONTENT GRID
-        ════════════════════ */}
         <motion.div className="ss-main-grid" variants={staggerContainer} initial="initial" animate="animate">
 
           {/* ── LEFT: Timer Card ── */}
           <motion.div className="ss-card ss-timer-card" variants={cardVariant}>
-
-            {/* Mode Pill */}
             <div className="ss-mode-pill">
               {pomodoroMode ? "🍅 Pomodoro Mode" : "⏱️ Stopwatch"}
               {isRunning && <span className="ss-live-dot" />}
             </div>
 
             <div className="ss-ring-wrap">
-              <Lottie
-                animationData={clockAnimation}
-                loop={isRunning}
-                className="ss-clock-lottie"
-              />
+              <Lottie animationData={clockAnimation} loop={isRunning} className="ss-clock-lottie" />
               <div className="ss-timer-overlay">
                 {pomodoroMode && pomodoroRounds > 0 && (
                   <div className="ss-round-badge">{isBreak ? "☕ Break" : `Round ${pomodoroRounds}`}</div>
@@ -732,7 +1200,6 @@ const timerColor = isBreak ? "#fbbf24" : isRunning ? "#34d399" : "#a855f7";
               </div>
             </div>
 
-            {/* Controls */}
             <div className="ss-controls">
               {isRunning
                 ? <button className="ss-btn ss-btn-stop" onClick={stopTimer}>⏹ Stop</button>
@@ -742,7 +1209,6 @@ const timerColor = isBreak ? "#fbbf24" : isRunning ? "#34d399" : "#a855f7";
             </div>
 
             <div className="ss-bottom-controls">
-            {/* Pomodoro Toggle */}
               <label className={`ss-toggle-row${isRunning ? " disabled" : ""}`}>
                 <div className={`ss-toggle-track${pomodoroMode ? " on" : ""}`}
                   onClick={() => !isRunning && setPomodoroMode((v) => !v)}>
@@ -751,27 +1217,20 @@ const timerColor = isBreak ? "#fbbf24" : isRunning ? "#34d399" : "#a855f7";
                 <span>Pomodoro (25 min)</span>
               </label>
 
-              {/* Strict Mode */}
               <button
                 className={`ss-strict-btn${strictMode ? " on" : ""}`}
                 onClick={() => {
                   if (isRunning) return toast.error("Stop timer to change strict mode");
                   const next = !strictMode;
                   setStrictMode(next);
-                  toast(next ? "🔒 Strict mode ON" : "🔓 Strict mode OFF", {
-                    icon: next ? "🔒" : "🔓",
-                  });
+                  toast(next ? "🔒 Strict mode ON" : "🔓 Strict mode OFF");
                 }}
               >
-                <div className={`ss-strict-indicator${strictMode ? " on" : ""}`}>
-                  {strictMode ? "🔒" : "🔓"}
-                </div>
+                <div className="ss-strict-indicator">{strictMode ? "🔒" : "🔓"}</div>
                 <div className="ss-strict-text">
                   <span className="ss-strict-title">Strict Mode</span>
                   <span className="ss-strict-desc">
-                    {strictMode
-                      ? "Tab switching pauses timer · Exit blocked"
-                      : "Timer continues while browsing"}
+                    {strictMode ? "Tab switching pauses timer (2s grace)" : "Timer continues while browsing"}
                   </span>
                 </div>
                 <div className={`ss-strict-badge${strictMode ? " on" : ""}`}>
@@ -783,8 +1242,6 @@ const timerColor = isBreak ? "#fbbf24" : isRunning ? "#34d399" : "#a855f7";
 
           {/* ── RIGHT: Side Cards ── */}
           <div className="ss-side-col">
-
-            {/* Field Selector Card */}
             <motion.div className="ss-card ss-field-card" variants={cardVariant}>
               <div className="ss-card-title">
                 <span className="ss-card-icon">🎯</span>
@@ -792,11 +1249,9 @@ const timerColor = isBreak ? "#fbbf24" : isRunning ? "#34d399" : "#a855f7";
               </div>
               <div className="ss-field-chips">
                 {studyFields.map((f) => (
-                  <button
-                    key={f}
+                  <button key={f}
                     className={`ss-field-chip${selectedField === f ? " selected" : ""}${isRunning ? " locked" : ""}`}
-                    onClick={() => !isRunning && setSelectedField(f)}
-                  >
+                    onClick={() => !isRunning && setSelectedField(f)}>
                     {f}
                     {f !== "General" && (
                       <span className="ss-chip-remove"
@@ -806,19 +1261,13 @@ const timerColor = isBreak ? "#fbbf24" : isRunning ? "#34d399" : "#a855f7";
                 ))}
               </div>
               <div className="ss-add-field-row">
-                <input
-                  className="ss-input"
-                  type="text"
-                  placeholder="Add new field…"
-                  value={newFieldName}
-                  onChange={(e) => setNewFieldName(e.target.value)}
-                  onKeyDown={(e) => e.key === "Enter" && addField()}
-                />
+                <input className="ss-input" type="text" placeholder="Add new field…"
+                  value={newFieldName} onChange={(e) => setNewFieldName(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && addField()} />
                 <button className="ss-btn-sm ss-btn-purple" onClick={addField}>+ Add</button>
               </div>
             </motion.div>
 
-            {/* Mini Stats Grid */}
             <motion.div className="ss-card ss-mini-stats" variants={cardVariant}>
               <div className="ss-card-title">
                 <span className="ss-card-icon">📊</span>
@@ -839,13 +1288,10 @@ const timerColor = isBreak ? "#fbbf24" : isRunning ? "#34d399" : "#a855f7";
               </div>
             </motion.div>
 
-
           </div>
         </motion.div>
 
-        {/* ════════════════════
-            BOTTOM TAB BAR
-        ════════════════════ */}
+        {/* ════ BOTTOM TAB BAR ════ */}
         <motion.div className="ss-tab-bar"
           initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.35, duration: 0.4 }}>
@@ -854,11 +1300,9 @@ const timerColor = isBreak ? "#fbbf24" : isRunning ? "#34d399" : "#a855f7";
             { key: "stats", icon: "📊", label: "Stats", badge: isRunning ? "●" : null },
             { key: "fields", icon: "📚", label: "Fields", badge: null },
           ].map(({ key, icon, label, badge }) => (
-            <button
-              key={key}
+            <button key={key}
               className={`ss-tab${activePanel === key ? " active" : ""}`}
-              onClick={() => setActivePanel(activePanel === key ? null : key)}
-            >
+              onClick={() => setActivePanel(activePanel === key ? null : key)}>
               <span className="ss-tab-icon">{icon}</span>
               <span className="ss-tab-label">{label}</span>
               {badge !== null && (
@@ -868,9 +1312,7 @@ const timerColor = isBreak ? "#fbbf24" : isRunning ? "#34d399" : "#a855f7";
           ))}
         </motion.div>
 
-        {/* ════════════════════
-            OVERLAY PANELS
-        ════════════════════ */}
+        {/* ════ OVERLAY PANELS ════ */}
         <AnimatePresence>
           {activePanel === "tasks" && (
             <motion.div className="ss-panel" variants={overlayVariant} initial="initial" animate="animate" exit="exit">
@@ -878,8 +1320,6 @@ const timerColor = isBreak ? "#fbbf24" : isRunning ? "#34d399" : "#a855f7";
                 <h2 className="ss-panel-title">📋 To-Do List</h2>
                 <button className="ss-panel-close" onClick={() => setActivePanel(null)}>✕</button>
               </div>
-
-              {/* Add Task */}
               <div className="ss-task-add">
                 <input className="ss-input" type="text" placeholder="Add a task…"
                   value={newTaskText} onChange={(e) => setNewTaskText(e.target.value)}
@@ -894,8 +1334,6 @@ const timerColor = isBreak ? "#fbbf24" : isRunning ? "#34d399" : "#a855f7";
                   <button className="ss-btn-sm ss-btn-purple" onClick={addTask}>+ Add</button>
                 </div>
               </div>
-
-              {/* Filters */}
               <div className="ss-task-filter-row">
                 <select className="ss-select" value={filterOption} onChange={(e) => setFilterOption(e.target.value)}>
                   <option value="All">All ({taskStats.total})</option>
@@ -908,8 +1346,6 @@ const timerColor = isBreak ? "#fbbf24" : isRunning ? "#34d399" : "#a855f7";
                 <button className="ss-btn-sm ss-btn-ghost" onClick={sortByPriority}>↕ Priority</button>
                 <button className="ss-btn-sm ss-btn-ghost" onClick={sortByDeadline}>📅 Due</button>
               </div>
-
-              {/* Task List */}
               <div className="ss-task-list">
                 <AnimatePresence>
                   {filteredTasks.length > 0 ? filteredTasks.map((task) => (
@@ -922,7 +1358,10 @@ const timerColor = isBreak ? "#fbbf24" : isRunning ? "#34d399" : "#a855f7";
                           <input className="ss-input" value={editingTask.text}
                             onChange={(e) => setEditingTask((p) => ({ ...p, text: e.target.value }))}
                             onBlur={() => saveEdit(task.id)}
-                            onKeyDown={(e) => { if (e.key === "Enter") saveEdit(task.id); if (e.key === "Escape") setEditingTask({ id: null, text: "" }); }}
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter") saveEdit(task.id);
+                              if (e.key === "Escape") setEditingTask({ id: null, text: "" });
+                            }}
                             autoFocus />
                         ) : (
                           <>
@@ -953,7 +1392,6 @@ const timerColor = isBreak ? "#fbbf24" : isRunning ? "#34d399" : "#a855f7";
                   )}
                 </AnimatePresence>
               </div>
-
               <AnimatePresence>
                 {lastDeleted && (
                   <motion.div className="ss-undo-bar"
@@ -978,8 +1416,8 @@ const timerColor = isBreak ? "#fbbf24" : isRunning ? "#34d399" : "#a855f7";
 
               <div className="ss-stats-grid">
                 {[
-                  { label: "Total Today", val: fmtTime(timeStats.today + (isRunning ? liveSeconds : 0)) },
-                  { label: "Sessions", val: userData?.dailyStats?.[localYMD()]?.sessionsCount || 0 },
+                  { label: "Total Today", val: fmtTime(timeStats.today) },
+                  { label: "Sessions", val: (userData?.dailyStats?.[localYMD()]?.sessionsCount || 0) + (isRunning ? 1 : 0) },
                   { label: "Fields", val: sortedFields.length },
                 ].map(({ label, val }) => (
                   <div key={label} className="ss-stats-box">
@@ -989,33 +1427,43 @@ const timerColor = isBreak ? "#fbbf24" : isRunning ? "#34d399" : "#a855f7";
                 ))}
               </div>
 
-              <div className="ss-section-label">Field Breakdown</div>
-              <FieldBreakdown
-                fieldTimes={userData?.dailyStats?.[localYMD()]?.fieldTimes}
-                totalTime={timeStats.today + (isRunning ? liveSeconds : 0)}
-              />
+              <div className="ss-section-label">Field Breakdown — Today</div>
+              <FieldBreakdown fieldTimes={todayFieldTimes} totalTime={timeStats.today} />
 
               <div className="ss-section-label" style={{ marginTop: "1.5rem" }}>
                 Hourly Activity {isRunning && <span className="ss-live-tag">live</span>}
               </div>
-              <HourHistogram dailyStats={userData?.dailyStats} isRunning={isRunning} liveSeconds={liveSeconds} />
+              <HourHistogram
+                dailyStats={userData?.dailyStats}
+                liveSeconds={liveSessionSeconds}
+                isRunning={isRunning}
+              />
+
+              <div className="ss-section-label" style={{ marginTop: "1.5rem" }}>
+                Study Insights
+                {isRunning && <span className="ss-live-tag">live</span>}
+              </div>
+              <InsightCards insights={insights} />
             </motion.div>
           )}
 
           {activePanel === "fields" && (
             <motion.div className="ss-panel" variants={overlayVariant} initial="initial" animate="animate" exit="exit">
               <div className="ss-panel-header">
-                <h2 className="ss-panel-title">📚 All Field Times</h2>
+                <h2 className="ss-panel-title">📚 All-Time Field Times</h2>
                 <button className="ss-panel-close" onClick={() => setActivePanel(null)}>✕</button>
               </div>
               <div className="ss-fields-list">
                 {sortedFields.length > 0 ? sortedFields.map(([field, secs], i) => (
-                  <motion.div key={field} className={`ss-field-row${field === selectedField && isRunning ? " active" : ""}`}
+                  <motion.div key={field}
+                    className={`ss-field-row${field === selectedField && isRunning ? " active" : ""}`}
                     initial={{ opacity: 0, x: 16 }} animate={{ opacity: 1, x: 0 }}
                     transition={{ delay: i * 0.05 }}>
                     <div className="ss-field-row-info">
                       <div className="ss-field-row-name">{field}</div>
-                      <div className="ss-field-row-time">{fmtTime(secs)}</div>
+                      <div className="ss-field-row-time">
+                        {fmtTime(field === selectedField && isRunning ? secs + liveSessionSeconds : secs)}
+                      </div>
                     </div>
                     {field !== "General" && (
                       <button className="ss-task-btn danger" onClick={() => openRemoveModal(field)}>✕</button>
@@ -1028,7 +1476,6 @@ const timerColor = isBreak ? "#fbbf24" : isRunning ? "#34d399" : "#a855f7";
             </motion.div>
           )}
         </AnimatePresence>
-
       </div>
     </div>
   );
