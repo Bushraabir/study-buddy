@@ -62,14 +62,12 @@ function fmtMins(s) {
   return `${m}m`;
 }
 
-// All date helpers use LOCAL time to avoid UTC drift bugs
 function localYMD(d = new Date()) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 function localYM(d = new Date()) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
 }
-// ISO week (Monday-based)
 function localISOWeek(d = new Date()) {
   const date = new Date(d);
   date.setHours(0, 0, 0, 0);
@@ -85,7 +83,6 @@ function useInsights(userData, isRunning, liveSessionSeconds) {
     const ds = userData?.dailyStats || {};
     const entries = Object.entries(ds).filter(([, s]) => (s?.totalTime || 0) > 0);
 
-    /* ─── Best Study Hour ─── */
     const hourlyTotals = Array(24).fill(0);
     const hourlyDays = Array(24).fill(0);
 
@@ -100,7 +97,6 @@ function useInsights(userData, isRunning, liveSessionSeconds) {
       });
     });
 
-    // Add live session to current hour
     if (isRunning && liveSessionSeconds > 0) {
       const currentHour = new Date().getHours();
       hourlyTotals[currentHour] += liveSessionSeconds;
@@ -111,10 +107,7 @@ function useInsights(userData, isRunning, liveSessionSeconds) {
     hourlyTotals.forEach((total, hour) => {
       if (hourlyDays[hour] > 0) {
         const avg = total / hourlyDays[hour];
-        if (avg > bestHourAvg) {
-          bestHourAvg = avg;
-          bestHour = hour;
-        }
+        if (avg > bestHourAvg) { bestHourAvg = avg; bestHour = hour; }
       }
     });
 
@@ -125,22 +118,18 @@ function useInsights(userData, isRunning, liveSessionSeconds) {
       return `${h - 12}:00 PM`;
     };
 
-    /* ─── Most Productive Day ─── */
     const dowTotals = Array(7).fill(0);
     const dowCounts = Array(7).fill(0);
 
     entries.forEach(([date, stats]) => {
       const d = new Date(date + "T12:00:00");
       const dow = d.getDay();
-      const dayTotal = stats?.totalTime || 0;
-      dowTotals[dow] += dayTotal;
+      dowTotals[dow] += stats?.totalTime || 0;
       dowCounts[dow] += 1;
     });
 
-    // Add live session to today's DOW
     if (isRunning && liveSessionSeconds > 0) {
-      const todayDow = new Date().getDay();
-      dowTotals[todayDow] += liveSessionSeconds;
+      dowTotals[new Date().getDay()] += liveSessionSeconds;
     }
 
     let bestDow = -1;
@@ -148,17 +137,13 @@ function useInsights(userData, isRunning, liveSessionSeconds) {
     dowTotals.forEach((total, dow) => {
       if (dowCounts[dow] > 0) {
         const avg = total / dowCounts[dow];
-        if (avg > bestDowAvg) {
-          bestDowAvg = avg;
-          bestDow = dow;
-        }
+        if (avg > bestDowAvg) { bestDowAvg = avg; bestDow = dow; }
       }
     });
 
     const dayNames = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
     const dayShort = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
-    /* ─── Focus Score (pomodoro-based) ─── */
     const completed = userData?.pomodorosCompleted || 0;
     const aborted = userData?.pomodorosAborted || 0;
     const total = completed + aborted;
@@ -272,17 +257,13 @@ function FieldBreakdown({ fieldTimes, totalTime }) {
 function InsightCards({ insights }) {
   const cards = [
     {
-      icon: "🕐",
-      label: "Best Study Hour",
+      icon: "🕐", label: "Best Study Hour",
       value: insights.bestHour || "—",
-      sub: insights.bestHour
-        ? `avg ${insights.bestHourAvg.toFixed(1)}h per session`
-        : "Keep studying to unlock",
+      sub: insights.bestHour ? `avg ${insights.bestHourAvg.toFixed(1)}h per session` : "Keep studying to unlock",
       hasBar: false,
     },
     {
-      icon: "📅",
-      label: "Most Productive Day",
+      icon: "📅", label: "Most Productive Day",
       value: insights.mostProductiveDayShort || "—",
       sub: insights.mostProductiveDay
         ? `${insights.mostProductiveDayAvg.toFixed(1)}h avg · ${insights.mostProductiveDay}`
@@ -290,8 +271,7 @@ function InsightCards({ insights }) {
       hasBar: false,
     },
     {
-      icon: "🎯",
-      label: "Focus Score",
+      icon: "🎯", label: "Focus Score",
       value: insights.focusScore !== null ? `${insights.focusScore}%` : "—",
       sub: insights.focusScore !== null
         ? `${insights.pomodorosCompleted} done · ${insights.pomodorosAborted} cut short`
@@ -304,21 +284,16 @@ function InsightCards({ insights }) {
   return (
     <div className="ss-insights-grid">
       {cards.map((card, i) => (
-        <motion.div
-          key={card.label}
-          className="ss-insight-card"
-          initial={{ opacity: 0, y: 12 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: i * 0.08, type: "spring", stiffness: 300, damping: 24 }}
-        >
+        <motion.div key={card.label} className="ss-insight-card"
+          initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: i * 0.08, type: "spring", stiffness: 300, damping: 24 }}>
           <div className="ss-insight-icon">{card.icon}</div>
           <div className="ss-insight-label">{card.label}</div>
           <div className="ss-insight-value">{card.value}</div>
           <div className="ss-insight-sub">{card.sub}</div>
           {card.hasBar && (
             <div className="ss-insight-bar">
-              <motion.div
-                className="ss-insight-bar-fill"
+              <motion.div className="ss-insight-bar-fill"
                 initial={{ width: 0 }}
                 animate={{ width: `${card.barValue}%` }}
                 transition={{ duration: 1, ease: [0.4, 0, 0.2, 1], delay: 0.3 }}
@@ -370,9 +345,37 @@ export default function StartSession() {
   const [navWarning, setNavWarning] = useState({ open: false, cb: null });
 
   /* ─── Core timer refs ─── */
-  const sessionStartWallTimeRef = useRef(null);
-  const sessionStartDateRef = useRef(null);
-  const accumulatedSecondsRef = useRef(0);
+  /*
+   * HOW THE TIMER WORKS (read this before touching anything):
+   *
+   * We track elapsed time in TWO parts to survive checkpoint saves:
+   *
+   *   sessionStartWallTimeRef  — wall-clock ms when the CURRENT segment started
+   *   accumulatedSecondsRef    — total integer seconds saved from ALL previous
+   *                              segments within this single session
+   *
+   * getSegmentSeconds()  = floor((now - sessionStartWallTimeRef) / 1000)
+   * getTotalSessionSeconds() = accumulatedSecondsRef + getSegmentSeconds()
+   *
+   * On CHECKPOINT save:
+   *   1. Read segSecs = getSegmentSeconds()
+   *   2. Save segSecs to Firestore
+   *   3. accumulatedSecondsRef += segSecs   ← ADD, not zero
+   *   4. sessionStartWallTimeRef = Date.now() ← start new segment
+   *   getTotalSessionSeconds() is now unchanged — no reset!
+   *
+   * On STOP:
+   *   1. Read total = getTotalSessionSeconds()
+   *   2. Save total to Firestore
+   *   3. Zero both refs (session is over)
+   *   4. setDisplaySeconds(0)
+   *
+   * This is the only correct pattern. Never zero accumulatedSecondsRef
+   * without also zeroing sessionStartWallTimeRef at the same time (only on stop).
+   */
+  const sessionStartWallTimeRef = useRef(null);   // ms timestamp, null when stopped
+  const sessionStartDateRef = useRef(null);        // "YYYY-MM-DD" of segment start
+  const accumulatedSecondsRef = useRef(0);         // seconds already saved this session
   const isRunningRef = useRef(false);
   const pomodoroModeRef = useRef(false);
   const selectedFieldRef = useRef("General");
@@ -382,31 +385,26 @@ export default function StartSession() {
   const wakeLockRef = useRef(null);
   const timerIntervalRef = useRef(null);
   const checkpointIntervalRef = useRef(null);
-  // Track completed pomodoro rounds to detect new completions
   const completedPomodorosInSessionRef = useRef(0);
-
-  // FIX BUG #2: Guard to prevent concurrent day-boundary saves
   const isSavingDayBoundaryRef = useRef(false);
+  const checkpointBackoffRef = useRef(1000);
 
-  // FIX BUG #7: Exponential backoff state for checkpoint failures
-  const checkpointBackoffRef = useRef(1000); // start at 1s, double on fail, cap at 60s
-
-  // Keep refs in sync
+  // Keep refs in sync with state
   useEffect(() => { isRunningRef.current = isRunning; }, [isRunning]);
   useEffect(() => { pomodoroModeRef.current = pomodoroMode; }, [pomodoroMode]);
   useEffect(() => { selectedFieldRef.current = selectedField; }, [selectedField]);
   useEffect(() => { strictModeRef.current = strictMode; }, [strictMode]);
 
-  /* ─── Compute elapsed seconds for current segment ─── */
+  /* ─── Compute elapsed seconds for the current (unsaved) segment ─── */
   const getSegmentSeconds = useCallback(() => {
     if (!sessionStartWallTimeRef.current) return 0;
     return Math.floor((Date.now() - sessionStartWallTimeRef.current) / 1000);
-  }, []);
+  }, []); // no deps — only reads refs, stable forever
 
-  /* ─── Total session seconds ─── */
+  /* ─── Total session seconds = saved segments + current segment ─── */
   const getTotalSessionSeconds = useCallback(() => {
     return accumulatedSecondsRef.current + getSegmentSeconds();
-  }, [getSegmentSeconds]);
+  }, [getSegmentSeconds]); // stable (getSegmentSeconds is stable)
 
   /* ═══ Wake Lock ═══ */
   const requestWakeLock = useCallback(async () => {
@@ -444,24 +442,20 @@ export default function StartSession() {
     return () => window.removeEventListener("beforeunload", onBeforeUnload);
   }, []);
 
-  /* ═══ Strict mode — FIX BUG #6: Use grace period instead of instant trigger ═══ */
+  /* ═══ Strict mode — tab-switch guard with 2s grace period ═══ */
   const stopTimerRef = useRef(null);
   const strictGraceTimerRef = useRef(null);
   useEffect(() => {
     const onVisibilityChange = () => {
       if (!isRunningRef.current || !strictModeRef.current) return;
-
       if (document.hidden) {
-        // Start a 2-second grace period before triggering strict mode
         strictGraceTimerRef.current = setTimeout(() => {
-          // Re-check: user might have come back within the grace period
           if (document.hidden && isRunningRef.current && strictModeRef.current) {
             toast.error("🔒 Strict mode: You left the tab! Timer paused.", { duration: 4000 });
             stopTimerRef.current?.();
           }
         }, 2000);
       } else {
-        // User returned within grace period — cancel the pending stop
         if (strictGraceTimerRef.current) {
           clearTimeout(strictGraceTimerRef.current);
           strictGraceTimerRef.current = null;
@@ -530,12 +524,10 @@ export default function StartSession() {
         setUser(null);
         setUserData(null);
         setLoading(false);
-        // FIX BUG #4: Clear undo state on logout to prevent cross-user leakage
         setLastDeleted(null);
         unsubRef.current?.();
       }
     });
-    // FIX BUG #5: Proper cleanup — unsub the auth listener and Firestore listener
     return () => {
       unsub();
       unsubRef.current?.();
@@ -586,7 +578,6 @@ export default function StartSession() {
         lastStudyDateKey: effectiveDateKey,
       };
 
-      // Pomodoro tracking
       if (completedPomodoros > 0) {
         updates.pomodorosCompleted = (data.pomodorosCompleted || 0) + completedPomodoros;
       }
@@ -594,12 +585,10 @@ export default function StartSession() {
         updates.pomodorosAborted = (data.pomodorosAborted || 0) + abortedPomodoros;
       }
 
-      // Always compute today/week/month relative to CURRENT date
       updates.totalTimeToday = effectiveDateKey === todayKey
         ? prevDayTotal + sessionSeconds
         : (data.dailyStats?.[todayKey]?.totalTime || 0);
 
-      // Week total: sum all days in CURRENT week
       const weekTotal = Object.entries({ ...(data.dailyStats || {}) }).reduce((sum, [dk, ds]) => {
         if (localISOWeek(new Date(dk + "T12:00:00")) === currentWeekKey) {
           return sum + (dk === effectiveDateKey ? prevDayTotal + sessionSeconds : (ds.totalTime || 0));
@@ -608,7 +597,6 @@ export default function StartSession() {
       }, 0);
       updates.totalTimeWeek = weekTotal;
 
-      // Month total: sum all days in CURRENT month
       const monthTotal = Object.entries({ ...(data.dailyStats || {}) }).reduce((sum, [dk, ds]) => {
         if (dk.startsWith(currentMonthKey)) {
           return sum + (dk === effectiveDateKey ? prevDayTotal + sessionSeconds : (ds.totalTime || 0));
@@ -625,16 +613,15 @@ export default function StartSession() {
   const startTimerInternal = useCallback(() => {
     sessionStartWallTimeRef.current = Date.now();
     sessionStartDateRef.current = localYMD();
-    accumulatedSecondsRef.current = 0;
+    accumulatedSecondsRef.current = 0;   // fresh session — no prior segments
     isRunningRef.current = true;
   }, []);
 
-  /* ═══ Day-boundary check — FIX BUG #2: Guard against concurrent execution ═══ */
+  /* ═══ Day-boundary check ═══ */
   const checkDayBoundary = useCallback(async () => {
     if (!isRunningRef.current || !sessionStartDateRef.current) return;
     const todayKey = localYMD();
     if (sessionStartDateRef.current === todayKey) return;
-    // Prevent concurrent calls from stacking
     if (isSavingDayBoundaryRef.current) return;
     isSavingDayBoundaryRef.current = true;
 
@@ -647,56 +634,80 @@ export default function StartSession() {
       const hourKey = String(new Date(sessionStartWallTimeRef.current).getHours()).padStart(2, "0");
       try {
         await saveSessionChunk(segSecs, dateKey, weekKey, monthKey, selectedFieldRef.current, hourKey, true);
+        // Move saved seconds into accumulator; start fresh segment for new day
+        accumulatedSecondsRef.current += segSecs;
+        sessionStartWallTimeRef.current = Date.now();
+        sessionStartDateRef.current = todayKey;
       } catch (e) {
         console.error("Midnight save failed:", e);
-        isSavingDayBoundaryRef.current = false;
-        // Don't reset on failure — keep accumulating
-        return;
+        // Don't advance the refs — we'll retry next tick
       }
+    } else {
+      // No seconds to save, just advance the date key
+      sessionStartDateRef.current = todayKey;
     }
-    // Reset segment for new day WITHOUT stopping the timer
-    sessionStartWallTimeRef.current = Date.now();
-    sessionStartDateRef.current = todayKey;
-    accumulatedSecondsRef.current = 0;
     isSavingDayBoundaryRef.current = false;
   }, [getSegmentSeconds, saveSessionChunk]);
 
   /* ═══ Timer tick ═══
-     FIX BUG #1: Pomodoro completion detection — use stable ref comparison,
-     only fire once per completed round, reset properly on stop. ═══ */
+   *
+   * IMPORTANT: this effect must have NO state dependencies that change frequently.
+   * It reads everything through refs (isRunningRef, pomodoroModeRef, etc.) to
+   * avoid the effect re-running and creating multiple parallel intervals.
+   *
+   * getTotalSessionSeconds and checkDayBoundary are both stable (useCallback with
+   * stable deps), so the effect only ever runs once after mount.
+   ═══ */
   useEffect(() => {
+    // Clear any pre-existing interval to guard against React 18 Strict Mode
+    // double-invoking this effect in development.
+    if (timerIntervalRef.current) {
+      clearInterval(timerIntervalRef.current);
+      timerIntervalRef.current = null;
+    }
+
     timerIntervalRef.current = setInterval(() => {
       if (!isRunningRef.current || !sessionStartWallTimeRef.current) return;
 
       const total = getTotalSessionSeconds();
-      const SESSION = 25 * 60;
+      const POMODORO_DURATION = 25 * 60;
 
       if (pomodoroModeRef.current) {
-        const remaining = Math.max(0, SESSION - (total % SESSION));
+        const elapsed = total % POMODORO_DURATION;
+        const remaining = POMODORO_DURATION - elapsed;
         setPomodoroTimeLeft(remaining);
 
-        // Detect new pomodoro completion via ref comparison
-        const nowCompleted = Math.floor(total / SESSION);
+        // Detect new pomodoro completion
+        const nowCompleted = Math.floor(total / POMODORO_DURATION);
         if (nowCompleted > completedPomodorosInSessionRef.current) {
           completedPomodorosInSessionRef.current = nowCompleted;
           setPomodoroRounds((prev) => {
             const next = prev + 1;
-            toast.success(next % 4 === 0 ? "Long break time! (15–30 min) 🎉" : "Pomodoro done! Take a 5-min break ☕");
+            toast.success(next % 4 === 0
+              ? "Long break time! (15–30 min) 🎉"
+              : "Pomodoro done! Take a 5-min break ☕"
+            );
             return next;
           });
           setIsBreak(true);
-          // stopTimerRef saves with pomodoro tracking
           stopTimerRef.current?.();
         }
       } else {
+        // Stopwatch mode — just display the running total
         setDisplaySeconds(total);
       }
 
-      // Midnight boundary check — runs async but is guarded against concurrency
       checkDayBoundary();
     }, 1000);
-    return () => clearInterval(timerIntervalRef.current);
+
+    return () => {
+      if (timerIntervalRef.current) {
+        clearInterval(timerIntervalRef.current);
+        timerIntervalRef.current = null;
+      }
+    };
   }, [getTotalSessionSeconds, checkDayBoundary]);
+  // ^ These two are stable useCallbacks, so this effect runs exactly once.
 
   /* ═══ Expose timer state for TopBar ═══ */
   useEffect(() => {
@@ -716,7 +727,7 @@ export default function StartSession() {
   const startTimer = useCallback(async () => {
     if (!userRef.current) return toast.error("Please log in first");
     completedPomodorosInSessionRef.current = 0;
-    checkpointBackoffRef.current = 1000; // reset backoff on new session
+    checkpointBackoffRef.current = 1000;
     setIsRunning(true);
     setIsBreak(false);
     startTimerInternal();
@@ -733,12 +744,12 @@ export default function StartSession() {
     setIsRunning(false);
     await releaseWakeLock();
 
-    // Clear strict mode grace timer if pending
     if (strictGraceTimerRef.current) {
       clearTimeout(strictGraceTimerRef.current);
       strictGraceTimerRef.current = null;
     }
 
+    // Stop checkpoint interval — we're about to do the final save
     clearInterval(checkpointIntervalRef.current);
     checkpointIntervalRef.current = null;
 
@@ -751,20 +762,18 @@ export default function StartSession() {
     const hourKey = String(new Date().getHours()).padStart(2, "0");
     const field = selectedFieldRef.current;
 
-    // FIX BUG #8: Improved pomodoro aborted logic
     let completedPomodoros = 0;
     let abortedPomodoros = 0;
     if (pomodoroModeRef.current) {
       completedPomodoros = completedPomodorosInSessionRef.current;
-      const SESSION = 25 * 60;
-      const partialProgress = sessionSeconds % SESSION;
-      // Only count as aborted if there was meaningful partial progress (> 5 min)
-      // and this is a non-zero partial pomodoro (not exactly at a boundary)
-      if (partialProgress > 300 && partialProgress < SESSION) {
+      const POMODORO_DURATION = 25 * 60;
+      const partialProgress = sessionSeconds % POMODORO_DURATION;
+      if (partialProgress > 300 && partialProgress < POMODORO_DURATION) {
         abortedPomodoros = 1;
       }
     }
 
+    // Zero the refs BEFORE the async save so any stray tick doesn't re-read them
     sessionStartWallTimeRef.current = null;
     sessionStartDateRef.current = null;
     accumulatedSecondsRef.current = 0;
@@ -788,7 +797,26 @@ export default function StartSession() {
 
   useEffect(() => { stopTimerRef.current = stopTimer; }, [stopTimer]);
 
-  // FIX BUG #7: Checkpoint with exponential backoff on failure
+  /* ═══ Checkpoint — saves the current segment every 60s WITHOUT resetting display ═══
+   *
+   * The key invariant we maintain:
+   *   getTotalSessionSeconds() must return the same value immediately before
+   *   and immediately after a checkpoint.
+   *
+   * We achieve this by:
+   *   1. Snapshot segSecs = getSegmentSeconds()
+   *   2. Save segSecs to Firestore
+   *   3. accumulatedSecondsRef += segSecs   ← fold saved delta into accumulator
+   *   4. sessionStartWallTimeRef = Date.now() ← new segment starts NOW
+   *
+   * After step 4:
+   *   getTotalSessionSeconds()
+   *     = (oldAccumulated + segSecs) + getSegmentSeconds()
+   *     = newAccumulated + ~0
+   *     ≈ same value as before checkpoint
+   *
+   * The display never jumps or resets.
+   ═══ */
   useEffect(() => {
     if (!isRunning) {
       clearInterval(checkpointIntervalRef.current);
@@ -798,33 +826,46 @@ export default function StartSession() {
 
     const runCheckpoint = async () => {
       if (!isRunningRef.current || !sessionStartWallTimeRef.current) return;
+
       const segSecs = getSegmentSeconds();
-      if (segSecs < 60) return;
+      if (segSecs < 60) return; // don't bother saving tiny segments
+
       const dateKey = sessionStartDateRef.current || localYMD();
       const weekKey = localISOWeek(new Date(dateKey + "T12:00:00"));
       const monthKey = localYM(new Date(dateKey + "T12:00:00"));
       const hourKey = String(new Date().getHours()).padStart(2, "0");
       const field = selectedFieldRef.current;
+
       try {
         await saveSessionChunk(segSecs, dateKey, weekKey, monthKey, field, hourKey, true);
-        // Success — reset backoff
-        checkpointBackoffRef.current = 1000;
-        // Only reset segment after successful save
+
+        // ── CRITICAL FIX ──────────────────────────────────────────────────────
+        // Fold the saved segment into accumulatedSecondsRef, THEN reset the
+        // wall-time pointer. This keeps getTotalSessionSeconds() continuous.
+        // The old code did `accumulatedSecondsRef.current = 0` which wiped the
+        // count and caused the visible timer to reset to 0 every ~60 seconds.
+        // ─────────────────────────────────────────────────────────────────────
+        accumulatedSecondsRef.current += segSecs;
         sessionStartWallTimeRef.current = Date.now();
-        accumulatedSecondsRef.current = 0;
+
+        checkpointBackoffRef.current = 1000; // reset backoff on success
       } catch (e) {
-        console.error("Checkpoint failed, will retry with backoff:", e);
-        // Exponential backoff: 1s → 2s → 4s → … → 60s cap
+        console.error("Checkpoint failed, will retry:", e);
         checkpointBackoffRef.current = Math.min(checkpointBackoffRef.current * 2, 60000);
+        // Do NOT touch the refs on failure — next checkpoint will retry the full segment
       }
     };
 
     checkpointIntervalRef.current = setInterval(runCheckpoint, 60000);
-    return () => clearInterval(checkpointIntervalRef.current);
+    return () => {
+      clearInterval(checkpointIntervalRef.current);
+      checkpointIntervalRef.current = null;
+    };
   }, [isRunning, getSegmentSeconds, saveSessionChunk]);
 
   const resetTimer = useCallback(async () => {
     clearInterval(checkpointIntervalRef.current);
+    checkpointIntervalRef.current = null;
     if (strictGraceTimerRef.current) {
       clearTimeout(strictGraceTimerRef.current);
       strictGraceTimerRef.current = null;
@@ -891,9 +932,6 @@ export default function StartSession() {
     setRemoveModal({ open: true, field, keepTime: false });
   }, [userData?.studyFields]);
 
-  /* FIX BUG #3: confirmRemoveField — properly redistribute time when keepTime=false.
-     Recalculates each day's totalTime from its remaining fieldTimes so no
-     precision is lost and all period totals stay consistent. */
   const confirmRemoveField = useCallback(async () => {
     const { field, keepTime } = removeModal;
     if (!field || !userRef.current) return;
@@ -907,7 +945,6 @@ export default function StartSession() {
         const data = snap.data();
 
         const updates = { studyFields: fields };
-        // Remove the field from the fieldTimes top-level map
         updates[`fieldTimes.${field}`] = null;
 
         if (!keepTime) {
@@ -916,7 +953,6 @@ export default function StartSession() {
           const monthKey = localYM();
           let todayNew = 0, weekNew = 0, monthNew = 0, allTimeNew = 0;
 
-          // For each day, recompute totalTime from remaining fieldTimes
           Object.entries(data.dailyStats || {}).forEach(([dk, ds]) => {
             const remainingFieldTimes = Object.entries(ds.fieldTimes || {})
               .filter(([f]) => f !== field);
@@ -927,7 +963,6 @@ export default function StartSession() {
             if (localISOWeek(new Date(dk + "T12:00:00")) === weekKey) weekNew += dayTotal;
             if (dk.startsWith(monthKey)) monthNew += dayTotal;
 
-            // Null out this field's time for this day and update the day total
             updates[`dailyStats.${dk}.fieldTimes.${field}`] = null;
             updates[`dailyStats.${dk}.totalTime`] = dayTotal;
           });
@@ -1018,7 +1053,6 @@ export default function StartSession() {
     catch (e) { toast.error("Sort failed"); }
   }, [todoList, userDocRef]);
 
-  // FIX BUG #4: Clear undo bar when tasks panel closes
   useEffect(() => {
     if (activePanel !== "tasks") setLastDeleted(null);
   }, [activePanel]);
@@ -1084,6 +1118,7 @@ export default function StartSession() {
 
   const displayTime = pomodoroMode ? pomodoroTimeLeft : displaySeconds;
 
+  /* ═══ Render ═══ */
   if (loading) {
     return (
       <div className="ss-page">
@@ -1287,7 +1322,6 @@ export default function StartSession() {
                 ))}
               </div>
             </motion.div>
-
           </div>
         </motion.div>
 
