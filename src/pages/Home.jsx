@@ -1,576 +1,464 @@
-import React, { useEffect, useState } from "react";
-import { motion, useAnimation, useScroll, useTransform } from "framer-motion";
-import { useInView } from "react-intersection-observer";
+import React, { useEffect, useState, useRef } from "react";
+import { motion, useScroll, useTransform, AnimatePresence } from "framer-motion";
 import { useNavigate } from "react-router-dom";
-import './Home.css'
 import Lottie from "lottie-react";
 import heroAnimation from "../assets/hero-animation.json";
 import flashcardsAnimation from "../assets/flashcards-animation.json";
-import notesAnimation from "../assets/notes-animation.json";
-import aiAssistantAnimation from "../assets/ai-assistant-animation.json";
+import "./Home.css";
 
+/* ── tiny sparkle svg as inline component ── */
+const Sparkle = ({ size = 16, color = "#ff9ed2", style = {} }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" style={style}>
+    <path
+      d="M12 2 L13.5 9 L20 12 L13.5 15 L12 22 L10.5 15 L4 12 L10.5 9 Z"
+      fill={color}
+      opacity="0.9"
+    />
+  </svg>
+);
 
-function Home() {
-  const [currentQuote, setCurrentQuote] = useState(0);
-  const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 });
-  const [isScrolled, setIsScrolled] = useState(false);
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
-  
+const FloatingBlob = ({ className }) => (
+  <div className={`pookie-blob ${className}`} />
+);
+
+/* ── feature data ── */
+const features = [
+  {
+    emoji: "🧠",
+    title: "Smart Flashcards",
+    tag: "spaced repetition",
+    desc: "Adaptive cards that learn how you learn. Our algorithm surfaces exactly what you need, exactly when you need it.",
+    pills: ["SM-2 Algorithm", "Quiz Mode", "Deck System"],
+    color: "pink",
+    route: "/flash-cards",
+  },
+  {
+    emoji: "⏱️",
+    title: "Focus Timer",
+    tag: "deep work",
+    desc: "Pomodoro & stopwatch modes with real-time field tracking, strict mode, and session insights that feel like a hug.",
+    pills: ["Pomodoro", "Strict Mode", "Live Stats"],
+    color: "lavender",
+    route: "/session",
+  },
+  {
+    emoji: "📝",
+    title: "Rich Notes",
+    tag: "knowledge base",
+    desc: "Write beautifully with ReactQuill, organize by color, pin your favorites, and search everything instantly.",
+    pills: ["Rich Text", "Pin & Color", "Search"],
+    color: "peach",
+    route: "/notes",
+  },
+  {
+    emoji: "📊",
+    title: "Graph Studio",
+    tag: "visual math",
+    desc: "Plot 2D and 3D equations with Plotly. Transform abstract math into gorgeous, interactive visuals.",
+    pills: ["2D Plots", "3D Surfaces", "mathjs"],
+    color: "mint",
+    route: "/plot-graph",
+  },
+];
+
+const quotes = [
+  { text: "Study hard what interests you in the most undisciplined, irreverent and original manner possible.", author: "Richard Feynman" },
+  { text: "The beautiful thing about learning is that no one can take it away from you.", author: "B.B. King" },
+  { text: "Education is not the filling of a bucket, but the lighting of a fire.", author: "W.B. Yeats" },
+  { text: "The expert in anything was once a beginner.", author: "Helen Hayes" },
+];
+
+/* ─────────────────────────────────────────
+   MAIN COMPONENT
+───────────────────────────────────────── */
+export default function Home() {
   const navigate = useNavigate();
-  const controls = useAnimation();
-  const [ref, inView] = useInView({ threshold: 0.1 });
+  const [quoteIdx, setQuoteIdx] = useState(0);
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [scrolled, setScrolled] = useState(false);
+  const heroRef = useRef(null);
+
   const { scrollY } = useScroll();
-  const y1 = useTransform(scrollY, [0, 300], [0, -50]);
-
-  const studyQuotes = [
-    {
-      text: "Education is the most powerful weapon which you can use to change the world.",
-      author: "Nelson Mandela",
-      category: "Inspiration"
-    },
-    {
-      text: "The beautiful thing about learning is that no one can take it away from you.",
-      author: "B.B. King",
-      category: "Growth"
-    },
-    {
-      text: "Study hard what interests you the most in the most undisciplined, irreverent and original manner possible.",
-      author: "Richard Feynman",
-      category: "Method"
-    },
-    {
-      text: "The expert in anything was once a beginner.",
-      author: "Helen Hayes",
-      category: "Progress"
-    }
-  ];
-
-  const studyFeatures = [
-    {
-      title: "Smart Flashcards",
-      description: "Master concepts with AI-powered spaced repetition. Our adaptive algorithm helps you focus on what you need to learn most.",
-      icon: "🧠",
-      lottie: flashcardsAnimation,
-      gradient: "from-purple-600 to-purple-400",
-      benefits: ["Spaced Repetition", "Progress Tracking", "Custom Categories"],
-     
-    },
-    {
-      title: "Organized Notes",
-      description: "Create structured, searchable notes with advanced organization tools. Link concepts and build your knowledge graph.",
-      icon: "📚",
-      lottie: flashcardsAnimation,
-      gradient: "from-blue-600 to-blue-400",
-      benefits: ["Smart Search", "Topic Linking", "Export Options"],
-     
-    },
-    {
-      title: "Visual Learning",
-      description: "Transform complex equations and concepts into interactive visualizations that make understanding intuitive.",
-      icon: "📊",
-      lottie: flashcardsAnimation,
-      gradient: "from-green-600 to-green-400",
-      benefits: ["Interactive Graphs", "3D Models", "Step-by-Step"],
-    
-    },
-  ];
-
-  // Check login status on component mount
-  useEffect(() => {
-    // Check if user is logged in - you can replace this with your actual authentication logic
-    const token = localStorage.getItem('authToken') || sessionStorage.getItem('authToken');
-    const userLoggedIn = localStorage.getItem('isLoggedIn') === 'true';
-    setIsLoggedIn(!!token || userLoggedIn);
-  }, []);
-
-  // Navigation handler for protected routes
-  const handleProtectedNavigation = (route) => {
-    if (isLoggedIn) {
-      navigate(route);
-    } else {
-      navigate('/login');
-    }
-  };
+  const heroY = useTransform(scrollY, [0, 400], [0, -80]);
+  const heroOpacity = useTransform(scrollY, [0, 350], [1, 0]);
 
   useEffect(() => {
-    if (inView) {
-      controls.start("visible");
-    }
-  }, [controls, inView]);
-
-  useEffect(() => {
-    const handleMouseMove = (e) => {
-      setMousePosition({ x: e.clientX, y: e.clientY });
-    };
-
-    const handleScroll = () => {
-      setIsScrolled(window.scrollY > 50);
-    };
-
-    window.addEventListener('mousemove', handleMouseMove);
-    window.addEventListener('scroll', handleScroll);
-
-    return () => {
-      window.removeEventListener('mousemove', handleMouseMove);
-      window.removeEventListener('scroll', handleScroll);
-    };
+    const token = localStorage.getItem("authToken");
+    const logged = localStorage.getItem("isLoggedIn") === "true";
+    setIsLoggedIn(!!token || logged);
   }, []);
 
   useEffect(() => {
-    const interval = setInterval(() => {
-      setCurrentQuote((prev) => (prev + 1) % studyQuotes.length);
-    }, 6000);
+    const timer = setInterval(() => setQuoteIdx((p) => (p + 1) % quotes.length), 5500);
+    return () => clearInterval(timer);
+  }, []);
 
-    return () => clearInterval(interval);
-  }, [studyQuotes.length]);
+  useEffect(() => {
+    const onScroll = () => setScrolled(window.scrollY > 60);
+    window.addEventListener("scroll", onScroll);
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
 
-  const scrollToSection = (sectionId) => {
-    const element = document.getElementById(sectionId);
-    if (element) {
-      element.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    }
-  };
+  const go = (route) => navigate(isLoggedIn ? route : "/login");
+  const scrollTo = (id) => document.getElementById(id)?.scrollIntoView({ behavior: "smooth" });
 
   return (
-    <div className="study-home-container">
-      {/* Enhanced Cursor Follower */}
-      <div 
-        className="enhanced-cursor"
-        style={{
-          left: mousePosition.x,
-          top: mousePosition.y,
-        }}
-      />
+    <div className="pk-root">
 
-      {/* Study-themed Floating Elements */}
-      <div className="study-particles">
-        {[...Array(8)].map((_, i) => (
-          <motion.div
-            key={i}
-            className={`study-particle study-particle-${i + 1}`}
-            animate={{
-              y: [0, -30, 0],
-              x: [0, 15, 0],
-              rotate: [0, 360],
-            }}
-            transition={{
-              duration: 4 + i * 0.5,
-              repeat: Infinity,
-              ease: "easeInOut",
-            }}
-          />
+      {/* ── atmospheric blobs ── */}
+      <FloatingBlob className="blob-a" />
+      <FloatingBlob className="blob-b" />
+      <FloatingBlob className="blob-c" />
+      <FloatingBlob className="blob-d" />
+
+      {/* ── ambient stars ── */}
+      <div className="pk-stars" aria-hidden>
+        {[...Array(28)].map((_, i) => (
+          <div key={i} className={`pk-star pk-star-${i}`} />
         ))}
       </div>
 
-      {/* Hero Section - Study Focused */}
-      <section className="study-hero-section">
-        <div className="hero-background-pattern">
-          {[...Array(30)].map((_, i) => (
-            <div key={i} className={`pattern-dot pattern-dot-${i}`} />
-          ))}
-        </div>
+      {/* ════════════════════════════════
+          HERO
+      ════════════════════════════════ */}
+      <section className="pk-hero" ref={heroRef}>
+        <motion.div className="pk-hero-inner" style={{ y: heroY, opacity: heroOpacity }}>
 
-        <div className="study-hero-container">
-          <motion.div
-            className="study-hero-content"
-            initial={{ opacity: 0, y: 80 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 1, ease: "easeOut" }}
-          >
+          {/* left col */}
+          <div className="pk-hero-text">
             <motion.div
-              className="study-hero-badge"
-              initial={{ opacity: 0, scale: 0.8 }}
-              animate={{ opacity: 1, scale: 1 }}
-              transition={{ delay: 0.3, duration: 0.6 }}
+              className="pk-badge"
+              initial={{ opacity: 0, y: 16, scale: 0.9 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              transition={{ delay: 0.15, type: "spring", stiffness: 300 }}
             >
-              <span className="badge-icon">🎓</span>
-              <span>Your Personal Study Companion</span>
+              <Sparkle size={14} color="#ff9ed2" />
+              <span>your cutest study companion</span>
+              <Sparkle size={14} color="#c9b8ff" />
             </motion.div>
 
-            <motion.h1 
-              className="study-hero-title"
-              initial={{ opacity: 0, y: 40 }}
+            <motion.h1
+              className="pk-hero-title"
+              initial={{ opacity: 0, y: 36 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.5, duration: 0.8 }}
+              transition={{ delay: 0.3, duration: 0.75, ease: [0.16, 1, 0.3, 1] }}
             >
-              Master Any Subject with{" "}
-              <span className="hero-highlight">Study Buddy</span>
+              Study smarter,<br />
+              <span className="pk-title-accent">glow harder</span>
+              <span className="pk-title-star"> ✦</span>
             </motion.h1>
 
-            <motion.p 
-              className="study-hero-subtitle"
-              initial={{ opacity: 0, y: 30 }}
+            <motion.p
+              className="pk-hero-sub"
+              initial={{ opacity: 0, y: 24 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.7, duration: 0.6 }}
+              transition={{ delay: 0.5, duration: 0.6 }}
             >
-              Unlock your learning potential with AI-powered study tools, personalized learning paths, 
-              and proven techniques that make complex subjects simple and engaging.
+              Flashcards, focus timers, rich notes & beautiful graphs — all wrapped
+              in the most adorable productivity app you&apos;ve ever seen. Let&apos;s get that grade, bestie 💕
             </motion.p>
 
-            <motion.div 
-              className="study-hero-actions"
-              initial={{ opacity: 0, y: 30 }}
+            <motion.div
+              className="pk-hero-actions"
+              initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 1.1, duration: 0.6 }}
+              transition={{ delay: 0.7, duration: 0.5 }}
             >
-              <motion.button 
-                className="primary-study-button"
-                whileHover={{ 
-                  scale: 1.02,
-                  boxShadow: "0 20px 40px rgba(90, 103, 216, 0.3)"
-                }}
-                whileTap={{ scale: 0.98 }}
-                onClick={() => handleProtectedNavigation("/session")}
-              >
-                <span>Start Learning Today</span>
-                <span className="button-arrow">→</span>
-              </motion.button>
-              
               <motion.button
-                onClick={() => scrollToSection('features')}
-                className="secondary-study-button"
-                whileHover={{ scale: 1.02 }}
-                whileTap={{ scale: 0.98 }}
+                className="pk-btn-primary"
+                whileHover={{ scale: 1.04, y: -2 }}
+                whileTap={{ scale: 0.97 }}
+                onClick={() => go("/session")}
               >
-                <span>Explore Features</span>
-                <span className="button-down">↓</span>
+                <span>Start studying</span>
+                <span className="pk-btn-arrow">✦</span>
+              </motion.button>
+              <motion.button
+                className="pk-btn-ghost"
+                whileHover={{ scale: 1.03 }}
+                whileTap={{ scale: 0.97 }}
+                onClick={() => scrollTo("features")}
+              >
+                see features ↓
               </motion.button>
             </motion.div>
-          </motion.div>
 
+            {/* mini stats row */}
+            <motion.div
+              className="pk-hero-stats"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ delay: 0.95 }}
+            >
+              {[
+                { num: "4", label: "study tools" },
+                { num: "∞", label: "flashcards" },
+                { num: "100%", label: "free" },
+              ].map(({ num, label }) => (
+                <div key={label} className="pk-stat">
+                  <span className="pk-stat-num">{num}</span>
+                  <span className="pk-stat-label">{label}</span>
+                </div>
+              ))}
+            </motion.div>
+          </div>
+
+          {/* right col — lottie orb */}
           <motion.div
-            className="study-hero-visual"
-            style={{ y: y1 }}
-            initial={{ opacity: 0, x: 60, scale: 0.9 }}
-            animate={{ opacity: 1, x: 0, scale: 1 }}
-            transition={{ duration: 1.2, ease: "easeOut" }}
+            className="pk-hero-orb-wrap"
+            initial={{ opacity: 0, scale: 0.85, x: 40 }}
+            animate={{ opacity: 1, scale: 1, x: 0 }}
+            transition={{ delay: 0.2, duration: 1, ease: [0.16, 1, 0.3, 1] }}
           >
-            <div className="hero-visual-wrapper">
-              <motion.div 
-                className="visual-glow-effect"
-                animate={{ 
-                  scale: [1, 1.05, 1],
-                  opacity: [0.5, 0.8, 0.5]
-                }}
-                transition={{ 
-                  duration: 3, 
-                  repeat: Infinity, 
-                  ease: "easeInOut" 
-                }}
-              />
-              
-              <div className="hero-animation-placeholder">
-                <div className="animation-circle">
-                  <div className="inner-circle">
-                   <Lottie
-                    animationData={heroAnimation}
-                    loop={true}
-                    className="hero-lottie"
-                  />
-                  </div>
-                </div>
-              </div>
-              
-              {/* Study Context Cards */}
-              <motion.div 
-                className="study-context-card card-1"
-                animate={{ y: [-5, 5, -5] }}
-                transition={{ duration: 3, repeat: Infinity }}
-              >
-                <span className="context-icon">📖</span>
-                <div className="context-text">
-                  <span className="context-title">Active Learning</span>
-                  <span className="context-subtitle">Engage & Retain</span>
-                </div>
-              </motion.div>
-              
-              <motion.div 
-                className="study-context-card card-2"
-                animate={{ y: [5, -5, 5] }}
-                transition={{ duration: 2.5, repeat: Infinity }}
-              >
-                <span className="context-icon">🎯</span>
-                <div className="context-text">
-                  <span className="context-title">Goal Tracking</span>
-                  <span className="context-subtitle">Stay Motivated</span>
-                </div>
-              </motion.div>
-
-              <motion.div 
-                className="study-context-card card-3"
-                animate={{ y: [-6, 7, -3] }}
-                transition={{ duration: 4, repeat: Infinity }}
-              >
-                <span className="context-icon">⚡</span>
-                <div className="context-text">
-                  <span className="context-title">Quick Results</span>
-                  <span className="context-subtitle">See Progress</span>
-                </div>
-              </motion.div>
+            <div className="pk-orb-glow" />
+            <div className="pk-orb-ring pk-orb-ring-1" />
+            <div className="pk-orb-ring pk-orb-ring-2" />
+            <div className="pk-orb">
+              <Lottie animationData={heroAnimation} loop className="pk-lottie" />
             </div>
-          </motion.div>
-        </div>
 
-        <motion.div 
-          className="scroll-indicator"
-          animate={{ y: [0, 8, 0], opacity: [0.6, 1, 0.6] }}
+            {/* floating chips */}
+            {[
+              { icon: "🍓", label: "Spaced repetition", pos: "chip-tl" },
+              { icon: "🌙", label: "Focus mode", pos: "chip-tr" },
+              { icon: "🌸", label: "Rich notes", pos: "chip-bl" },
+              { icon: "✨", label: "2D & 3D graphs", pos: "chip-br" },
+            ].map(({ icon, label, pos }) => (
+              <motion.div
+                key={label}
+                className={`pk-chip ${pos}`}
+                animate={{ y: [0, pos.includes("t") ? -8 : 8, 0] }}
+                transition={{ duration: 3.5 + Math.random(), repeat: Infinity, ease: "easeInOut" }}
+              >
+                <span>{icon}</span>
+                <span>{label}</span>
+              </motion.div>
+            ))}
+          </motion.div>
+        </motion.div>
+
+        {/* scroll cue */}
+        <motion.div
+          className="pk-scroll-cue"
+          animate={{ y: [0, 6, 0], opacity: [0.5, 1, 0.5] }}
           transition={{ duration: 2, repeat: Infinity }}
-          onClick={() => scrollToSection('quotes')}
+          onClick={() => scrollTo("features")}
         >
-          <span className="scroll-text">Discover More</span>
-          <div className="scroll-icon">↓</div>
+          <span>scroll</span>
+          <div className="pk-scroll-dot" />
         </motion.div>
       </section>
 
-      {/* Features Section */}
-      <section id="features" className="study-features-section">
-        <div className="features-background-grid">
-          <div className="grid-pattern" />
-        </div>
-
-        <div className="features-content-wrapper">
-          <motion.div 
-            className="features-header-content"
-            initial={{ opacity: 0, y: 40 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6 }}
-            viewport={{ once: true }}
-          >
-            <h2 className="features-main-title">Powerful Study Tools</h2>
-            <p className="features-main-subtitle">
-              Everything you need to excel in your studies, powered by cutting-edge technology
-            </p>
-          </motion.div>
-
-          <div className="study-features-grid">
-            {studyFeatures.map((feature, index) => (
-              <motion.div
-                key={index}
-                className="enhanced-feature-card"
-                initial={{ opacity: 0, y: 60 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                transition={{ 
-                  duration: 0.6, 
-                  delay: index * 0.15
-                }}
-                whileHover={{ 
-                  y: -4,
-                  transition: { duration: 0.3 }
-                }}
-                viewport={{ once: true }}
-              >
-                <div className="feature-card-background" />
-                
-                <div className="feature-visual-section">
-                  <motion.div 
-                    className={`feature-icon-wrapper bg-gradient-to-br ${feature.gradient}`}
-                    whileHover={{ 
-                      scale: 1.05 
-                    }}
-                    transition={{ duration: 0.4 }}
-                  >
-                    <span className="feature-icon-emoji">{feature.icon}</span>
-                  </motion.div>
-                   <h3 className="feature-card-title">{feature.title}</h3>
-                </div>
-
-                <div className="feature-text-content">
-                  <p className="feature-card-description">{feature.description}</p>
-                  
-                  <div className="feature-benefits-list">
-                    {feature.benefits.map((benefit, idx) => (
-                      <div key={idx} className="benefit-item">
-                        <span className="benefit-check">✓</span>
-                        <span className="benefit-text">{benefit}</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-
-              </motion.div>
+      {/* ════════════════════════════════
+          QUOTE TICKER
+      ════════════════════════════════ */}
+      <section className="pk-quote-belt">
+        <div className="pk-quote-belt-inner">
+          <AnimatePresence mode="wait">
+            <motion.div
+              key={quoteIdx}
+              className="pk-quote-text"
+              initial={{ opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -12 }}
+              transition={{ duration: 0.45 }}
+            >
+              <Sparkle size={13} color="#ffb3d9" style={{ flexShrink: 0 }} />
+              <blockquote>
+                &ldquo;{quotes[quoteIdx].text}&rdquo;
+                <cite> — {quotes[quoteIdx].author}</cite>
+              </blockquote>
+              <Sparkle size={13} color="#c9b8ff" style={{ flexShrink: 0 }} />
+            </motion.div>
+          </AnimatePresence>
+          <div className="pk-quote-dots">
+            {quotes.map((_, i) => (
+              <button
+                key={i}
+                className={`pk-qdot${i === quoteIdx ? " active" : ""}`}
+                onClick={() => setQuoteIdx(i)}
+                aria-label={`Quote ${i + 1}`}
+              />
             ))}
           </div>
         </div>
       </section>
 
-      {/* Enhanced Call to Action */}
-      <section className="study-cta-section">
-        <div className="cta-background-effects">
-          <motion.div 
-            className="cta-wave wave-1"
-            animate={{ 
-              x: [0, -50, 0],
-              y: [0, -20, 0]
-            }}
-            transition={{ 
-              duration: 8, 
-              repeat: Infinity, 
-              ease: "easeInOut" 
-            }}
-          />
-          <motion.div 
-            className="cta-wave wave-2"
-            animate={{ 
-              x: [0, 50, 0],
-              y: [0, 15, 0]
-            }}
-            transition={{ 
-              duration: 6, 
-              repeat: Infinity, 
-              ease: "easeInOut",
-              delay: 2
-            }}
-          />
-        </div>
-
-        <motion.div 
-          className="study-cta-content"
-          initial={{ opacity: 0, y: 60 }}
+      {/* ════════════════════════════════
+          FEATURES
+      ════════════════════════════════ */}
+      <section id="features" className="pk-features">
+        <motion.div
+          className="pk-section-header"
+          initial={{ opacity: 0, y: 32 }}
           whileInView={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.8 }}
           viewport={{ once: true }}
+          transition={{ duration: 0.6 }}
         >
-          <motion.div 
-            className="cta-launch-badge"
-            initial={{ opacity: 0, scale: 0.9 }}
-            whileInView={{ opacity: 1, scale: 1 }}
-            transition={{ delay: 0.2, duration: 0.6 }}
-          >
-            <span className="launch-icon">🚀</span>
-            <span>Transform Your Learning</span>
-          </motion.div>
-
-          <motion.h2 
-            className="cta-main-title"
-            initial={{ opacity: 0, y: 30 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.3, duration: 0.6 }}
-          >
-            Ready to Achieve Academic Excellence?
-          </motion.h2>
-
-          <motion.p 
-            className="cta-main-text"
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.4, duration: 0.6 }}
-          >
-            Join thousands of successful students who have transformed their study habits. 
-            Start your personalized learning journey today and see immediate results.
-          </motion.p>
-
-          <motion.div 
-            className="cta-feature-highlights"
-            initial={{ opacity: 0, scale: 0.95 }}
-            whileInView={{ opacity: 1, scale: 1 }}
-            transition={{ delay: 0.5, duration: 0.6 }}
-          >
-            <div className="highlight-item">
-              <span className="highlight-number">24/7</span>
-              <span className="highlight-label">AI Tutoring</span>
-            </div>
-            <div className="highlight-item">
-              <span className="highlight-number">∞</span>
-              <span className="highlight-label">Study Resources</span>
-            </div>
-            <div className="highlight-item">
-              <span className="highlight-number">Free</span>
-              <span className="highlight-label">To Get Started</span>
-            </div>
-          </motion.div>
-
-          <motion.div 
-            className="cta-action-buttons"
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.6, duration: 0.6 }}
-          >
-            <motion.button
-              className="cta-primary-action"
-              whileHover={{ 
-                scale: 1.02,
-                boxShadow: "0 25px 50px rgba(255, 255, 255, 0.25)"
-              }}
-              whileTap={{ scale: 0.98 }}
-              onClick={() => handleProtectedNavigation("/session")}
-            >
-              <motion.div 
-                className="button-shimmer"
-                animate={{ 
-                  x: ['-100%', '100%']
-                }}
-                transition={{ 
-                  duration: 2, 
-                  repeat: Infinity, 
-                  ease: "linear" 
-                }}
-              />
-              <span className="button-content">
-                <span>Begin Your Journey</span>
-                <span className="primary-icon">⚡</span>
-              </span>
-            </motion.button>
-
-            <motion.button
-              className="cta-secondary-action"
-              whileHover={{ 
-                scale: 1.02,
-                backgroundColor: "rgba(255, 255, 255, 0.08)"
-              }}
-              whileTap={{ scale: 0.98 }}
-              onClick={() => scrollToSection('features')}
-            >
-              <span>Learn More</span>
-              <span className="secondary-icon">↗</span>
-            </motion.button>
-          </motion.div>
+          <div className="pk-section-tag">
+            <Sparkle size={12} color="#ff9ed2" /> everything you need
+          </div>
+          <h2 className="pk-section-title">
+            Tools that actually <span className="pk-accent-pink">slap</span> ✦
+          </h2>
+          <p className="pk-section-sub">
+            Four powerful study tools, one beautiful workspace. No subscriptions, no limits, just vibes.
+          </p>
         </motion.div>
 
-        {/* Enhanced Floating Particles */}
-        <div className="cta-floating-elements">
-          {[...Array(15)].map((_, i) => (
+        <div className="pk-features-grid">
+          {features.map((f, i) => (
             <motion.div
-              key={i}
-              className={`cta-floating-particle particle-${i + 1}`}
-              animate={{
-                y: [0, -100, 0],
-                opacity: [0, 0.8, 0],
-                scale: [0, 1.2, 0]
-              }}
-              transition={{
-                duration: 3 + Math.random() * 2,
-                repeat: Infinity,
-                delay: Math.random() * 4,
-                ease: "easeOut"
-              }}
-            />
+              key={f.title}
+              className={`pk-feature-card pk-card-${f.color}`}
+              initial={{ opacity: 0, y: 48, scale: 0.95 }}
+              whileInView={{ opacity: 1, y: 0, scale: 1 }}
+              viewport={{ once: true }}
+              transition={{ duration: 0.55, delay: i * 0.1, ease: [0.16, 1, 0.3, 1] }}
+              whileHover={{ y: -6, transition: { duration: 0.25 } }}
+            >
+              <div className="pk-card-glow" />
+
+              <div className="pk-card-top">
+                <div className="pk-card-emoji-wrap">
+                  <span className="pk-card-emoji">{f.emoji}</span>
+                </div>
+                <span className="pk-card-tag">{f.tag}</span>
+              </div>
+
+              <h3 className="pk-card-title">{f.title}</h3>
+              <p className="pk-card-desc">{f.desc}</p>
+
+              <div className="pk-card-pills">
+                {f.pills.map((p) => (
+                  <span key={p} className="pk-pill">{p}</span>
+                ))}
+              </div>
+
+              <motion.button
+                className="pk-card-btn"
+                whileHover={{ scale: 1.03 }}
+                whileTap={{ scale: 0.97 }}
+                onClick={() => go(f.route)}
+              >
+                Open {f.title} →
+              </motion.button>
+            </motion.div>
           ))}
         </div>
       </section>
 
-      {/* Enhanced Floating Action Button */}
-      <motion.button
-        className={`enhanced-fab ${isScrolled ? 'visible' : ''}`}
-        onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
-        whileHover={{ scale: 1.1 }}
-        whileTap={{ scale: 0.9 }}
-        animate={{ 
-          boxShadow: [
-            "0 8px 25px rgba(90, 103, 216, 0.3)",
-            "0 15px 35px rgba(90, 103, 216, 0.5)",
-            "0 8px 25px rgba(90, 103, 216, 0.3)"
-          ]
-        }}
-        transition={{ 
-          duration: 2, 
-          repeat: Infinity 
-        }}
-      >
-        <span className="fab-icon-enhanced">↑</span>
-      </motion.button>
+      {/* ════════════════════════════════
+          HOW IT WORKS — visual steps
+      ════════════════════════════════ */}
+      <section className="pk-steps">
+        <motion.div
+          className="pk-section-header"
+          initial={{ opacity: 0, y: 28 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true }}
+          transition={{ duration: 0.55 }}
+        >
+          <div className="pk-section-tag">
+            <Sparkle size={12} color="#c9b8ff" /> getting started
+          </div>
+          <h2 className="pk-section-title">
+            Simple as <span className="pk-accent-lavender">1, 2, 3</span> 🌸
+          </h2>
+        </motion.div>
+
+        <div className="pk-steps-row">
+          {[
+            { n: "01", icon: "🎀", title: "Create your account", body: "Sign up in seconds — no credit card, no nonsense. Just you and your goals." },
+            { n: "02", icon: "🌷", title: "Set up your fields", body: "Add the subjects you're studying. The timer tracks time per field automatically." },
+            { n: "03", icon: "💫", title: "Start your session", body: "Hit start, add tasks, review flashcards, and watch your stats grow every day." },
+          ].map((s, i) => (
+            <motion.div
+              key={s.n}
+              className="pk-step"
+              initial={{ opacity: 0, y: 36 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              transition={{ delay: i * 0.13, duration: 0.55 }}
+            >
+              <div className="pk-step-num">{s.n}</div>
+              <div className="pk-step-icon">{s.icon}</div>
+              <h3 className="pk-step-title">{s.title}</h3>
+              <p className="pk-step-body">{s.body}</p>
+              {i < 2 && <div className="pk-step-connector" aria-hidden />}
+            </motion.div>
+          ))}
+        </div>
+      </section>
+
+      {/* ════════════════════════════════
+          CTA
+      ════════════════════════════════ */}
+      <section className="pk-cta">
+        <div className="pk-cta-blob-a" />
+        <div className="pk-cta-blob-b" />
+
+        <motion.div
+          className="pk-cta-card"
+          initial={{ opacity: 0, scale: 0.94, y: 40 }}
+          whileInView={{ opacity: 1, scale: 1, y: 0 }}
+          viewport={{ once: true }}
+          transition={{ duration: 0.7, ease: [0.16, 1, 0.3, 1] }}
+        >
+          <div className="pk-cta-sparkles" aria-hidden>
+            <Sparkle size={22} color="#ff9ed2" style={{ position: "absolute", top: "12%", left: "8%" }} />
+            <Sparkle size={14} color="#c9b8ff" style={{ position: "absolute", top: "20%", right: "12%" }} />
+            <Sparkle size={18} color="#ffd6a5" style={{ position: "absolute", bottom: "18%", left: "15%" }} />
+            <Sparkle size={12} color="#a8edca" style={{ position: "absolute", bottom: "12%", right: "8%" }} />
+            <Sparkle size={10} color="#ff9ed2" style={{ position: "absolute", top: "55%", left: "4%" }} />
+            <Sparkle size={16} color="#c9b8ff" style={{ position: "absolute", top: "40%", right: "5%" }} />
+          </div>
+
+          <div className="pk-cta-emoji-row">🎀 ✨ 🌙</div>
+          <h2 className="pk-cta-title">
+            Ready to become the<br />
+            <span className="pk-cta-highlight">most studious pookie</span>?
+          </h2>
+          <p className="pk-cta-sub">
+            Your future self is waiting. Open StudyBuddy, start a session, and turn "I should study" into "I slayed that exam" — one pomodoro at a time.
+          </p>
+
+          <div className="pk-cta-actions">
+            <motion.button
+              className="pk-btn-primary pk-btn-xl"
+              whileHover={{ scale: 1.05, y: -3 }}
+              whileTap={{ scale: 0.97 }}
+              onClick={() => go("/session")}
+            >
+              <span>Let&apos;s gooo 🚀</span>
+            </motion.button>
+            <motion.button
+              className="pk-btn-ghost"
+              whileHover={{ scale: 1.03 }}
+              onClick={() => go("/flash-cards")}
+            >
+              try flashcards first
+            </motion.button>
+          </div>
+        </motion.div>
+      </section>
+
+      {/* ── fab ── */}
+      <AnimatePresence>
+        {scrolled && (
+          <motion.button
+            className="pk-fab"
+            initial={{ opacity: 0, scale: 0.6 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.6 }}
+            whileHover={{ scale: 1.12 }}
+            whileTap={{ scale: 0.9 }}
+            onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
+          >
+            ↑
+          </motion.button>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
-
-export default Home;
