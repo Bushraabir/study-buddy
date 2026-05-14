@@ -35,7 +35,7 @@ StudyBuddy learns your patterns, suggests optimal study environments, visualizes
 | **📝 Rich Notes + Knowledge Graph** | Markdown-style editor with `[[wiki-links]]` that auto-generate a visual concept map | TipTap editor, ProseMirror plugins, Canvas force-directed graph |
 | **📊 Mastery Tracker** | Rate confidence per topic (1-10), visualize progress with heatmaps & radar charts | Recharts, custom SVG components, debounced Firestore sync |
 | **🌳 Habit Stacking** | Build routines with visual "growth trees" that evolve as you maintain streaks | SVG path animations, seeded randomization for unique trees |
-![StudyBuddy ](https://github.com/Bushraabir/study-buddy/blob/main/public/graph.png)
+
 
 
 ### 🔬 Advanced Visualization
@@ -55,6 +55,10 @@ StudyBuddy learns your patterns, suggests optimal study environments, visualizes
 ---
 
 ## 🏗️ Project Architecture
+
+
+![StudyBuddy ](https://github.com/Bushraabir/study-buddy/blob/main/public/graph.png)
+
 
 ### **Why This Architecture?**
 
