@@ -907,8 +907,7 @@ export default function MasteryTracker() {
 
   return (
     <div className="mt-page">
-      <Seo title="Mastery Tracker | StudyBuddy" description="Track confidence across subjects and topics" />
-      <Confetti active={confetti} />
+     <Confetti active={confetti} />
 
       {/* ── Header ── */}
       <motion.div

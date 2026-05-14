@@ -13,7 +13,7 @@ import { db, auth } from "../components/firebase";
 import { doc, onSnapshot, setDoc, serverTimestamp } from "firebase/firestore";
 import { onAuthStateChanged } from "firebase/auth";
 import { toast } from "react-hot-toast";
-import Seo from "../components/Seo";
+
 import "./TimeCapsule.css";
 
 const CHALLENGE_TYPES = [
@@ -791,7 +791,7 @@ export default function TimeCapsule() {
   if (!user && !loading) {
     return (
       <div className="tc-page">
-        <Seo title="Time Capsule | StudyBuddy" />
+      
         <div className="pookie-auth-gate">
           <div className="tc-gate-icon">💌</div>
           <h2>Letters to your future self</h2>
@@ -819,10 +819,6 @@ export default function TimeCapsule() {
 
   return (
     <div className="tc-page">
-      <Seo
-        title="Time Capsule | StudyBuddy"
-        description="Write letters to your future self, delivered automatically when your challenge ends."
-      />
       <Confetti active={confetti} />
 
       {/* Hero */}

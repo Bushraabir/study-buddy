@@ -1239,7 +1239,7 @@ export default function ChallengeHard() {
 
   if (!user) return (
     <div className="s75-page">
-      <Seo title="Study Challenge" />
+  
       <div className="s75-mesh" aria-hidden="true" />
       <div className="s75-layout">
         <div className="s75-auth glass-card">
@@ -1259,7 +1259,7 @@ export default function ChallengeHard() {
   /* ── Completed screen ── */
   if (isCompleted && cfg && durPre) return (
     <div className="s75-page">
-      <Seo title={`${cfg.label} — COMPLETE! 🏆`} />
+    
       <div className="s75-mesh" aria-hidden="true" />
       <Burst active accent={cfg.color} />
       <div className="s75-layout">
@@ -1290,7 +1290,7 @@ export default function ChallengeHard() {
   /* ── Intro (no active challenge) ── */
   if (!activeMode || !activeDurId) return (
     <div className="s75-page">
-      <Seo title="Study Challenge — Choose Your Timeline" />
+  
       <div className="s75-mesh" aria-hidden="true" />
       <div className="s75-layout">
         <IntroScreen
@@ -1316,7 +1316,7 @@ export default function ChallengeHard() {
     const effectiveDays = durPre.id === "custom" ? (customDays || 75) : durPre.days;
     return (
       <div className="s75-page">
-        <Seo title={`Start ${cfg.label} — ${effectiveDays} Days`} />
+    
         <div className="s75-mesh" aria-hidden="true" />
         <div className="s75-layout">
           {/* Breadcrumb */}
@@ -1436,7 +1436,7 @@ export default function ChallengeHard() {
 
   return (
     <div className="s75-page" style={{ "--acc": cfg.color, "--acc2": cfg.color2 }}>
-      <Seo title={`${cfg.label} — Day ${dayNum} / ${totalDays}`} />
+    
       <div className="s75-mesh" aria-hidden="true" />
       <Burst active={burst} accent={cfg.color} />
 
