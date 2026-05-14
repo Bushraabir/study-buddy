@@ -879,7 +879,7 @@ export default function TimeCapsule() {
         ))}
       </motion.div>
 
-      {/* Tabs */}
+      {/*Tabs*/}
       <div className="tc-tabs pookie-tabs" role="tablist">
         {[
           { id: "all",       label: "All",       emoji: "📬", count: stats.total },
