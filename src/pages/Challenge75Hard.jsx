@@ -17,7 +17,7 @@ import {
 } from "firebase/firestore";
 import { onAuthStateChanged } from "firebase/auth";
 import { toast } from "react-hot-toast";
-import Seo from "../components/Seo";
+
 
 import workingAnim     from "../assets/working.json";
 import instructionAnim from "../assets/instruction-animation.json";
