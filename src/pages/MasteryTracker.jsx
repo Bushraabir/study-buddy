@@ -23,7 +23,7 @@ import {
 } from "firebase/firestore";
 import { onAuthStateChanged } from "firebase/auth";
 import { toast } from "react-hot-toast";
-import Seo from "../components/Seo";
+
 import "./MasteryTracker.css";
 
 // ── Constants ────────────────────────────────────────────────────────────────
