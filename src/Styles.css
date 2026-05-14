@@ -1,0 +1,740 @@
+@import url("https://fonts.googleapis.com/css2?family=Dancing+Script:wght@500;700&display=swap");
+
+/* ─────────────────────────────────────────────────────────────────
+   RESET
+───────────────────────────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html { scroll-behavior: smooth; }
+
+/* ─────────────────────────────────────────────────────────────────
+   DESIGN TOKENS
+   All pages that use the pookie theme read from here.
+   Do NOT redeclare :root in any page CSS file.
+───────────────────────────────────────────────────────────────── */
+:root {
+  --pookie-bg:        #0f0f23;
+  --pookie-surface:   rgba(168,85,247,0.07);
+  --pookie-surface2:  rgba(168,85,247,0.13);
+  --pookie-pink:      #f472b6;
+  --pookie-pink2:     #ec4899;
+  --pookie-purple:    #a855f7;
+  --pookie-purple2:   #7c3aed;
+  --pookie-rose:      #fb7185;
+  --pookie-text:      #f8fafc;
+  --pookie-muted:     #94a3b8;
+  --pookie-border:    rgba(244,114,182,0.22);
+  --pookie-border2:   rgba(244,114,182,0.36);
+  --pookie-radius:    20px;
+  --pookie-radius-sm: 12px;
+  --pookie-shadow:    0 8px 32px rgba(168,85,247,0.12);
+  --pookie-shadow-h:  0 14px 44px rgba(244,114,182,0.22);
+  --pookie-glow:      0 0 24px rgba(244,114,182,0.25);
+  --pookie-font:      'Nunito', sans-serif;
+  --pookie-display:   'Playfair Display', serif;
+}
+
+/* ─────────────────────────────────────────────────────────────────
+   BASE ELEMENTS
+───────────────────────────────────────────────────────────────── */
+body {
+  background:  var(--pookie-bg);
+  color:       var(--pookie-text);
+  font-family: var(--pookie-font);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  overflow-x: hidden;
+}
+
+button {
+  font-family: var(--pookie-font);
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+  cursor: pointer;
+}
+
+input, textarea, select { font-family: var(--pookie-font); }
+
+a {
+  color: var(--pookie-purple);
+  text-decoration: none;
+  transition: color 0.2s;
+}
+a:hover { color: var(--pookie-pink); }
+
+::selection { background: rgba(168,85,247,0.3); color: #fff; }
+
+/* ─────────────────────────────────────────────────────────────────
+   SCROLLBARS
+───────────────────────────────────────────────────────────────── */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(168,85,247,0.3) transparent;
+}
+*::-webkit-scrollbar         { width: 5px; height: 5px; }
+*::-webkit-scrollbar-track   { background: transparent; }
+*::-webkit-scrollbar-thumb   { background: rgba(168,85,247,0.3); border-radius: 99px; }
+*::-webkit-scrollbar-thumb:hover { background: rgba(168,85,247,0.5); }
+
+/* ─────────────────────────────────────────────────────────────────
+   FOCUS
+───────────────────────────────────────────────────────────────── */
+button:focus-visible,
+input:focus-visible,
+textarea:focus-visible,
+select:focus-visible,
+a:focus-visible {
+  outline: 2px solid var(--pookie-purple);
+  outline-offset: 2px;
+  border-radius: var(--pookie-radius-sm);
+}
+
+/* ─────────────────────────────────────────────────────────────────
+   PAGE SHELL
+   Usage: add className="pookie-page-shell" to the root div of any
+   pookie-themed page. Handles bg, ambient gradient, z-stacking.
+───────────────────────────────────────────────────────────────── */
+.pookie-page-shell {
+  min-height: 100vh;
+  background: var(--pookie-bg);
+  position: relative;
+  overflow-x: hidden;
+}
+.pookie-page-shell::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background:
+    radial-gradient(ellipse 60% 40% at 15% 10%, rgba(244,114,182,0.10) 0%, transparent 65%),
+    radial-gradient(ellipse 50% 35% at 88% 85%, rgba(168,85,247,0.12) 0%, transparent 60%);
+  pointer-events: none;
+  z-index: 0;
+}
+.pookie-page-shell > * { position: relative; z-index: 1; }
+
+/* ─────────────────────────────────────────────────────────────────
+   GLASS CARDS
+   .glass-card      — standard 20px radius
+   .glass-card-sm   — compact 12px radius
+───────────────────────────────────────────────────────────────── */
+.glass-card {
+  background: var(--pookie-surface);
+  border: 1px solid var(--pookie-border);
+  border-radius: var(--pookie-radius);
+  backdrop-filter: blur(22px);
+  -webkit-backdrop-filter: blur(22px);
+  box-shadow: var(--pookie-shadow);
+}
+.glass-card-sm {
+  background: var(--pookie-surface);
+  border: 1px solid var(--pookie-border);
+  border-radius: var(--pookie-radius-sm);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  box-shadow: var(--pookie-shadow);
+}
+
+/* ─────────────────────────────────────────────────────────────────
+   TYPOGRAPHY UTILITIES
+───────────────────────────────────────────────────────────────── */
+.gradient-text {
+  background: linear-gradient(135deg, var(--pookie-pink), var(--pookie-purple));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+.gradient-text-rev {
+  background: linear-gradient(135deg, var(--pookie-purple), var(--pookie-pink));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.pookie-display-title {
+  font-family: 'Dancing Script', cursive;
+  font-weight: 700;
+  background: linear-gradient(135deg, var(--pookie-pink), var(--pookie-purple));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  line-height: 1.2;
+  letter-spacing: -0.01em;
+}
+
+
+/* ─────────────────────────────────────────────────────────────────
+   BUTTONS
+   .btn-primary  — filled gradient pill (main CTA)
+   .btn-ghost    — outlined pill
+   .btn-danger   — rose/red pill
+───────────────────────────────────────────────────────────────── */
+.btn-primary {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  background: linear-gradient(135deg, var(--pookie-purple2), var(--pookie-pink2));
+  color: #fff;
+  border: none;
+  border-radius: 50px;
+  padding: 0.7rem 1.5rem;
+  font-size: 0.88rem;
+  font-weight: 800;
+  font-family: var(--pookie-font);
+  cursor: pointer;
+  box-shadow: 0 4px 16px rgba(168,85,247,0.28);
+  transition: box-shadow 0.2s, transform 0.15s, opacity 0.2s;
+  white-space: nowrap;
+  flex-shrink: 0;
+  text-decoration: none;
+}
+.btn-primary:hover {
+  box-shadow: 0 6px 24px rgba(244,114,182,0.40);
+  -webkit-text-fill-color: #fff;
+  color: #fff;
+  transform: translateY(-1px);
+}
+.btn-primary:disabled { opacity: 0.55; cursor: not-allowed; transform: none; }
+
+.btn-ghost {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  background: none;
+  border: 1px solid var(--pookie-border2);
+  border-radius: 50px;
+  padding: 0.65rem 1.25rem;
+  color: var(--pookie-muted);
+  font-size: 0.85rem;
+  font-weight: 700;
+  font-family: var(--pookie-font);
+  cursor: pointer;
+  transition: all 0.18s;
+  white-space: nowrap;
+}
+.btn-ghost:hover {
+  border-color: var(--pookie-pink);
+  color: var(--pookie-text);
+  background: rgba(244,114,182,0.06);
+}
+
+.btn-danger {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  background: rgba(251,113,133,0.15);
+  border: 1px solid rgba(251,113,133,0.4);
+  border-radius: 50px;
+  padding: 0.52rem 1rem;
+  color: #fb7185;
+  font-size: 0.82rem;
+  font-weight: 800;
+  font-family: var(--pookie-font);
+  cursor: pointer;
+  transition: all 0.18s;
+}
+.btn-danger:hover {
+  background: rgba(251,113,133,0.25);
+  border-color: rgba(251,113,133,0.65);
+}
+
+/* ─────────────────────────────────────────────────────────────────
+   ICON BUTTONS
+   .icon-btn          — neutral 32x32 square icon button
+   .icon-btn--danger  — hover turns rose (add alongside .icon-btn)
+   .close-btn         — same size, rose on hover
+───────────────────────────────────────────────────────────────── */
+.icon-btn {
+  width: 32px;
+  height: 32px;
+  border-radius: 9px;
+  background: var(--pookie-surface2);
+  border: 1px solid var(--pookie-border);
+  color: var(--pookie-muted);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.18s;
+  font-family: var(--pookie-font);
+  flex-shrink: 0;
+}
+.icon-btn:hover {
+  color: var(--pookie-text);
+  border-color: var(--pookie-border2);
+  background: rgba(244,114,182,0.1);
+}
+.icon-btn--danger:hover {
+  color: var(--pookie-rose);
+  background: rgba(251,113,133,0.12);
+  border-color: rgba(251,113,133,0.38);
+}
+
+.close-btn {
+  width: 32px;
+  height: 32px;
+  border-radius: 9px;
+  background: var(--pookie-surface2);
+  border: 1px solid var(--pookie-border);
+  color: var(--pookie-muted);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: all 0.18s;
+  font-family: var(--pookie-font);
+}
+.close-btn:hover {
+  color: var(--pookie-rose);
+  border-color: rgba(251,113,133,0.45);
+  background: rgba(251,113,133,0.1);
+}
+
+/* ─────────────────────────────────────────────────────────────────
+   FORM PRIMITIVES
+   .field-label  — uppercase micro label above an input
+   .field-input  — standard text/date input
+───────────────────────────────────────────────────────────────── */
+.field-label {
+  display: block;
+  font-size: 0.75rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--pookie-muted);
+  margin-bottom: 0.4rem;
+}
+
+.field-input {
+  width: 100%;
+  background: rgba(168,85,247,0.06);
+  border: 1px solid var(--pookie-border);
+  border-radius: var(--pookie-radius-sm);
+  padding: 0.65rem 1rem;
+  color: var(--pookie-text);
+  font-family: var(--pookie-font);
+  font-size: 0.9rem;
+  font-weight: 600;
+  outline: none;
+  transition: border-color 0.18s, box-shadow 0.18s;
+  box-sizing: border-box;
+}
+.field-input:focus {
+  border-color: var(--pookie-purple);
+  box-shadow: 0 0 0 3px rgba(168,85,247,0.14);
+}
+.field-input::placeholder { color: var(--pookie-muted); }
+.field-input[type="date"]::-webkit-calendar-picker-indicator {
+  filter: invert(0.6) sepia(1) saturate(3) hue-rotate(220deg);
+}
+
+/* ─────────────────────────────────────────────────────────────────
+   SELECT
+   .pookie-select — pill-shaped dropdown matching the design system
+───────────────────────────────────────────────────────────────── */
+.pookie-select {
+  background: var(--pookie-surface);
+  border: 1px solid var(--pookie-border);
+  border-radius: 50px;
+  padding: 0.58rem 2.2rem 0.58rem 1rem;
+  color: var(--pookie-text);
+  font-family: var(--pookie-font);
+  font-size: 0.82rem;
+  font-weight: 700;
+  outline: none;
+  cursor: pointer;
+  transition: border-color 0.18s, box-shadow 0.18s;
+  appearance: none;
+  -webkit-appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6' fill='%2394a3b8'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 0.75rem center;
+}
+.pookie-select:focus {
+  border-color: var(--pookie-purple);
+  box-shadow: 0 0 0 3px rgba(168,85,247,0.14);
+}
+.pookie-select option { background: #1a1a35; color: var(--pookie-text); }
+
+/* ─────────────────────────────────────────────────────────────────
+   SEARCH BAR
+   Wrap an <input className="search-input"> inside
+   <div className="search-wrap">, then add an icon span with
+   .search-wrap__icon and optionally a .search-clear button.
+───────────────────────────────────────────────────────────────── */
+.search-wrap { position: relative; }
+
+.search-wrap__icon {
+  position: absolute;
+  left: 0.85rem;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--pookie-muted);
+  pointer-events: none;
+  font-size: 0.85rem;
+}
+
+.search-input {
+  width: 100%;
+  background: var(--pookie-surface);
+  border: 1px solid var(--pookie-border);
+  border-radius: 50px;
+  padding: 0.6rem 2.4rem 0.6rem 2.2rem;
+  color: var(--pookie-text);
+  font-family: var(--pookie-font);
+  font-size: 0.86rem;
+  font-weight: 600;
+  outline: none;
+  transition: border-color 0.18s, box-shadow 0.18s;
+  box-sizing: border-box;
+}
+.search-input:focus {
+  border-color: var(--pookie-purple);
+  box-shadow: 0 0 0 3px rgba(168,85,247,0.14);
+}
+.search-input::placeholder { color: var(--pookie-muted); }
+
+.search-clear {
+  position: absolute;
+  right: 0.75rem;
+  top: 50%;
+  transform: translateY(-50%);
+  background: none;
+  border: none;
+  color: var(--pookie-muted);
+  cursor: pointer;
+  padding: 0.2rem;
+  display: flex;
+  align-items: center;
+  transition: color 0.15s;
+}
+.search-clear:hover { color: var(--pookie-text); }
+
+/* ─────────────────────────────────────────────────────────────────
+   OVERLAY + MODAL
+   .pookie-overlay  — full-screen dark backdrop
+   .pookie-modal    — centred card inside overlay
+   .modal-title     — gradient heading inside modal
+   .modal-sub       — muted subtitle inside modal
+   .modal-actions   — right-aligned button row at modal footer
+───────────────────────────────────────────────────────────────── */
+.pookie-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.88);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+  padding: 1rem;
+  overflow-y: auto;
+}
+
+.pookie-modal {
+  background: var(--pookie-bg);
+  border: 1px solid var(--pookie-border2);
+  border-radius: var(--pookie-radius);
+  padding: 1.75rem;
+  max-width: 520px;
+  width: 100%;
+  box-shadow: var(--pookie-shadow-h), 0 0 60px rgba(244,114,182,0.15);
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+  max-height: 90vh;
+  overflow-y: auto;
+  scrollbar-width: none;
+}
+.pookie-modal::-webkit-scrollbar { display: none; }
+
+.modal-title {
+  font-family: 'Dancing Script', cursive;
+  font-weight: 700;
+  background: linear-gradient(135deg, var(--pookie-pink), var(--pookie-purple));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  line-height: 1.25;
+}
+
+.modal-sub {
+  font-size: 0.84rem;
+  color: var(--pookie-muted);
+  font-weight: 600;
+  margin: 0;
+}
+
+.modal-actions {
+  display: flex;
+  gap: 0.6rem;
+  justify-content: flex-end;
+  padding-top: 0.5rem;
+  border-top: 1px solid var(--pookie-border);
+}
+
+/* ─────────────────────────────────────────────────────────────────
+   TABS
+   .pookie-tabs      — pill-shaped tab row container
+   .pookie-tab       — individual tab button
+   .pookie-tab.active — selected state
+───────────────────────────────────────────────────────────────── */
+.pookie-tabs {
+  display: flex;
+  gap: 0.4rem;
+  background: var(--pookie-surface);
+  border: 1px solid var(--pookie-border);
+  border-radius: 50px;
+  padding: 0.3rem;
+  backdrop-filter: blur(16px);
+}
+
+.pookie-tab {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  padding: 0.55rem 1rem;
+  border-radius: 50px;
+  border: none;
+  background: none;
+  color: var(--pookie-muted);
+  font-size: 0.84rem;
+  font-weight: 700;
+  font-family: var(--pookie-font);
+  cursor: pointer;
+  transition: all 0.22s;
+  white-space: nowrap;
+}
+.pookie-tab.active {
+  background: linear-gradient(135deg, var(--pookie-purple2), var(--pookie-pink2));
+  color: #fff;
+  box-shadow: 0 2px 12px rgba(168,85,247,0.35);
+}
+
+/* ─────────────────────────────────────────────────────────────────
+   STAT CARDS
+   .pookie-stat-card   — centred metric tile
+   .pookie-stat-val    — big number inside stat card
+   .pookie-stat-label  — uppercase label below number
+───────────────────────────────────────────────────────────────── */
+.pookie-stat-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.22rem;
+  background: var(--pookie-surface);
+  border: 1px solid var(--pookie-border);
+  border-radius: var(--pookie-radius-sm);
+  padding: 0.95rem 0.6rem;
+  backdrop-filter: blur(16px);
+  text-align: center;
+  cursor: default;
+  transition: border-color 0.22s, box-shadow 0.22s;
+}
+.pookie-stat-card:hover { box-shadow: var(--pookie-glow); }
+
+.pookie-stat-val   { font-size: 1.5rem; font-weight: 900; line-height: 1; }
+.pookie-stat-label {
+  font-size: 0.67rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--pookie-muted);
+}
+
+/* ─────────────────────────────────────────────────────────────────
+   BADGE
+   .pookie-badge — tiny pill label; set colour via inline style or
+                   a modifier class in the consuming component
+───────────────────────────────────────────────────────────────── */
+.pookie-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-size: 0.68rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.09em;
+  padding: 0.22rem 0.65rem;
+  border-radius: 50px;
+}
+
+/* ─────────────────────────────────────────────────────────────────
+   EMPTY STATE
+   .pookie-empty — centred placeholder when a list is empty
+───────────────────────────────────────────────────────────────── */
+.pookie-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.85rem;
+  padding: 3.5rem 2.5rem;
+  text-align: center;
+  background: var(--pookie-surface);
+  border: 1px solid var(--pookie-border);
+  border-radius: var(--pookie-radius);
+  backdrop-filter: blur(22px);
+}
+.pookie-empty h3 {
+  font-family: 'Dancing Script', cursive;
+  font-weight: 700;
+  background: linear-gradient(135deg, var(--pookie-pink), var(--pookie-purple));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  line-height: 1.2;
+  margin: 0;
+}
+.pookie-empty p {
+  color: var(--pookie-muted);
+  margin: 0;
+  font-size: 0.9rem;
+  font-weight: 600;
+  max-width: 340px;
+  line-height: 1.65;
+}
+
+/* ─────────────────────────────────────────────────────────────────
+   SKELETON LOADER
+   .pookie-skeleton — set a height in the page CSS, e.g. height:220px
+───────────────────────────────────────────────────────────────── */
+.pookie-skeleton {
+  border-radius: var(--pookie-radius);
+  background: linear-gradient(
+    90deg,
+    var(--pookie-surface)  25%,
+    var(--pookie-surface2) 50%,
+    var(--pookie-surface)  75%
+  );
+  background-size: 200% 100%;
+  animation: pookie-shimmer 1.4s infinite linear;
+}
+@keyframes pookie-shimmer {
+  0%   { background-position:  200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+/* ─────────────────────────────────────────────────────────────────
+   CONFETTI
+   JS renders pieces into .pookie-confetti at the top of <body>
+───────────────────────────────────────────────────────────────── */
+.pookie-confetti {
+  position: fixed;
+  top: 0; left: 0;
+  width: 100%;
+  height: 0;
+  pointer-events: none;
+  z-index: 9999;
+  overflow: visible;
+}
+.pookie-confetti-piece {
+  position: absolute;
+  top: 0;
+  user-select: none;
+  will-change: transform;
+}
+
+/* ─────────────────────────────────────────────────────────────────
+   ANIMATION HELPERS
+   .pookie-spin    — continuous rotation
+   .pookie-float   — gentle up/down bob
+   .pookie-fade-in — entrance from below
+───────────────────────────────────────────────────────────────── */
+.pookie-spin    { animation: _spin     1s linear      infinite; }
+.pookie-float   { animation: _float    3s ease-in-out infinite; }
+.pookie-fade-in { animation: _fade-in  0.35s ease-out both;    }
+
+@keyframes _spin    { to { transform: rotate(360deg); } }
+@keyframes _float   {
+  0%, 100% { transform: translateY(0); }
+  50%      { transform: translateY(-8px); }
+}
+@keyframes _fade-in {
+  from { opacity: 0; transform: translateY(12px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* ─────────────────────────────────────────────────────────────────
+   FULL-PAGE STATES
+   .pookie-loading    — spinner screen while auth resolves
+   .pookie-auth-gate  — locked card for unauthenticated users
+───────────────────────────────────────────────────────────────── */
+.pookie-loading {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1.1rem;
+  background: var(--pookie-bg);
+  color: var(--pookie-muted);
+  font-family: var(--pookie-font);
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.pookie-auth-gate {
+  max-width: 460px;
+  margin: 8rem auto;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1.2rem;
+  background: var(--pookie-surface);
+  border: 1px solid var(--pookie-border);
+  border-radius: var(--pookie-radius);
+  padding: 3.5rem 2.5rem;
+  backdrop-filter: blur(24px);
+  box-shadow: var(--pookie-shadow);
+}
+.pookie-auth-gate h2 {
+  font-family: 'Dancing Script', cursive;
+  font-weight: 700;
+  background: linear-gradient(135deg, var(--pookie-pink), var(--pookie-purple));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  line-height: 1.2;
+  margin: 0;
+}
+.pookie-auth-gate p {
+  color: var(--pookie-muted);
+  font-size: 0.93rem;
+  font-weight: 600;
+  margin: 0;
+  max-width: 320px;
+  line-height: 1.6;
+}
+
+/* ─────────────────────────────────────────────────────────────────
+   REDUCED MOTION
+   Single global declaration — do NOT repeat in any page CSS file.
+───────────────────────────────────────────────────────────────── */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration:        0.01ms !important;
+    animation-iteration-count: 1      !important;
+    transition-duration:       0.01ms !important;
+  }
+}
+
+/* Mobile optimization for Dancing Script headlines */
+@media (max-width: 640px) {
+  .pookie-display-title,
+  .modal-title,
+  .pookie-empty h3,
+  .pookie-auth-gate h2 {
+    font-size: clamp(1.8rem, 5vw, 2.4rem) !important;
+  }
+}
+
+/* Subtle text shadow for better readability on gradients */
+.pookie-display-title,
+.modal-title,
+.pookie-empty h3,
+.pookie-auth-gate h2 {
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
+}

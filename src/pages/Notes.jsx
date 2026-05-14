@@ -4,7 +4,7 @@ import React, {
 
 import { db } from "../components/firebase";
 import {
-  collection, addDoc, deleteDoc, doc,
+  collection, addDoc, deleteDoc, doc, 
   onSnapshot, updateDoc, serverTimestamp, query, where,
 } from "firebase/firestore";
 import { getAuth } from "firebase/auth";
@@ -13,9 +13,7 @@ import { useEditor, EditorContent, Node } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import Placeholder from "@tiptap/extension-placeholder";
 import Typography from "@tiptap/extension-typography";
-import Link from "@tiptap/extension-link";
 import Highlight from "@tiptap/extension-highlight";
-import Underline from "@tiptap/extension-underline";
 import TaskList from "@tiptap/extension-task-list";
 import TaskItem from "@tiptap/extension-task-item";
 import { Plugin, PluginKey } from "prosemirror-state";
@@ -405,7 +403,11 @@ function EditorPanel({ note, allNotes, onSave, onDelete, onToggleFav, onTogglePi
 
   const editor = useEditor({
     extensions: [
-      StarterKit.configure({ heading: { levels: [1, 2, 3] } }),
+      StarterKit.configure({
+        heading: { levels: [1, 2, 3] },
+        link: false,
+        underline: false,
+      }),
       Underline,
       Link.configure({ openOnClick: false }),
       Highlight.configure({ multicolor: false }),
@@ -1153,7 +1155,7 @@ export default function Notes() {
 
   const colRef = useMemo(() => {
     if (!uid) return null;
-    return query(collection(db, "notes"), where("userId", "==", uid));
+    return query(collection(db, "users", uid, "notes"), where("userId", "==", uid));
   }, [uid]);
 
   useEffect(() => {
@@ -1173,7 +1175,7 @@ export default function Notes() {
 
   const handleCreate = useCallback(async (title) => {
     if (!uid) return;
-    const ref = await addDoc(collection(db, "notes"), {
+    const ref = await addDoc(collection(db, "users", uid, "notes"), {
       userId: uid, title, content: "", tags: [],
       favorite: false, pinned: false, timestamp: serverTimestamp(),
     });
@@ -1188,22 +1190,22 @@ export default function Notes() {
 
   const handleSave = useCallback(async (updated) => {
     const { id, title, content, tags } = updated;
-    await updateDoc(doc(db, "notes", id), { title: title || "", content: content || "", tags: tags || [] });
+    await updateDoc(doc(db, "users", uid, "notes", id), { title: title || "", content: content || "", tags: tags || [] });
   }, []);
 
   const handleDelete = useCallback(async (id) => {
     if (!window.confirm("Delete this note permanently?")) return;
-    await deleteDoc(doc(db, "notes", id));
+    await deleteDoc(doc(db, "users", uid, "notes", id));
     if (selectedNote?.id === id) setSelectedNote(null);
     toast("Note deleted 🗑️");
   }, [selectedNote]);
 
   const handleToggleFav = useCallback(async (id, cur) => {
-    await updateDoc(doc(db, "notes", id), { favorite: !cur });
+    await updateDoc(doc(db, "users", uid, "notes", id), { favorite: !cur });
   }, []);
 
   const handleTogglePin = useCallback(async (id, cur) => {
-    await updateDoc(doc(db, "notes", id), { pinned: !cur });
+    await updateDoc(doc(db, "users", uid, "notes", id), { pinned: !cur });
   }, []);
 
   const fuse = useMemo(() => new Fuse(notes, { keys: ["title", "tags"], threshold: 0.4 }), [notes]);

@@ -1,165 +1,138 @@
-import React, { useState, useEffect } from "react";
-import { BrowserRouter as Router, Route, Routes, Navigate } from "react-router-dom";
-import { Toaster } from "react-hot-toast";
-import { onAuthStateChanged, isSignInWithEmailLink } from "firebase/auth";
-// Importing the individual page components
-import Home from "./pages/Home";
-import FlashCards from "./pages/FlashCards";
-import Notes from "./pages/Notes";
-import Profile from "./pages/Profile";
-import TopBar from "./components/TopBar";
-import { auth } from "./components/firebase";
-import StartSession from "./pages/Session";
-import PlotGraph from "./pages/PlotGraph";
-import AdvancedEquationVisualizer from "./pages/3D";
-import "./App.css";
-import OTPAuth from "./pages/OTPAuth";
-import Login from "./pages/Login";
-import Register from "./pages/Register";
-import ForgotPass from "./pages/Forgotpass"; 
+import { useState, useEffect, lazy, Suspense } from 'react';
+import { BrowserRouter as Router, Route, Routes, Navigate } from 'react-router-dom';
+import { Toaster } from 'react-hot-toast';
+import { onAuthStateChanged, isSignInWithEmailLink } from 'firebase/auth';
+import { auth } from './components/firebase';
+import TopBar from './components/TopBar';
 
-// Main App Component
-function App() {
-  const [user, setUser] = useState(null);
-  const [loading, setLoading] = useState(true);
+// eager — always needed on first load
+import Home       from './pages/Home';
+import Login      from './pages/Login';
+import Register   from './pages/Register';
+import OTPAuth    from './pages/OTPAuth';
+import ForgotPass from './pages/Forgotpass';
+import FlashCards  from './pages/FlashCards';
+import Notes       from './pages/Notes';
+import PlotGraph   from './pages/PlotGraph';
+import Graph3D     from './pages/3D';
+import StartSession from './pages/Session';
+import Profile     from './pages/Profile';
 
-  useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
-      setUser(user);
-      setLoading(false);
-    });
-    return unsubscribe;
-  }, []);
+// lazy — phase 2
+const Challenge75Hard      = lazy(() => import('./pages/Challenge75Hard'));
+const MasteryTracker       = lazy(() => import('./pages/MasteryTracker'));
+const EnvironmentOptimizer = lazy(() => import('./pages/EnvironmentOptimizer'));
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center min-h-screen bg-gray-900">
-        <div className="text-white text-xl">Loading...</div>
-      </div>
-    );
-  }
+// lazy — phase 3
+const HabitStacking = lazy(() => import('./pages/HabitStacking'));
 
-  const ProtectedRoute = ({ children }) => {
-    if (!user) {
-      return <Navigate to="/login" replace />;
-    }
-    return children;
-  };
+// lazy — phase 4
+const TimeCapsule     = lazy(() => import('./pages/TimeCapsule'));
+const ResourceLibrary = lazy(() => import('./pages/ResourceLibrary'));
 
-  // If the current URL is a magic link sign-in link, send user to OTPAuth
-  const isMagicLink = isSignInWithEmailLink(auth, window.location.href);
-
-  // Detect Firebase password-reset link (mode=resetPassword in URL)
-  const urlParams = new URLSearchParams(window.location.search);
-  const isResetLink =
-    urlParams.get("mode") === "resetPassword" && urlParams.get("oobCode");
-
+function PageLoader() {
   return (
-    <Router>
-      <div className="flex flex-col min-h-screen">
-        {/* Topbar for actions like profile, search, etc. */}
-        <TopBar user={user} />
-
-        <div className="flex-1 overflow-y-auto">
-          <Routes>
-            {/* Home — if the URL is a magic link, intercept and send to OTPAuth */}
-            <Route
-              path="/"
-              element={
-                isMagicLink
-                  ? <Navigate to={`/OTPAuth${window.location.search}`} replace />
-                  : isResetLink
-                    ? <Navigate to={`/forgot-password${window.location.search}`} replace />
-                    : <Home />
-              }
-            />
-
-            {/* Standard email/password login */}
-            <Route
-              path="/login"
-              element={user ? <Navigate to="/session" replace /> : <Login />}
-            />
-
-            {/* Register page */}
-            <Route
-              path="/register"
-              element={user ? <Navigate to="/session" replace /> : <Register />}
-            />
-
-           <Route
-              path="/forgot-password"
-              element={<ForgotPass />}
-            />
-
-            {/* Magic link / OTP auth */}
-            <Route
-              path="/OTPAuth"
-              element={
-                isMagicLink
-                  ? <OTPAuth />
-                  : user
-                    ? <Navigate to="/session" replace />
-                    : <OTPAuth />
-              }
-            />
-
-            {/* Protected Routes */}
-            <Route
-              path="/profile"
-              element={
-                <ProtectedRoute>
-                  <Profile />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/flash-cards"
-              element={
-                <ProtectedRoute>
-                  <FlashCards />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/notes"
-              element={
-                <ProtectedRoute>
-                  <Notes />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/plot-graph"
-              element={
-                <ProtectedRoute>
-                  <PlotGraph />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/3d-graph"
-              element={
-                <ProtectedRoute>
-                  <AdvancedEquationVisualizer />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/session"
-              element={
-                <ProtectedRoute>
-                  <StartSession />
-                </ProtectedRoute>
-              }
-            />
-          </Routes>
-        </div>
-      </div>
-
-
-      <Toaster position="top-right" />
-    </Router>
+    <div className="pookie-loading">
+      <span className="pookie-spin" style={{ fontSize: '2rem' }}>✦</span>
+      <span>Loading…</span>
+    </div>
   );
 }
 
-export default App;
+function ProtectedRoute({ user, children }) {
+  if (!user) return <Navigate to="/login" replace />;
+  return children;
+}
+
+function Protected({ user, children }) {
+  return (
+    <ProtectedRoute user={user}>
+      <Suspense fallback={<PageLoader />}>{children}</Suspense>
+    </ProtectedRoute>
+  );
+}
+
+export default function App() {
+  const [user, setUser]     = useState(null);
+  const [ready, setReady]   = useState(false);
+
+  useEffect(() => {
+    return onAuthStateChanged(auth, (u) => {
+      setUser(u);
+      setReady(true);
+    });
+  }, []);
+
+  if (!ready) return <PageLoader />;
+
+  const isMagicLink = isSignInWithEmailLink(auth, window.location.href);
+  const params      = new URLSearchParams(window.location.search);
+  const isReset     = params.get('mode') === 'resetPassword' && params.get('oobCode');
+
+  return (
+    <Router>
+      <TopBar user={user} />
+
+      <Suspense fallback={<PageLoader />}>
+        <Routes>
+          {/* public */}
+          <Route
+            path="/"
+            element={
+              isMagicLink ? <Navigate to={`/OTPAuth${window.location.search}`} replace />
+              : isReset   ? <Navigate to={`/forgot-password${window.location.search}`} replace />
+              : <Home />
+            }
+          />
+          <Route path="/login"          element={user ? <Navigate to="/session" replace /> : <Login />} />
+          <Route path="/register"       element={user ? <Navigate to="/session" replace /> : <Register />} />
+          <Route path="/forgot-password" element={<ForgotPass />} />
+          <Route
+            path="/OTPAuth"
+            element={isMagicLink ? <OTPAuth /> : user ? <Navigate to="/session" replace /> : <OTPAuth />}
+          />
+
+          {/* core protected — eager */}
+          <Route path="/profile"     element={<ProtectedRoute user={user}><Profile /></ProtectedRoute>} />
+          <Route path="/session"     element={<ProtectedRoute user={user}><StartSession /></ProtectedRoute>} />
+          <Route path="/flash-cards" element={<ProtectedRoute user={user}><FlashCards /></ProtectedRoute>} />
+          <Route path="/notes"       element={<ProtectedRoute user={user}><Notes /></ProtectedRoute>} />
+          <Route path="/plot-graph"  element={<ProtectedRoute user={user}><PlotGraph /></ProtectedRoute>} />
+          <Route path="/3d-graph"    element={<ProtectedRoute user={user}><Graph3D /></ProtectedRoute>} />
+
+          {/* phase 2 */}
+          <Route path="/75hard"       element={<Protected user={user}><Challenge75Hard /></Protected>} />
+          <Route path="/mastery"      element={<Protected user={user}><MasteryTracker /></Protected>} />
+          <Route path="/environment"  element={<Protected user={user}><EnvironmentOptimizer /></Protected>} />
+
+          {/* phase 3 */}
+          <Route path="/habit-stacking" element={<Protected user={user}><HabitStacking /></Protected>} />
+
+          {/* phase 4 */}
+          <Route path="/time-capsule" element={<Protected user={user}><TimeCapsule /></Protected>} />
+          <Route path="/resources"    element={<Protected user={user}><ResourceLibrary /></Protected>} />
+
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Routes>
+      </Suspense>
+
+      <Toaster
+        position="top-right"
+        toastOptions={{
+          style: {
+            background:    'rgba(15,15,35,0.95)',
+            color:         '#f8fafc',
+            border:        '1px solid rgba(244,114,182,0.25)',
+            borderRadius:  '12px',
+            fontFamily:    'Nunito, sans-serif',
+            fontWeight:    600,
+            backdropFilter:'blur(16px)',
+            boxShadow:     '0 8px 32px rgba(168,85,247,0.15)',
+          },
+          success: { iconTheme: { primary: '#a855f7', secondary: '#f8fafc' } },
+          error:   { iconTheme: { primary: '#fb7185', secondary: '#f8fafc' } },
+        }}
+      />
+    </Router>
+  );
+}

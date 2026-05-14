@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { db, auth } from "../components/firebase";
 import {
-  collection, addDoc, deleteDoc, doc, query, where, onSnapshot,
+  collection, addDoc, deleteDoc, doc, query, where, onSnapshot
 } from "firebase/firestore";
 import { onAuthStateChanged } from "firebase/auth";
 import { motion, AnimatePresence } from "framer-motion";
@@ -53,7 +53,7 @@ const Flashcards = () => {
 
   useEffect(() => {
     if (!user) return;
-    const q = query(collection(db, "flashcards"), where("userId", "==", user.uid));
+    const q = query(collection(db, "users", user.uid, "flashcards"), where("userId", "==", user.uid));
     const unsub = onSnapshot(q, (snap) => {
       const cards = snap.docs.map((d) => ({ ...d.data(), id: d.id }));
       setFlashcards(cards);
@@ -83,7 +83,7 @@ const Flashcards = () => {
     }
     if (!user) { toast.error("Log in first! 🔐"); return; }
     try {
-      await addDoc(collection(db, "flashcards"), {
+      await addDoc(collection(db, "users", user.uid, "flashcards"), {
         question: question.trim(),
         answer: answer.trim(),
         tags: tags.split(",").map((t) => t.trim()).filter(Boolean),
@@ -103,7 +103,7 @@ const Flashcards = () => {
     if (!user) return;
     setDeletingId(id);
     try {
-      await deleteDoc(doc(db, "flashcards", id));
+      await deleteDoc(doc(db, "users", user.uid, "flashcards", id));
       toast.success("Poof! Card deleted 💨");
     } catch {
       toast.error("Couldn't delete that one 😔");

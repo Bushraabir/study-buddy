@@ -19,6 +19,7 @@
         "@firebasegen/default-connector": "file:dataconnect-generated/js/default-connector",
         "@fortawesome/fontawesome-free": "^6.7.2",
         "@headlessui/react": "^2.2.0",
+        "@lottiefiles/dotlottie-web": "^0.72.1",
         "@react-three/drei": "^9.120.4",
         "@react-three/fiber": "^8.17.10",
         "@tensorflow/tfjs": "^4.22.0",

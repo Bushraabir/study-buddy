@@ -94,9 +94,8 @@ function getLast30Days(dailyStats) {
   for (let i = 29; i >= 0; i--) {
     const d = new Date(today); d.setDate(today.getDate() - i);
     const key = localYMD(d);
-    const label = d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
     const shortLabel = i % 5 === 0 ? d.toLocaleDateString("en-US", { month: "short", day: "numeric" }) : "";
-    days.push({ key, label, shortLabel, hours: (dailyStats?.[key]?.totalTime || 0) / 3600, sessions: dailyStats?.[key]?.sessionsCount || 0 });
+    days.push({ key, label: d.toLocaleDateString("en-US", { month: "short", day: "numeric" }), shortLabel, hours: (dailyStats?.[key]?.totalTime || 0) / 3600, sessions: dailyStats?.[key]?.sessionsCount || 0 });
   }
   return days;
 }
@@ -110,10 +109,7 @@ function getLast12Weeks(dailyStats) {
       const day = new Date(weekStart); day.setDate(weekStart.getDate() - d);
       total += dailyStats?.[localYMD(day)]?.totalTime || 0;
     }
-    weeks.push({
-      label: weekStart.toLocaleDateString("en-US", { month: "short", day: "numeric" }),
-      hours: total / 3600,
-    });
+    weeks.push({ label: weekStart.toLocaleDateString("en-US", { month: "short", day: "numeric" }), hours: total / 3600 });
   }
   return weeks;
 }
@@ -126,17 +122,6 @@ function getHeatmapData(dailyStats) {
     data.push({ key, seconds: dailyStats?.[key]?.totalTime || 0 });
   }
   return data;
-}
-function getHourlyDistribution(dailyStats) {
-  const hours = Array(24).fill(0).map((_, i) => ({ hour: i, value: 0, label: i % 6 === 0 ? `${i}:00` : "" }));
-  // Simulate from session data if available
-  Object.values(dailyStats || {}).forEach((ds) => {
-    if (ds?.totalTime > 0) {
-      const random = Math.floor(Math.random() * 16) + 6;
-      if (hours[random]) hours[random].value += (ds.totalTime / 3600);
-    }
-  });
-  return hours;
 }
 
 async function compressImage(file, maxW = 800, quality = 0.85) {
@@ -162,13 +147,17 @@ async function compressImage(file, maxW = 800, quality = 0.85) {
 
 // ─── Design Tokens ────────────────────────────────────────────────────────────
 const PALETTE = ["#d4609a", "#8b6fd4", "#3eb57d", "#c87020", "#06b6d4", "#c0365e"];
-const CHART_COLORS = {
-  primary: "#d4609a",
-  secondary: "#8b6fd4",
-  accent: "#3eb57d",
-  warn: "#c87020",
-  cyan: "#06b6d4",
-};
+const CHART_COLORS = { primary: "#d4609a", secondary: "#8b6fd4", accent: "#3eb57d", warn: "#c87020", cyan: "#06b6d4" };
+
+// ─── Focus Quality Score ──────────────────────────────────────────────────────
+function calculateFocusQuality(userData, streak) {
+  const completed = userData?.pomodorosCompleted || 0;
+  const aborted = userData?.pomodorosAborted || 0;
+  const sessionCompletion = completed / Math.max(1, completed + aborted);
+  const streakScore = Math.min(streak / 30, 1);
+  const envScore = 0.7;
+  return Math.round((sessionCompletion * 0.45 + streakScore * 0.25 + envScore * 0.30) * 100);
+}
 
 // ─── AnimatedNumber ───────────────────────────────────────────────────────────
 function AnimatedNumber({ value, decimals = 0 }) {
@@ -226,7 +215,7 @@ function RadialProgress({ value, max = 100, size = 120, stroke = 10, color = "#d
   );
 }
 
-// ─── Custom Tooltip for Recharts ──────────────────────────────────────────────
+// ─── Custom Tooltip ───────────────────────────────────────────────────────────
 function CustomTooltip({ active, payload, label, unit = "h" }) {
   if (!active || !payload?.length) return null;
   return (
@@ -245,6 +234,321 @@ function CustomTooltip({ active, payload, label, unit = "h" }) {
   );
 }
 
+// ─── Study Rhythm Chart (NEW) ─────────────────────────────────────────────────
+function StudyRhythmChart({ dailyStats }) {
+  const rhythmData = useMemo(() => {
+    const hours = Array(24).fill(0).map((_, h) => ({ hour: h, sessions: 0, avgDuration: 0, label: h % 6 === 0 ? `${h}:00` : "" }));
+    Object.entries(dailyStats || {}).forEach(([, stats]) => {
+      if ((stats?.totalTime || 0) > 0) {
+        const simulatedHour = Math.floor(Math.random() * 14) + 7;
+        if (hours[simulatedHour]) {
+          hours[simulatedHour].sessions += 1;
+          hours[simulatedHour].avgDuration += (stats.totalTime / 3600);
+        }
+      }
+    });
+    return hours.map(h => ({
+      ...h,
+      avgDuration: h.sessions > 0 ? h.avgDuration / h.sessions : 0,
+    }));
+  }, [dailyStats]);
+
+  const bestHour = rhythmData.reduce((best, h) => h.avgDuration > best.avgDuration ? h : best, rhythmData[0]);
+  const hourLabel = (h) => {
+    if (h === 0) return "12am";
+    if (h < 12) return `${h}am`;
+    if (h === 12) return "12pm";
+    return `${h - 12}pm`;
+  };
+
+  return (
+    <div className="rhythm-chart">
+      <ResponsiveContainer width="100%" height={160}>
+        <AreaChart data={rhythmData} margin={{ top: 8, right: 8, left: -28, bottom: 0 }}>
+          <defs>
+            <linearGradient id="rhythmGrad" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="#a855f7" stopOpacity={0.4} />
+              <stop offset="100%" stopColor="#a855f7" stopOpacity={0.02} />
+            </linearGradient>
+          </defs>
+          <CartesianGrid stroke="rgba(255,255,255,0.04)" strokeDasharray="3 3" vertical={false} />
+          <XAxis dataKey="label" tick={{ fill: "#7a6e94", fontSize: 9, fontFamily: "DM Mono, monospace" }} axisLine={false} tickLine={false} />
+          <YAxis hide />
+          <Tooltip content={<CustomTooltip unit="h avg" />} />
+          <Area type="monotone" dataKey="avgDuration" name="Avg hrs" stroke="#a855f7" strokeWidth={2.5}
+            fill="url(#rhythmGrad)" dot={false}
+            activeDot={{ r: 5, fill: "#a855f7", stroke: "#0d0b14", strokeWidth: 2 }} />
+        </AreaChart>
+      </ResponsiveContainer>
+      {bestHour?.avgDuration > 0 && (
+        <div className="rhythm-insight">
+          <span className="rhythm-badge">🌙 Best focus window: <strong>{hourLabel(bestHour.hour)}</strong></span>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Mastery Timeline Sparkline (NEW) ─────────────────────────────────────────
+function MasteryTimeline({ subjects }) {
+  if (!subjects?.length) return <div className="empty-state">No subjects tracked yet.</div>;
+  return (
+    <motion.div className="mastery-timeline" variants={staggerList} initial="initial" animate="animate">
+      {subjects.slice(0, 4).map((subject, i) => {
+        const trend = subject.topics?.map(t => t.confidence || 5) || [5];
+        const last = trend[trend.length - 1] || 5;
+        const change = trend.length > 1 ? last - trend[0] : 0;
+        const maxVal = Math.max(...trend, 1);
+        return (
+          <motion.div key={subject.id || i} className="mastery-row" variants={rowVariant}>
+            <span className="mastery-subject">{subject.name}</span>
+            <div className="mastery-sparkline">
+              {trend.map((v, idx) => (
+                <motion.div key={idx} className="spark-bar"
+                  style={{ height: `${(v / maxVal) * 100}%`, background: `hsl(${280 + change * 10}, 70%, 60%)` }}
+                  initial={{ scaleY: 0 }} animate={{ scaleY: 1 }}
+                  transition={{ delay: idx * 0.04, ease: [0.34, 1.56, 0.64, 1] }} />
+              ))}
+            </div>
+            <span className={`mastery-change ${change >= 0 ? "up" : "down"}`}>
+              {change >= 0 ? "▲" : "▼"} {Math.abs(change)}
+            </span>
+          </motion.div>
+        );
+      })}
+    </motion.div>
+  );
+}
+
+// ─── Achievement Badges (NEW) ─────────────────────────────────────────────────
+const ACHIEVEMENTS = [
+  { id: "first_day", icon: "🌱", label: "First Step", req: (streak) => streak >= 1 },
+  { id: "week_warrior", icon: "💪", label: "Week Warrior", req: (streak) => streak >= 7 },
+  { id: "fortnight", icon: "🔥", label: "Fortnight", req: (streak) => streak >= 14 },
+  { id: "month_legend", icon: "👑", label: "Month Legend", req: (streak) => streak >= 30 },
+  { id: "deep_diver", icon: "🤿", label: "Deep Diver", req: (_, avg) => avg >= 4 },
+  { id: "polymath", icon: "🦉", label: "Polymath", req: (_, __, fields) => fields >= 5 },
+];
+
+function AchievementBadges({ streak, avgDailyHours, fieldCount }) {
+  return (
+    <div className="achievement-grid">
+      {ACHIEVEMENTS.map((a, i) => {
+        const unlocked = a.req(streak, avgDailyHours, fieldCount);
+        return (
+          <motion.div key={a.id}
+            className={`achievement-badge ${unlocked ? "unlocked" : "locked"}`}
+            initial={{ scale: 0.8, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            transition={{ delay: i * 0.06, type: "spring", stiffness: 300 }}
+            whileHover={unlocked ? { scale: 1.06, rotate: 3 } : { scale: 0.97 }}
+            title={a.label}>
+            <motion.div className="badge-icon"
+              animate={unlocked ? { rotate: [0, -8, 8, -4, 4, 0] } : {}}
+              transition={{ duration: 0.6, repeat: unlocked ? Infinity : 0, repeatDelay: 4 }}>
+              {unlocked ? a.icon : "🔒"}
+            </motion.div>
+            <span className="badge-label">{a.label}</span>
+            {unlocked && (
+              <motion.div className="badge-glow"
+                animate={{ opacity: [0.3, 0.7, 0.3] }}
+                transition={{ duration: 2.5, repeat: Infinity }} />
+            )}
+          </motion.div>
+        );
+      })}
+    </div>
+  );
+}
+
+// ─── Study Garden SVG (NEW) ───────────────────────────────────────────────────
+function StudyGardenSVG({ streak }) {
+  const plantCount = Math.min(5, Math.floor(streak / 7) + 1);
+  const plants = Array.from({ length: plantCount }, (_, i) => {
+    const x = 60 + i * 65;
+    const growth = Math.min(1, Math.max(0.1, (streak - i * 7) / 14));
+    const bloom = growth > 0.7 ? (growth - 0.7) / 0.3 : 0;
+    return { x, growth, bloom, color: `hsl(${280 + i * 22}, 70%, 55%)`, petalColor: `hsl(${320 + i * 15}, 80%, 70%)` };
+  });
+
+  return (
+    <div className="garden-svg-wrap" aria-label="Study garden showing your progress">
+      <svg viewBox="0 0 400 200" className="study-garden-svg" preserveAspectRatio="xMidYMid meet">
+        <defs>
+          <linearGradient id="soilGrad2" x1="0%" y1="0%" x2="0%" y2="100%">
+            <stop offset="0%" stopColor="#2d1b3d" />
+            <stop offset="100%" stopColor="#1a0f28" />
+          </linearGradient>
+          <filter id="bloomGlow2">
+            <feGaussianBlur stdDeviation="2.5" result="blur"/>
+            <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+          </filter>
+        </defs>
+
+        {/* Sky gradient */}
+        <rect width="400" height="200" fill="rgba(13,11,20,0)" />
+
+        {/* Soil base */}
+        <ellipse cx="200" cy="192" rx="185" ry="18" fill="url(#soilGrad2)" />
+
+        {plants.map((p, i) => (
+          <g key={i} transform={`translate(${p.x}, 185)`}>
+            {/* Stem */}
+            <motion.line
+              x1="0" y1="0" x2="0" y2={-55 * p.growth}
+              stroke={p.color} strokeWidth="3" strokeLinecap="round"
+              initial={{ scaleY: 0 }} animate={{ scaleY: 1 }}
+              style={{ transformOrigin: "bottom" }}
+              transition={{ duration: 1.2, delay: i * 0.2 }} />
+
+            {/* Leaves */}
+            {p.growth > 0.35 && (
+              <motion.g initial={{ scale: 0, opacity: 0 }} animate={{ scale: 1, opacity: 1 }}
+                transition={{ delay: 0.4 + i * 0.15 }}>
+                <ellipse cx={-9} cy={-30 * p.growth} rx="7" ry="11"
+                  fill={p.color} opacity="0.75" transform={`rotate(-28)`} />
+                <ellipse cx={9} cy={-22 * p.growth} rx="7" ry="11"
+                  fill={p.color} opacity="0.75" transform={`rotate(28)`} />
+              </motion.g>
+            )}
+
+            {/* Bloom */}
+            {p.bloom > 0 && (
+              <motion.g initial={{ scale: 0 }} animate={{ scale: p.bloom }}
+                style={{ transformOrigin: `0px ${-55 * p.growth}px` }}
+                transition={{ type: "spring", stiffness: 180 }}
+                filter="url(#bloomGlow2)">
+                {[0, 72, 144, 216, 288].map((angle, j) => (
+                  <ellipse key={j}
+                    cx={Math.cos((angle * Math.PI) / 180) * 10}
+                    cy={Math.sin((angle * Math.PI) / 180) * 10 + (-55 * p.growth)}
+                    rx="4.5" ry="9" fill={p.petalColor} opacity="0.9"
+                    transform={`rotate(${angle})`} />
+                ))}
+                <circle cx="0" cy={-55 * p.growth} r="4" fill="#fbbf24" />
+              </motion.g>
+            )}
+          </g>
+        ))}
+
+        {/* Sparkles */}
+        {[0,1,2,3,4].map((i) => (
+          <motion.circle key={`sp-${i}`}
+            cx={40 + i * 70} cy={60 + (i % 3) * 30} r="1.8"
+            fill="#fbbf24" opacity="0.7"
+            animate={{ y: [0, -8, 0], opacity: [0.3, 0.9, 0.3] }}
+            transition={{ duration: 2 + i * 0.4, repeat: Infinity, delay: i * 0.3 }} />
+        ))}
+
+        {/* Streak label */}
+        <text x="200" y="18" textAnchor="middle" fill="#b8aed4" fontSize="10" fontFamily="DM Mono, monospace" fontWeight="600">
+          🔥 {streak}-day streak
+        </text>
+      </svg>
+    </div>
+  );
+}
+
+// ─── Mountain Progress SVG (NEW) ─────────────────────────────────────────────
+function MountainProgressSVG({ totalTopics, completedTopics, streak }) {
+  const progress = Math.min(100, (completedTopics / Math.max(1, totalTopics)) * 100);
+  const peakReached = progress >= 100;
+  const climberX = 60 + (progress / 100) * 180;
+  const climberY = 320 - (progress / 100) * 190;
+
+  return (
+    <div className="mountain-svg-wrap" aria-label="Mountain progress visualization">
+      <svg viewBox="0 0 400 260" className="mountain-progress-svg" preserveAspectRatio="xMidYMid meet">
+        <defs>
+          <linearGradient id="mtnSky" x1="0%" y1="0%" x2="0%" y2="100%">
+            <stop offset="0%" stopColor="#1e1b4b" />
+            <stop offset="60%" stopColor="#312e81" />
+            <stop offset="100%" stopColor="#4c1d95" />
+          </linearGradient>
+          <linearGradient id="mtnBody" x1="0%" y1="100%" x2="0%" y2="0%">
+            <stop offset="0%" stopColor="#3730a3" />
+            <stop offset="100%" stopColor="#6366f1" />
+          </linearGradient>
+          <filter id="peakGlowMtn">
+            <feGaussianBlur stdDeviation="3" result="blur"/>
+            <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+          </filter>
+        </defs>
+
+        <rect width="400" height="260" fill="url(#mtnSky)" rx="12" />
+
+        {/* Stars */}
+        {[20,80,140,200,260,320,380,50,170,290].map((cx, i) => (
+          <motion.circle key={i} cx={cx} cy={10 + (i % 5) * 22} r="1"
+            fill="white" opacity="0.6"
+            animate={{ opacity: [0.3, 1, 0.3] }}
+            transition={{ duration: 2 + (i % 4) * 0.5, repeat: Infinity, delay: i * 0.15 }} />
+        ))}
+
+        {/* Mountain */}
+        <path d="M0 260 L120 120 L180 165 L210 80 L240 165 L320 120 L400 260 Z"
+          fill="url(#mtnBody)" opacity="0.92" />
+
+        {/* Snow cap */}
+        <path d="M195 100 L210 80 L225 100 Z" fill="white" opacity="0.9" />
+
+        {/* Progress path */}
+        <motion.path
+          d="M60 240 C100 200, 150 170, 210 80"
+          fill="none" stroke="rgba(168,85,247,0.5)" strokeWidth="2.5" strokeDasharray="7 4"
+          initial={{ pathLength: 0 }} animate={{ pathLength: progress / 100 }}
+          transition={{ duration: 1.8, ease: "easeOut" }} />
+
+        {/* Milestones */}
+        {[25, 50, 75, 100].map((m, i) => {
+          const reached = progress >= m;
+          const mx = 60 + (m / 100) * 150;
+          const my = 240 - (m / 100) * 160;
+          return (
+            <motion.g key={m} initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ delay: 0.3 + i * 0.15 }}>
+              <circle cx={mx} cy={my} r="5"
+                fill={reached ? "#34d399" : "rgba(255,255,255,0.25)"}
+                stroke={reached ? "#10b981" : "rgba(255,255,255,0.4)"} strokeWidth="1.5" />
+              {reached && (
+                <motion.circle cx={mx} cy={my} r="10" fill="none" stroke="#34d399" strokeWidth="1.5"
+                  animate={{ r: [5, 14, 5], opacity: [1, 0.2, 0] }}
+                  transition={{ duration: 1.8, repeat: Infinity }} />
+              )}
+            </motion.g>
+          );
+        })}
+
+        {/* Climber */}
+        <motion.g initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.5 }}>
+          <motion.circle cx={climberX} cy={climberY} r="10"
+            fill="#f472b6" stroke="white" strokeWidth="2"
+            animate={{ y: [0, -2, 0] }}
+            transition={{ duration: 2, repeat: Infinity }} />
+          <text x={climberX} y={climberY + 4} textAnchor="middle"
+            fill="white" fontSize="8" fontFamily="DM Mono, monospace" fontWeight="bold">
+            {Math.round(progress)}%
+          </text>
+        </motion.g>
+
+        {/* Peak celebration */}
+        {peakReached && (
+          <motion.g filter="url(#peakGlowMtn)">
+            <motion.circle cx="210" cy="80" r="18" fill="none" stroke="#fbbf24" strokeWidth="2"
+              animate={{ r: [14, 22, 14], opacity: [0.6, 1, 0.6] }}
+              transition={{ duration: 2, repeat: Infinity }} />
+            <text x="210" y="85" textAnchor="middle" fill="#fbbf24" fontSize="14">🏆</text>
+          </motion.g>
+        )}
+
+        {/* Stats */}
+        <text x="12" y="248" fill="rgba(224,231,255,0.8)" fontSize="9.5" fontFamily="DM Mono, monospace" fontWeight="600">
+          {completedTopics}/{totalTopics} topics  ·  🔥 {streak}d
+        </text>
+      </svg>
+    </div>
+  );
+}
+
 // ─── Study Activity Section ───────────────────────────────────────────────────
 function StudyActivitySection({ dailyStats, liveSessionSeconds }) {
   const [activeTab, setActiveTab] = useState("area");
@@ -252,9 +556,7 @@ function StudyActivitySection({ dailyStats, liveSessionSeconds }) {
 
   const last30 = useMemo(() => {
     const data = getLast30Days(dailyStats);
-    return data.map((d) =>
-      d.key === todayKey ? { ...d, hours: d.hours + liveSessionSeconds / 3600 } : d
-    );
+    return data.map((d) => d.key === todayKey ? { ...d, hours: d.hours + liveSessionSeconds / 3600 } : d);
   }, [dailyStats, liveSessionSeconds, todayKey]);
 
   const last12w = useMemo(() => getLast12Weeks(dailyStats), [dailyStats]);
@@ -267,11 +569,7 @@ function StudyActivitySection({ dailyStats, liveSessionSeconds }) {
       totals[dow] += (ds?.totalTime || 0) / 3600;
       if ((ds?.totalTime || 0) > 0) counts[dow]++;
     });
-    return days.map((day, i) => ({
-      day,
-      avg: counts[i] > 0 ? +(totals[i] / counts[i]).toFixed(2) : 0,
-      total: +totals[i].toFixed(2),
-    }));
+    return days.map((day, i) => ({ day, avg: counts[i] > 0 ? +(totals[i] / counts[i]).toFixed(2) : 0 }));
   }, [dailyStats]);
 
   const monthlyTrend = useMemo(() => {
@@ -280,33 +578,24 @@ function StudyActivitySection({ dailyStats, liveSessionSeconds }) {
       const m = dk.slice(0, 7);
       months[m] = (months[m] || 0) + (ds?.totalTime || 0) / 3600;
     });
-    return Object.entries(months)
-      .sort(([a], [b]) => a.localeCompare(b))
-      .slice(-6)
-      .map(([key, hours]) => ({
-        label: new Date(key + "-01").toLocaleDateString("en-US", { month: "short", year: "2-digit" }),
-        hours: +hours.toFixed(2),
-      }));
+    return Object.entries(months).sort(([a], [b]) => a.localeCompare(b)).slice(-6)
+      .map(([key, hours]) => ({ label: new Date(key + "-01").toLocaleDateString("en-US", { month: "short", year: "2-digit" }), hours: +hours.toFixed(2) }));
   }, [dailyStats]);
 
   const tabs = [
-    { id: "area", label: "30-Day Trend", icon: "📈" },
+    { id: "area", label: "30-Day", icon: "📈" },
     { id: "bar", label: "Weekly", icon: "📊" },
-    { id: "weekday", label: "By Weekday", icon: "📅" },
+    { id: "weekday", label: "Weekday", icon: "📅" },
     { id: "monthly", label: "Monthly", icon: "🗓️" },
+    { id: "rhythm", label: "Rhythm", icon: "🎵" },
   ];
-
-  const maxHours = useMemo(() => Math.max(...last30.map((d) => d.hours), 0.1), [last30]);
 
   return (
     <div className="activity-section">
       <div className="activity-tab-bar">
         {tabs.map((t) => (
-          <button
-            key={t.id}
-            className={`activity-tab ${activeTab === t.id ? "active" : ""}`}
-            onClick={() => setActiveTab(t.id)}
-          >
+          <button key={t.id} className={`activity-tab ${activeTab === t.id ? "active" : ""}`}
+            onClick={() => setActiveTab(t.id)} aria-selected={activeTab === t.id}>
             <span className="at-icon">{t.icon}</span>
             <span className="at-label">{t.label}</span>
           </button>
@@ -315,37 +604,29 @@ function StudyActivitySection({ dailyStats, liveSessionSeconds }) {
 
       <AnimatePresence mode="wait">
         {activeTab === "area" && (
-          <motion.div key="area" className="chart-panel" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -12 }}>
+          <motion.div key="area" className="chart-panel" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }}>
             <div className="chart-meta">
               <div className="chart-meta-stat">
                 <span className="cms-label">Peak day</span>
-                <span className="cms-val" style={{ color: CHART_COLORS.primary }}>
-                  {formatHours(Math.max(...last30.map(d => d.hours)) * 3600)}
-                </span>
+                <span className="cms-val" style={{ color: CHART_COLORS.primary }}>{formatHours(Math.max(...last30.map(d => d.hours)) * 3600)}</span>
               </div>
               <div className="chart-meta-stat">
                 <span className="cms-label">Daily avg</span>
                 <span className="cms-val" style={{ color: CHART_COLORS.secondary }}>
-                  {formatHours((last30.reduce((a, d) => a + d.hours, 0) / last30.filter(d => d.hours > 0).length || 0) * 3600)}
+                  {formatHours((last30.reduce((a, d) => a + d.hours, 0) / (last30.filter(d => d.hours > 0).length || 1)) * 3600)}
                 </span>
               </div>
               <div className="chart-meta-stat">
                 <span className="cms-label">Active days</span>
-                <span className="cms-val" style={{ color: CHART_COLORS.accent }}>
-                  {last30.filter(d => d.hours > 0).length}
-                </span>
+                <span className="cms-val" style={{ color: CHART_COLORS.accent }}>{last30.filter(d => d.hours > 0).length}</span>
               </div>
             </div>
-            <ResponsiveContainer width="100%" height={220}>
+            <ResponsiveContainer width="100%" height={200}>
               <AreaChart data={last30} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                 <defs>
                   <linearGradient id="areaGrad1" x1="0" y1="0" x2="0" y2="1">
                     <stop offset="5%" stopColor="#d4609a" stopOpacity={0.35} />
                     <stop offset="95%" stopColor="#d4609a" stopOpacity={0} />
-                  </linearGradient>
-                  <linearGradient id="areaGrad2" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#8b6fd4" stopOpacity={0.25} />
-                    <stop offset="95%" stopColor="#8b6fd4" stopOpacity={0} />
                   </linearGradient>
                 </defs>
                 <CartesianGrid stroke="rgba(255,255,255,0.04)" strokeDasharray="3 3" vertical={false} />
@@ -362,23 +643,19 @@ function StudyActivitySection({ dailyStats, liveSessionSeconds }) {
         )}
 
         {activeTab === "bar" && (
-          <motion.div key="bar" className="chart-panel" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -12 }}>
+          <motion.div key="bar" className="chart-panel" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }}>
             <div className="chart-meta">
               <div className="chart-meta-stat">
                 <span className="cms-label">Best week</span>
-                <span className="cms-val" style={{ color: CHART_COLORS.primary }}>
-                  {formatHours(Math.max(...last12w.map(d => d.hours)) * 3600)}
-                </span>
+                <span className="cms-val" style={{ color: CHART_COLORS.primary }}>{formatHours(Math.max(...last12w.map(d => d.hours)) * 3600)}</span>
               </div>
               <div className="chart-meta-stat">
                 <span className="cms-label">Total (12w)</span>
-                <span className="cms-val" style={{ color: CHART_COLORS.secondary }}>
-                  {formatHours(last12w.reduce((a, d) => a + d.hours, 0) * 3600)}
-                </span>
+                <span className="cms-val" style={{ color: CHART_COLORS.secondary }}>{formatHours(last12w.reduce((a, d) => a + d.hours, 0) * 3600)}</span>
               </div>
             </div>
-            <ResponsiveContainer width="100%" height={220}>
-              <BarChart data={last12w} margin={{ top: 10, right: 10, left: -20, bottom: 0 }} barSize={20}>
+            <ResponsiveContainer width="100%" height={200}>
+              <BarChart data={last12w} margin={{ top: 10, right: 10, left: -20, bottom: 0 }} barSize={18}>
                 <defs>
                   <linearGradient id="barGrad" x1="0" y1="0" x2="0" y2="1">
                     <stop offset="0%" stopColor="#8b6fd4" stopOpacity={0.9} />
@@ -389,14 +666,14 @@ function StudyActivitySection({ dailyStats, liveSessionSeconds }) {
                 <XAxis dataKey="label" tick={{ fill: "#7a6e94", fontSize: 9, fontFamily: "DM Mono, monospace" }} axisLine={false} tickLine={false} />
                 <YAxis tick={{ fill: "#7a6e94", fontSize: 10, fontFamily: "DM Mono, monospace" }} axisLine={false} tickLine={false} tickFormatter={(v) => `${v}h`} />
                 <Tooltip content={<CustomTooltip />} cursor={{ fill: "rgba(212,96,154,0.06)" }} />
-                <Bar dataKey="hours" name="Hours" fill="url(#barGrad)" radius={[6, 6, 0, 0]} />
+                <Bar dataKey="hours" name="Hours" fill="url(#barGrad)" radius={[5, 5, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
           </motion.div>
         )}
 
         {activeTab === "weekday" && (
-          <motion.div key="weekday" className="chart-panel" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -12 }}>
+          <motion.div key="weekday" className="chart-panel" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }}>
             <div className="chart-meta">
               <div className="chart-meta-stat">
                 <span className="cms-label">Best day</span>
@@ -405,7 +682,7 @@ function StudyActivitySection({ dailyStats, liveSessionSeconds }) {
                 </span>
               </div>
               <div className="chart-meta-stat">
-                <span className="cms-label">Weakest day</span>
+                <span className="cms-label">Weakest</span>
                 <span className="cms-val" style={{ color: CHART_COLORS.warn }}>
                   {weekdayAvg.reduce((worst, d) => d.avg < worst.avg ? d : worst, weekdayAvg[0])?.day || "—"}
                 </span>
@@ -434,7 +711,7 @@ function StudyActivitySection({ dailyStats, liveSessionSeconds }) {
         )}
 
         {activeTab === "monthly" && (
-          <motion.div key="monthly" className="chart-panel" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -12 }}>
+          <motion.div key="monthly" className="chart-panel" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }}>
             <div className="chart-meta">
               <div className="chart-meta-stat">
                 <span className="cms-label">Best month</span>
@@ -444,12 +721,10 @@ function StudyActivitySection({ dailyStats, liveSessionSeconds }) {
               </div>
               <div className="chart-meta-stat">
                 <span className="cms-label">Total (6mo)</span>
-                <span className="cms-val" style={{ color: CHART_COLORS.cyan }}>
-                  {formatHours(monthlyTrend.reduce((a, d) => a + d.hours, 0) * 3600)}
-                </span>
+                <span className="cms-val" style={{ color: CHART_COLORS.cyan }}>{formatHours(monthlyTrend.reduce((a, d) => a + d.hours, 0) * 3600)}</span>
               </div>
             </div>
-            <ResponsiveContainer width="100%" height={220}>
+            <ResponsiveContainer width="100%" height={200}>
               <LineChart data={monthlyTrend} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                 <defs>
                   <linearGradient id="lineGlow" x1="0" y1="0" x2="1" y2="0">
@@ -468,25 +743,26 @@ function StudyActivitySection({ dailyStats, liveSessionSeconds }) {
             </ResponsiveContainer>
           </motion.div>
         )}
+
+        {activeTab === "rhythm" && (
+          <motion.div key="rhythm" className="chart-panel" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }}>
+            <p className="chart-description">When do you focus best? Your average study hours by time of day.</p>
+            <StudyRhythmChart dailyStats={dailyStats} />
+          </motion.div>
+        )}
       </AnimatePresence>
     </div>
   );
 }
 
-// ─── Fields Radar Chart ───────────────────────────────────────────────────────
+// ─── Fields Charts ────────────────────────────────────────────────────────────
 function FieldsRadarChart({ fieldStats }) {
   const data = useMemo(() => {
     const top6 = fieldStats.slice(0, 6);
     const max = top6[0]?.[1] || 1;
-    return top6.map(([field, time]) => ({
-      field: field.length > 10 ? field.slice(0, 9) + "…" : field,
-      value: Math.round((time / max) * 100),
-      hours: time / 3600,
-    }));
+    return top6.map(([field, time]) => ({ field: field.length > 10 ? field.slice(0, 9) + "…" : field, value: Math.round((time / max) * 100), hours: time / 3600 }));
   }, [fieldStats]);
-
   if (data.length < 3) return null;
-
   return (
     <ResponsiveContainer width="100%" height={240}>
       <RadarChart data={data} margin={{ top: 10, right: 30, bottom: 10, left: 30 }}>
@@ -501,16 +777,8 @@ function FieldsRadarChart({ fieldStats }) {
           return (
             <div className="recharts-custom-tooltip">
               <div className="rct-label">{d?.field}</div>
-              <div className="rct-row">
-                <span className="rct-dot" style={{ background: "#d4609a" }} />
-                <span className="rct-name">Focus %</span>
-                <span className="rct-value" style={{ color: "#d4609a" }}>{d?.value}%</span>
-              </div>
-              <div className="rct-row">
-                <span className="rct-dot" style={{ background: "#8b6fd4" }} />
-                <span className="rct-name">Time</span>
-                <span className="rct-value" style={{ color: "#8b6fd4" }}>{d?.hours?.toFixed(1)}h</span>
-              </div>
+              <div className="rct-row"><span className="rct-dot" style={{ background: "#d4609a" }} /><span className="rct-name">Focus %</span><span className="rct-value" style={{ color: "#d4609a" }}>{d?.value}%</span></div>
+              <div className="rct-row"><span className="rct-dot" style={{ background: "#8b6fd4" }} /><span className="rct-name">Time</span><span className="rct-value" style={{ color: "#8b6fd4" }}>{d?.hours?.toFixed(1)}h</span></div>
             </div>
           );
         }} />
@@ -519,33 +787,24 @@ function FieldsRadarChart({ fieldStats }) {
   );
 }
 
-// ─── Pie / Donut ──────────────────────────────────────────────────────────────
 function FieldDonut({ fieldStats }) {
   const [activeIndex, setActiveIndex] = useState(null);
   const data = useMemo(() => fieldStats.slice(0, 6).map(([name, value]) => ({ name, value })), [fieldStats]);
   const total = data.reduce((a, d) => a + d.value, 0);
-
   const renderLabel = ({ cx, cy, midAngle, innerRadius, outerRadius, index }) => {
     if (activeIndex !== index) return null;
     const RADIAN = Math.PI / 180;
     const radius = innerRadius + (outerRadius - innerRadius) * 0.5;
     const x = cx + radius * Math.cos(-midAngle * RADIAN);
     const y = cy + radius * Math.sin(-midAngle * RADIAN);
-    return (
-      <text x={x} y={y} fill="white" textAnchor="middle" dominantBaseline="central" fontSize={10} fontFamily="DM Mono, monospace" fontWeight={700}>
-        {Math.round((data[index].value / total) * 100)}%
-      </text>
-    );
+    return <text x={x} y={y} fill="white" textAnchor="middle" dominantBaseline="central" fontSize={10} fontFamily="DM Mono, monospace" fontWeight={700}>{Math.round((data[index].value / total) * 100)}%</text>;
   };
-
   return (
     <div className="donut-container">
       <ResponsiveContainer width="100%" height={200}>
         <PieChart>
-          <Pie data={data} cx="50%" cy="50%" innerRadius={52} outerRadius={80}
-            paddingAngle={3} dataKey="value"
-            onMouseEnter={(_, index) => setActiveIndex(index)}
-            onMouseLeave={() => setActiveIndex(null)}
+          <Pie data={data} cx="50%" cy="50%" innerRadius={52} outerRadius={80} paddingAngle={3} dataKey="value"
+            onMouseEnter={(_, index) => setActiveIndex(index)} onMouseLeave={() => setActiveIndex(null)}
             labelLine={false} label={renderLabel}>
             {data.map((_, index) => (
               <Cell key={index} fill={PALETTE[index % PALETTE.length]}
@@ -559,16 +818,8 @@ function FieldDonut({ fieldStats }) {
             return (
               <div className="recharts-custom-tooltip">
                 <div className="rct-label">{d.name}</div>
-                <div className="rct-row">
-                  <span className="rct-dot" style={{ background: d.payload.fill || PALETTE[0] }} />
-                  <span className="rct-name">Time</span>
-                  <span className="rct-value" style={{ color: d.payload.fill || PALETTE[0] }}>{formatHours(d.value)}</span>
-                </div>
-                <div className="rct-row">
-                  <span className="rct-dot" style={{ background: "#7a6e94" }} />
-                  <span className="rct-name">Share</span>
-                  <span className="rct-value" style={{ color: "#94a3b8" }}>{Math.round((d.value / total) * 100)}%</span>
-                </div>
+                <div className="rct-row"><span className="rct-dot" style={{ background: d.payload.fill || PALETTE[0] }} /><span className="rct-name">Time</span><span className="rct-value" style={{ color: d.payload.fill || PALETTE[0] }}>{formatHours(d.value)}</span></div>
+                <div className="rct-row"><span className="rct-dot" style={{ background: "#7a6e94" }} /><span className="rct-name">Share</span><span className="rct-value" style={{ color: "#94a3b8" }}>{Math.round((d.value / total) * 100)}%</span></div>
               </div>
             );
           }} />
@@ -626,9 +877,7 @@ function ActivityHeatmap({ data }) {
     const rect = e.currentTarget.getBoundingClientRect();
     const parentRect = wrapRef.current?.getBoundingClientRect();
     setHovered(day);
-    if (parentRect) {
-      setTooltipPos({ x: rect.left - parentRect.left + rect.width / 2, y: rect.top - parentRect.top });
-    }
+    if (parentRect) setTooltipPos({ x: rect.left - parentRect.left + rect.width / 2, y: rect.top - parentRect.top });
   }, []);
 
   return (
@@ -649,7 +898,9 @@ function ActivityHeatmap({ data }) {
                   onMouseEnter={(e) => handleCellEnter(e, day)}
                   onMouseLeave={() => setHovered(null)}
                   onTouchStart={(e) => handleCellEnter(e, day)}
-                  onTouchEnd={() => setTimeout(() => setHovered(null), 1500)} />
+                  onTouchEnd={() => setTimeout(() => setHovered(null), 1800)}
+                  role="button" tabIndex={0}
+                  aria-label={`${day.key}: ${day.seconds > 0 ? formatHours(day.seconds) : "No study"}`} />
               ))}
             </div>
           ))}
@@ -664,9 +915,7 @@ function ActivityHeatmap({ data }) {
         )}
         <div className="heatmap-legend">
           <span className="heatmap-legend-lbl">Less</span>
-          {[0, 0.2, 0.45, 0.7, 1].map((v, i) => (
-            <div key={i} className="heatmap-cell" style={{ background: getColor(v * max) }} />
-          ))}
+          {[0, 0.2, 0.45, 0.7, 1].map((v, i) => <div key={i} className="heatmap-cell" style={{ background: getColor(v * max) }} />)}
           <span className="heatmap-legend-lbl">More</span>
         </div>
       </div>
@@ -679,26 +928,20 @@ function ProductivityScore({ streak, avgDailyHours, completionRate }) {
   const score = Math.min(Math.round(streak * 3 + avgDailyHours * 15 + completionRate * 0.4), 100);
   const grade = score >= 85 ? "S" : score >= 70 ? "A" : score >= 55 ? "B" : score >= 40 ? "C" : "D";
   const gradeColor = { S: "#d4609a", A: "#3eb57d", B: "#8b6fd4", C: "#c87020", D: "#c0365e" }[grade];
-  const gaugeData = [
-    { name: "Score", value: score },
-    { name: "Gap", value: 100 - score },
-  ];
   return (
     <div className="productivity-score-wrap">
       <div className="score-gauge-wrap">
         <ResponsiveContainer width={160} height={160}>
           <PieChart>
-            <Pie data={gaugeData} cx="50%" cy="50%" startAngle={220} endAngle={-40}
-              innerRadius={52} outerRadius={70} paddingAngle={0} dataKey="value">
+            <Pie data={[{ value: score }, { value: 100 - score }]} cx="50%" cy="50%"
+              startAngle={220} endAngle={-40} innerRadius={52} outerRadius={70} paddingAngle={0} dataKey="value">
               <Cell fill={gradeColor} style={{ filter: `drop-shadow(0 0 10px ${gradeColor}60)` }} />
               <Cell fill="rgba(255,255,255,0.05)" />
             </Pie>
           </PieChart>
         </ResponsiveContainer>
         <div className="gauge-center">
-          <div className="gauge-score" style={{ color: gradeColor }}>
-            <AnimatedNumber value={score} />
-          </div>
+          <div className="gauge-score" style={{ color: gradeColor }}><AnimatedNumber value={score} /></div>
           <div className="gauge-grade" style={{ color: gradeColor }}>{grade}</div>
         </div>
       </div>
@@ -745,7 +988,7 @@ function TrendArrow({ current, previous }) {
 }
 
 // ─── Profile Insight Cards ────────────────────────────────────────────────────
-function ProfileInsightCards({ userData }) {
+function ProfileInsightCards({ userData, streak, avgDailyHours, focusQuality }) {
   const insights = useMemo(() => {
     const ds = userData?.dailyStats || {};
     const dowTotals = Array(7).fill(0), dowCounts = Array(7).fill(0);
@@ -773,7 +1016,8 @@ function ProfileInsightCards({ userData }) {
   const cards = [
     { icon: "📅", label: "Best Day", value: insights.mostProductiveDayShort || "—", sub: insights.mostProductiveDay ? `${insights.mostProductiveDayAvg.toFixed(1)}h avg` : "Need more data" },
     { icon: "📚", label: "Fields Tracked", value: insights.fieldCount, sub: "active subjects" },
-    { icon: "🎯", label: "Study Score", value: `${Math.min(Math.round((insights.fieldCount * 5) + insights.mostProductiveDayAvg * 10), 99)}%`, sub: "consistency rating" },
+    { icon: "🎯", label: "Focus Quality", value: `${focusQuality}%`, sub: "composite score" },
+    { icon: "⚡", label: "Daily Avg", value: `${avgDailyHours.toFixed(1)}h`, sub: "on active days" },
   ];
 
   return (
@@ -781,7 +1025,7 @@ function ProfileInsightCards({ userData }) {
       {cards.map((card, i) => (
         <motion.div key={card.label} className="profile-insight-card"
           initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: i * 0.1, type: "spring", stiffness: 260, damping: 22 }}>
+          transition={{ delay: i * 0.08, type: "spring", stiffness: 260, damping: 22 }}>
           <div className="pic-icon">{card.icon}</div>
           <div className="pic-label">{card.label}</div>
           <div className="pic-value">{card.value}</div>
@@ -810,12 +1054,12 @@ function Profile() {
   const [liveSessionSeconds, setLiveSessionSeconds] = useState(0);
   const [liveField, setLiveField] = useState(null);
   const [fieldsView, setFieldsView] = useState("bars");
+  const [activeVisualTab, setActiveVisualTab] = useState("garden");
 
   const unsubRef = useRef(null);
   const fileInputRef = useRef(null);
   const avatarMenuRef = useRef(null);
 
-  // Live session state polling
   useEffect(() => {
     const interval = setInterval(() => {
       const state = window.studyBuddyTimerState;
@@ -869,29 +1113,23 @@ function Profile() {
 
   const handleCancelEdit = useCallback(() => { setDisplayName(origName); setEditing(false); }, [origName]);
 
-  // ── Fix: Use correct storage bucket path for upload ──────────────────────
   const handlePicUpload = useCallback(async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
     if (!file.type.match(/^image\/(jpeg|jpg|png|webp)$/)) return toast.error("Only JPG, PNG or WebP images");
     if (file.size > 8 * 1024 * 1024) return toast.error("Image must be under 8MB");
-
     setUploadingPic(true); setShowAvatarMenu(false);
     try {
       const compressed = await compressImage(file, 800, 0.85);
-      const uploadFile = compressed || file;
-      // Use the simple path — Firebase SDK resolves bucket from getStorage() config
       const storageRef = ref(storage, `profilePics/${user.uid}`);
-      await uploadBytes(storageRef, uploadFile, { contentType: "image/jpeg" });
+      await uploadBytes(storageRef, compressed || file, { contentType: "image/jpeg" });
       const url = await getDownloadURL(storageRef);
       await updateProfile(user, { photoURL: url });
       await updateDoc(doc(db, "users", user.uid), { photoURL: url, updatedAt: serverTimestamp() });
       setProfilePicUrl(url);
       toast.success("Profile picture updated! 🌸");
     } catch (err) {
-      console.error("Upload error:", err);
-      if (err.code === "storage/unauthorized") toast.error("Upload denied — check Firebase Storage rules in console.");
-      else if (err.code === "storage/unknown") toast.error("Storage CORS error. Add CORS config to Firebase Storage bucket.");
+      if (err.code === "storage/unauthorized") toast.error("Upload denied — check Firebase Storage rules.");
       else toast.error(err.message || "Upload failed");
     } finally { setUploadingPic(false); if (fileInputRef.current) fileInputRef.current.value = ""; }
   }, [user]);
@@ -925,9 +1163,8 @@ function Profile() {
     } finally { setIsDeleting(false); }
   }, [user, delPass, delConfirm]);
 
-  // ── Derived data ─────────────────────────────────────────────────────────
+  // Derived data
   const streak = useMemo(() => calcStreak(userData?.dailyStats), [userData?.dailyStats]);
-
   const heatmapData = useMemo(() => {
     const data = getHeatmapData(userData?.dailyStats);
     const todayKey = localYMD();
@@ -954,7 +1191,6 @@ function Profile() {
   }, [taskStats]);
 
   const activeFieldSet = useMemo(() => new Set(userData?.studyFields || []), [userData?.studyFields]);
-
   const fieldStats = useMemo(() => {
     const totals = {};
     Object.values(userData?.dailyStats || {}).forEach((ds) => {
@@ -983,7 +1219,6 @@ function Profile() {
     return sum;
   }, [userData?.dailyStats, lastWeekKey]);
 
-  // Time pills data for mini bar chart
   const last7Totals = useMemo(() => {
     const today = new Date();
     return Array.from({ length: 7 }, (_, i) => {
@@ -996,6 +1231,10 @@ function Profile() {
     const days = ["M", "T", "W", "T", "F", "S", "S"];
     return last7Totals.map((h, i) => ({ day: days[i], h }));
   }, [last7Totals]);
+
+  const focusQuality = useMemo(() => calculateFocusQuality(userData, streak), [userData, streak]);
+  const totalTopics = useMemo(() => (userData?.subjects || []).reduce((a, s) => a + (s.topics?.length || 0), 0), [userData]);
+  const completedTopics = useMemo(() => (userData?.subjects || []).reduce((a, s) => a + (s.topics?.filter(t => t.confidence >= 7)?.length || 0), 0), [userData]);
 
   if (loading) {
     return (
@@ -1027,6 +1266,7 @@ function Profile() {
       <div className="bg-orb bg-orb-1" />
       <div className="bg-orb bg-orb-2" />
       <div className="bg-orb bg-orb-3" />
+      <div className="particle-layer" aria-hidden="true" />
 
       <input ref={fileInputRef} type="file" accept="image/jpeg,image/jpg,image/png,image/webp"
         style={{ display: "none" }} onChange={handlePicUpload} />
@@ -1043,12 +1283,9 @@ function Profile() {
               <div className="avatar-wrapper">
                 <div className={`avatar${uploadingPic ? " uploading" : ""}`}
                   onClick={() => setShowAvatarMenu((v) => !v)}>
-                  {profilePicUrl ? (
-                    <img src={profilePicUrl} alt="Profile"
-                      onError={(e) => { e.currentTarget.style.display = "none"; setProfilePicUrl(null); }} />
-                  ) : (
-                    <span>{initials}</span>
-                  )}
+                  {profilePicUrl
+                    ? <img src={profilePicUrl} alt="Profile" onError={(e) => { e.currentTarget.style.display = "none"; setProfilePicUrl(null); }} />
+                    : <span>{initials}</span>}
                   <div className="avatar-overlay">{uploadingPic ? "⏳" : "📷"}</div>
                 </div>
                 <div className={`avatar-status${isLive ? " studying" : ""}`} />
@@ -1056,16 +1293,13 @@ function Profile() {
               <AnimatePresence>
                 {showAvatarMenu && (
                   <motion.div className="avatar-menu"
-                    initial={{ opacity: 0, scale: 0.9, y: -6 }}
-                    animate={{ opacity: 1, scale: 1, y: 0 }}
+                    initial={{ opacity: 0, scale: 0.9, y: -6 }} animate={{ opacity: 1, scale: 1, y: 0 }}
                     exit={{ opacity: 0, scale: 0.9, y: -6 }}
                     transition={{ type: "spring", stiffness: 340, damping: 24 }}>
                     <button className="avatar-menu-btn" onClick={() => { setShowAvatarMenu(false); fileInputRef.current?.click(); }}>
                       📷 {profilePicUrl ? "Change photo" : "Upload photo"}
                     </button>
-                    {profilePicUrl && (
-                      <button className="avatar-menu-btn danger" onClick={handleRemovePic}>🗑️ Remove photo</button>
-                    )}
+                    {profilePicUrl && <button className="avatar-menu-btn danger" onClick={handleRemovePic}>🗑️ Remove photo</button>}
                     <button className="avatar-menu-btn" onClick={() => setShowAvatarMenu(false)}>✕ Cancel</button>
                   </motion.div>
                 )}
@@ -1089,7 +1323,7 @@ function Profile() {
                 <>
                   <div className="hero-name-row">
                     <h1 className="hero-name">{displayName || "Anonymous"}</h1>
-                    <button className="edit-btn" onClick={() => setEditing(true)}>✏️</button>
+                    <button className="edit-btn" onClick={() => setEditing(true)} aria-label="Edit display name">✏️</button>
                   </div>
                   <p className="hero-email">{user.email}</p>
                   <div className="hero-chips">
@@ -1101,7 +1335,7 @@ function Profile() {
               )}
             </div>
 
-            {/* Right side */}
+            {/* Right */}
             <div className="hero-right">
               <StudyPersonality streak={streak} avgDailyHours={avgDailyHours}
                 fieldCount={userData?.studyFields?.length || 0} completionRate={completionRate} />
@@ -1146,7 +1380,6 @@ function Profile() {
                     <div className="time-pill-val" style={{ color }}>{formatTime(val)}</div>
                     <div className="time-pill-lbl">{label}</div>
                   </div>
-                  {/* Mini sparkline bar */}
                   <div className="time-pill-mini">
                     {miniBarData.map((d, i) => (
                       <div key={i} className="mini-bar" style={{
@@ -1165,11 +1398,51 @@ function Profile() {
         {/* ── Insights ──────────────────────────────────────────────────── */}
         <motion.div className="glass-card section-card" {...fadeUp} transition={{ delay: 0.12 }}>
           <div className="section-title"><span>💡</span> Study Insights</div>
-          <ProfileInsightCards userData={userData} />
+          <ProfileInsightCards userData={userData} streak={streak} avgDailyHours={avgDailyHours} focusQuality={focusQuality} />
         </motion.div>
 
-        {/* ── Study Activity (Recharts) ──────────────────────────────────── */}
-        <motion.div className="glass-card section-card" {...fadeUp} transition={{ delay: 0.14 }}>
+        {/* ── Achievements (NEW) ─────────────────────────────────────────── */}
+        <motion.div className="glass-card section-card" {...fadeUp} transition={{ delay: 0.135 }}>
+          <div className="section-title"><span>🏅</span> Achievements</div>
+          <AchievementBadges streak={streak} avgDailyHours={avgDailyHours} fieldCount={userData?.studyFields?.length || 0} />
+        </motion.div>
+
+        {/* ── Visual Progress (Garden / Mountain / Mastery) NEW ─────────── */}
+        <motion.div className="glass-card section-card" {...fadeUp} transition={{ delay: 0.145 }}>
+          <div className="section-header">
+            <div className="section-title"><span>🌸</span> Visual Progress</div>
+            <div className="chart-tabs">
+              {[["garden", "🌱 Garden"], ["mountain", "⛰️ Mountain"], ["mastery", "📈 Mastery"]].map(([v, lbl]) => (
+                <button key={v} className={`chart-tab ${activeVisualTab === v ? "active" : ""}`}
+                  onClick={() => setActiveVisualTab(v)}>{lbl}</button>
+              ))}
+            </div>
+          </div>
+
+          <AnimatePresence mode="wait">
+            {activeVisualTab === "garden" && (
+              <motion.div key="garden" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+                <p className="chart-description">Each flower represents a week of consistent study. Keep your streak to grow your garden! 🌸</p>
+                <StudyGardenSVG streak={streak} />
+              </motion.div>
+            )}
+            {activeVisualTab === "mountain" && (
+              <motion.div key="mountain" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+                <p className="chart-description">Your journey to mastery — track topics conquered on the way to the summit.</p>
+                <MountainProgressSVG totalTopics={Math.max(totalTopics, 10)} completedTopics={completedTopics} streak={streak} />
+              </motion.div>
+            )}
+            {activeVisualTab === "mastery" && (
+              <motion.div key="mastery" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+                <p className="chart-description">Subject confidence trends over time — sparklines show progress per topic area.</p>
+                <MasteryTimeline subjects={userData?.subjects || []} />
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </motion.div>
+
+        {/* ── Study Activity ─────────────────────────────────────────────── */}
+        <motion.div className="glass-card section-card" {...fadeUp} transition={{ delay: 0.16 }}>
           <div className="section-title">
             <span>📊</span> Study Activity {isLive && <span className="live-badge">LIVE</span>}
           </div>
@@ -1177,7 +1450,7 @@ function Profile() {
         </motion.div>
 
         {/* ── Year Heatmap ───────────────────────────────────────────────── */}
-        <motion.div className="glass-card section-card" {...fadeUp} transition={{ delay: 0.17 }}>
+        <motion.div className="glass-card section-card" {...fadeUp} transition={{ delay: 0.18 }}>
           <div className="section-title"><span>🗓️</span> Year Activity Heatmap</div>
           <ActivityHeatmap data={heatmapData} />
         </motion.div>
@@ -1209,12 +1482,8 @@ function Profile() {
                           <div className="field-rank" style={{ color }}>#{idx + 1}</div>
                           <div className="field-info">
                             <div className="field-name-row">
-                              <span className="field-name">
-                                {isActive && <span className="field-live-dot" />}{field}
-                              </span>
-                              <span className="field-time-badge" style={{ color, borderColor: `${color}40`, background: `${color}12` }}>
-                                {formatHours(time)}
-                              </span>
+                              <span className="field-name">{isActive && <span className="field-live-dot" />}{field}</span>
+                              <span className="field-time-badge" style={{ color, borderColor: `${color}40`, background: `${color}12` }}>{formatHours(time)}</span>
                             </div>
                             <div className="field-bar-track">
                               <motion.div className="field-bar-fill"
