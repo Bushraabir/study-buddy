@@ -24,7 +24,7 @@ import {
   increment,
   Timestamp,
   limit,
-  deleteField, 
+  deleteField,
 } from "firebase/firestore";
 import { auth, db } from "../components/firebase";
 import { onAuthStateChanged } from "firebase/auth";
@@ -34,7 +34,6 @@ import Lottie from "lottie-react";
 import clockAnimation from "../assets/3d-clock-animation.json";
 import "./Session.css";
 
-/* ─── Framer Variants ─── */
 const staggerContainer = { animate: { transition: { staggerChildren: 0.07 } } };
 const cardVariant = {
   initial: { opacity: 0, y: 20, scale: 0.98 },
@@ -46,7 +45,6 @@ const overlayVariant = {
   exit: { opacity: 0, y: 16, scale: 0.97, transition: { duration: 0.18 } },
 };
 
-/* ─── Helpers ─── */
 function fmtTime(s) {
   if (!s || s <= 0) return "00:00:00";
   const h = Math.floor(s / 3600);
@@ -103,7 +101,6 @@ function formatTimerDisplay(seconds) {
   return `${m}:${s}`;
 }
 
-/* ─── Environment type helper (mirrors EnvironmentOptimizer) ─── */
 const ENV_TYPE_MAP = {
   library: { color: "#a855f7", emoji: "📚" },
   cafe:    { color: "#f472b6", emoji: "☕" },
@@ -115,9 +112,6 @@ function envTypeInfo(type) {
   return ENV_TYPE_MAP[type] ?? ENV_TYPE_MAP.other;
 }
 
-/* ══════════════════════════════════════════
-   OFFLINE SYNC QUEUE (IndexedDB)
-══════════════════════════════════════════ */
 const IDB_NAME    = "studybuddy_offline";
 const IDB_VERSION = 1;
 const IDB_STORE   = "sync_queue";
@@ -163,7 +157,6 @@ async function idbDelete(id) {
   });
 }
 
-/* ─── Apply a queued session chunk ─── */
 async function applySessionChunk(uid, item) {
   const {
     sessionSeconds, dateKey, weekKey, monthKey, field, hourKey,
@@ -171,7 +164,11 @@ async function applySessionChunk(uid, item) {
     environment, environmentType,
   } = item;
   if (!uid || sessionSeconds <= 0) return;
-  const userDocRef = doc(db,  "users", uid);
+  if (sessionSeconds >= 86400) {
+    console.warn("Skipping session chunk > 24h");
+    return;
+  }
+  const userDocRef = doc(db, "users", uid);
   await runTransaction(db, async (tx) => {
     const snap = await tx.get(userDocRef);
     if (!snap.exists()) return;
@@ -222,7 +219,6 @@ async function applySessionChunk(uid, item) {
     tx.update(userDocRef, updates);
   });
 
-  // ── Write unified session document (Integration #7) ──────────────────────
   if (!isCheckpoint) {
     try {
       await addDoc(collection(db, "sessions"), {
@@ -249,7 +245,6 @@ async function applySessionChunk(uid, item) {
   }
 }
 
-/* ── Drain offline queue ── */
 async function drainSyncQueue(uid, onProgress) {
   const items = await idbGetAll();
   if (!items.length) return 0;
@@ -282,9 +277,6 @@ async function drainSyncQueue(uid, onProgress) {
   return synced;
 }
 
-/* ══════════════════════════════════════════
-   DISTRACTION CONSTANTS + HELPERS
-══════════════════════════════════════════ */
 const DISTRACTION_TYPES = [
   { id: "phone",   label: "Phone",       emoji: "📱", color: "#f472b6", bg: "rgba(244,114,182,0.14)", tip: "Put it face-down in another room" },
   { id: "social",  label: "Social",      emoji: "📲", color: "#a855f7", bg: "rgba(168,85,247,0.14)",  tip: "Use app timers or greyscale mode" },
@@ -319,9 +311,6 @@ async function upsertWeeklySummary(uid, typeId) {
   }
 }
 
-/* ══════════════════════════════════════════
-   DEEP WORK CONSTANTS
-══════════════════════════════════════════ */
 const DW_DURATIONS       = [15, 25, 45, 60, 90, 120];
 const SHIELD_MILESTONES  = [1, 3, 7, 14, 21, 30, 50, 75, 100];
 const DEEP_WORK_QUOTES   = [
@@ -435,7 +424,6 @@ function DWCircularTimer({ elapsed, total, active, paused }) {
   );
 }
 
-/* ─── Insights Hook ─── */
 function useInsights(userData, isRunning, liveSessionSeconds) {
   return useMemo(() => {
     const ds      = userData?.dailyStats || {};
@@ -492,7 +480,6 @@ function useInsights(userData, isRunning, liveSessionSeconds) {
   }, [userData, isRunning, liveSessionSeconds]);
 }
 
-/* ─── Hourly Histogram ─── */
 function HourHistogram({ dailyStats, liveSeconds, isRunning }) {
   const todayKey  = localYMD();
   const todayData = dailyStats?.[todayKey] || {};
@@ -573,7 +560,6 @@ function HourHistogram({ dailyStats, liveSeconds, isRunning }) {
   );
 }
 
-/* ─── Field Breakdown ─── */
 function FieldBreakdown({ fieldTimes, totalTime }) {
   const sorted = useMemo(() => {
     if (!fieldTimes) return [];
@@ -605,7 +591,6 @@ function FieldBreakdown({ fieldTimes, totalTime }) {
   );
 }
 
-/* ─── Insight Cards ─── */
 function InsightCards({ insights }) {
   const cards = [
     { icon: "🕐", label: "Best Hour",    value: insights.bestHour || "—",                        sub: insights.bestHour ? `avg ${insights.bestHourAvg.toFixed(1)}h/session` : "Keep studying to unlock",    hasBar: false },
@@ -635,22 +620,16 @@ function InsightCards({ insights }) {
   );
 }
 
-/* ══════════════════════════════════════════
-   MAIN SESSION COMPONENT
-══════════════════════════════════════════ */
 export default function StartSession() {
-  /* ─ Auth & data ─ */
   const [user, setUser]         = useState(null);
   const [userData, setUserData] = useState(null);
   const [loading, setLoading]   = useState(true);
 
-  /* ─ Offline ─ */
   const [isOnline, setIsOnline] = useState(navigator.onLine);
   const [queueSize, setQueueSize] = useState(0);
   const [isSyncing, setIsSyncing] = useState(false);
   const syncLockRef = useRef(false);
 
-  /* ─ Timer ─ */
   const [displaySeconds, setDisplaySeconds] = useState(0);
   const [isRunning, setIsRunning]           = useState(false);
   const [pomodoroMode, setPomodoroMode]     = useState(false);
@@ -658,10 +637,8 @@ export default function StartSession() {
   const [pomodoroRounds, setPomodoroRounds] = useState(0);
   const [isBreak, setIsBreak]               = useState(false);
 
-  /* ─ Strict ─ */
   const [strictMode, setStrictMode] = useState(false);
 
-  /* ─ Deep Work ─ */
   const [deepWorkEnabled, setDeepWorkEnabled] = useState(false);
   const [dwDuration, setDwDuration]           = useState(25);
   const [dwElapsed, setDwElapsed]             = useState(0);
@@ -680,7 +657,6 @@ export default function StartSession() {
   const dwTabSwitchRef    = useRef(0);
   const dwQuoteRef        = useRef(DEEP_WORK_QUOTES[0]);
 
-  /* ─ Inactivity ─ */
   const [inactivityModal, setInactivityModal] = useState(false);
   const lastInteractionRef   = useRef(Date.now());
   const inactivityCheckRef   = useRef(null);
@@ -688,12 +664,10 @@ export default function StartSession() {
   const INACTIVITY_LIMIT_MS  = 6 * 60 * 60 * 1000;
   const MODAL_RESPONSE_MS    = 60 * 1000;
 
-  /* ─ Fields ─ */
   const [selectedField, setSelectedField]   = useState("General");
   const [newFieldName, setNewFieldName]     = useState("");
   const [removeModal, setRemoveModal]       = useState({ open: false, field: null, keepTime: false });
 
-  /* ─ Tasks ─ */
   const [todoList, setTodoList]         = useState([]);
   const [newTaskText, setNewTaskText]   = useState("");
   const [taskPriority, setTaskPriority] = useState("Medium");
@@ -702,7 +676,9 @@ export default function StartSession() {
   const [editingTask, setEditingTask]   = useState({ id: null, text: "" });
   const [lastDeleted, setLastDeleted]   = useState(null);
 
-  /* ─ Distraction Logger ─ */
+  const [recentSessions, setRecentSessions] = useState([]);
+  const [editingSession, setEditingSession]   = useState(null);
+
   const [dlLogs, setDlLogs]                   = useState([]);
   const [dlDailySummaries, setDlDailySummaries] = useState({});
   const [dlWeeklySummaries, setDlWeeklySummaries] = useState({});
@@ -714,20 +690,15 @@ export default function StartSession() {
   const dlUnsubDailyRef  = useRef(null);
   const dlUnsubWeeklyRef = useRef(null);
 
-  /* ─ Panels ─ */
   const [activePanel, setActivePanel] = useState(null);
   const [navWarning, setNavWarning]   = useState({ open: false, cb: null });
 
-  /* ══════════════════════════════════════════
-     INTEGRATION #1/#3: Environment state
-  ══════════════════════════════════════════ */
   const [currentEnvironment, setCurrentEnvironment] = useState(null);
   const [userEnvironments, setUserEnvironments]     = useState([]);
   const [bestEnvironment, setBestEnvironment]       = useState(null);
   const [showEnvPicker, setShowEnvPicker]           = useState(false);
   const [envSuggestion, setEnvSuggestion]           = useState(null);
 
-  /* ─── Core timer refs ─── */
   const sessionStartWallTimeRef  = useRef(null);
   const sessionStartDateRef      = useRef(null);
   const accumulatedSecondsRef    = useRef(0);
@@ -745,7 +716,6 @@ export default function StartSession() {
   const checkpointBackoffRef     = useRef(1000);
   const currentEnvironmentRef    = useRef(null);
 
-  /* ─── FIX #2: Stabilise frequently-changing fn refs ─── */
   const saveSessionChunkRef  = useRef(null);
   const getSegmentSecondsRef = useRef(null);
 
@@ -765,9 +735,6 @@ export default function StartSession() {
 
   useEffect(() => { getSegmentSecondsRef.current = getSegmentSeconds; }, [getSegmentSeconds]);
 
-  /* ══════════════════════════════════════════
-     OFFLINE NETWORK DETECTION + SYNC
-  ══════════════════════════════════════════ */
   const refreshQueueSize = useCallback(async () => {
     try { const items = await idbGetAll(); setQueueSize(items.length); } catch (_) {}
   }, []);
@@ -797,15 +764,16 @@ export default function StartSession() {
     };
   }, [trySyncQueue, refreshQueueSize]);
 
-  /* ══════════════════════════════════════════
-     SESSION CHUNK — with environment meta
-  ══════════════════════════════════════════ */
   const saveSessionChunk = useCallback(async (
     sessionSeconds, dateKey, weekKey, monthKey, field, hourKey,
     isCheckpoint = false, completedPomodoros = 0, abortedPomodoros = 0,
     meta = {}
   ) => {
     if (!userRef.current || sessionSeconds <= 0) return;
+    if (sessionSeconds >= 86400) {
+      toast.error("Session exceeds 24 hours — a day only has 24 hours!");
+      return;
+    }
     const uid     = userRef.current.uid;
     const payload = {
       sessionSeconds, dateKey, weekKey, monthKey, field, hourKey,
@@ -831,7 +799,6 @@ export default function StartSession() {
 
   useEffect(() => { saveSessionChunkRef.current = saveSessionChunk; }, [saveSessionChunk]);
 
-  /* ═══ Wake Lock ═══ */
   const requestWakeLock = useCallback(async () => {
     if ("wakeLock" in navigator) {
       try { wakeLockRef.current = await navigator.wakeLock.request("screen"); } catch (_) {}
@@ -851,7 +818,6 @@ export default function StartSession() {
     return () => document.removeEventListener("visibilitychange", onVisible);
   }, [requestWakeLock]);
 
-  /* ═══ beforeunload ═══ */
   useEffect(() => {
     const onBeforeUnload = (e) => {
       if (isRunningRef.current) {
@@ -864,7 +830,6 @@ export default function StartSession() {
     return () => window.removeEventListener("beforeunload", onBeforeUnload);
   }, []);
 
-  /* ═══ Strict mode tab-switch guard ═══ */
   const stopTimerRef        = useRef(null);
   const strictGraceTimerRef = useRef(null);
   useEffect(() => {
@@ -890,7 +855,6 @@ export default function StartSession() {
 
   const recordInteraction = useCallback(() => { lastInteractionRef.current = Date.now(); }, []);
 
-  /* ═══ Inactivity guard ═══ */
   useEffect(() => {
     const checkInactivity = () => {
       if (!isRunningRef.current || inactivityModal) return;
@@ -908,9 +872,6 @@ export default function StartSession() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [inactivityModal]);
 
-  /* ══════════════════════════════════════════
-     INTEGRATION #3: Best environment banner
-  ══════════════════════════════════════════ */
   useEffect(() => {
     if (!user) return;
     const q = query(
@@ -926,9 +887,6 @@ export default function StartSession() {
     return () => unsub();
   }, [user]);
 
-  /* ══════════════════════════════════════════
-     INTEGRATION #5: Load all user environments
-  ══════════════════════════════════════════ */
   useEffect(() => {
     if (!user) return;
     const q = query(collection(db, "studyEnvironments"), where("userId", "==", user.uid));
@@ -938,9 +896,6 @@ export default function StartSession() {
     return () => unsub();
   }, [user]);
 
-  /* ══════════════════════════════════════════
-     INTEGRATION #8: Environment-based smart suggestions
-  ══════════════════════════════════════════ */
   useEffect(() => {
     if (!currentEnvironment || !userData) { setEnvSuggestion(null); return; }
     const envStats = userData.environmentStats?.[currentEnvironment.name];
@@ -967,7 +922,6 @@ export default function StartSession() {
     }
   }, [currentEnvironment, userData]);
 
-  /* ═══ Firestore listener ═══ */
   const listenerRef = useRef({ unsub: null, uid: null });
 
   const setupListener = useCallback((uid) => {
@@ -1026,19 +980,13 @@ export default function StartSession() {
     };
   }, [setupListener, trySyncQueue]);
 
-  /* ═══════════════════════════════════════════════
-     FIX #7: Session recovery prompt after refresh
-  ═══════════════════════════════════════════════ */
   useEffect(() => {
     if (loading || !user) return;
-
     const saved = sessionStorage.getItem('sb_active_session');
     if (saved && !isRunning) {
       try {
         const { startTime, field, mode, accumulated, pomodoroMode: savedPomo, deepWorkEnabled: savedDw, dwDuration: savedDwDur } = JSON.parse(saved);
         const elapsed = Math.floor((Date.now() - startTime) / 1000) + (accumulated || 0);
-
-        // Recovery window: 30s to 8hrs
         if (elapsed > 30 && elapsed < 8 * 3600) {
           toast((t) => (
             <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
@@ -1058,14 +1006,12 @@ export default function StartSession() {
                     sessionStartDateRef.current = localYMD(new Date(startTime));
                     setSelectedField(field || "General");
                     selectedFieldRef.current = field || "General";
-
                     if (savedDw) {
                       setDeepWorkEnabled(true);
                       setDwDuration(savedDwDur || 25);
                     } else if (savedPomo) {
                       setPomodoroMode(true);
                     }
-
                     setIsRunning(true);
                     isRunningRef.current = true;
                     requestWakeLock();
@@ -1101,7 +1047,6 @@ export default function StartSession() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loading, user]);
 
-  /* ═══ Timer internals ═══ */
   const startTimerInternal = useCallback(() => {
     sessionStartWallTimeRef.current  = Date.now();
     sessionStartDateRef.current      = localYMD();
@@ -1109,7 +1054,6 @@ export default function StartSession() {
     isRunningRef.current             = true;
   }, []);
 
-  /* FIX #2: checkDayBoundary uses stable refs */
   const checkDayBoundary = useCallback(async () => {
     if (!isRunningRef.current || !sessionStartDateRef.current) return;
     const todayKey = localYMD();
@@ -1135,9 +1079,8 @@ export default function StartSession() {
       } catch (e) { console.error("Midnight save failed:", e); }
     } else { sessionStartDateRef.current = todayKey; }
     isSavingDayBoundaryRef.current = false;
-  }, []); // ← empty deps intentional: all reads via refs
+  }, []);
 
-  /* ═══ Timer tick ═══ */
   useEffect(() => {
     if (timerIntervalRef.current) { clearInterval(timerIntervalRef.current); timerIntervalRef.current = null; }
     timerIntervalRef.current = setInterval(() => {
@@ -1163,7 +1106,6 @@ export default function StartSession() {
 
       checkDayBoundary();
 
-      // FIX #5: Persist pomodoro progress to sessionStorage
       if (pomodoroModeRef.current && isRunningRef.current) {
         sessionStorage.setItem('sb_pomodoro_state', JSON.stringify({
           completed: completedPomodorosInSessionRef.current,
@@ -1171,7 +1113,6 @@ export default function StartSession() {
         }));
       }
 
-      // FIX #7: Persist active session for recovery
       if (isRunningRef.current && sessionStartWallTimeRef.current) {
         sessionStorage.setItem('sb_active_session', JSON.stringify({
           startTime: sessionStartWallTimeRef.current,
@@ -1187,7 +1128,6 @@ export default function StartSession() {
     return () => { if (timerIntervalRef.current) { clearInterval(timerIntervalRef.current); timerIntervalRef.current = null; } };
   }, [getTotalSessionSeconds, checkDayBoundary, deepWorkEnabled, dwDuration]);
 
-  /* ═══ FIX #1: Expose state for TopBar via stable ref ═══ */
   const timerApiRef = useRef({});
   useEffect(() => {
     timerApiRef.current = {
@@ -1202,9 +1142,6 @@ export default function StartSession() {
   }, [isRunning, selectedField, getTotalSessionSeconds]);
   useEffect(() => () => { delete window.studyBuddyTimerState; }, []);
 
-  /* ══════════════════════════════════════════
-     INTEGRATION #1: Show env picker toast on timer start
-  ══════════════════════════════════════════ */
   const showEnvPickerToast = useCallback(() => {
     if (currentEnvironmentRef.current || userEnvironments.length === 0) return;
     toast(
@@ -1247,7 +1184,6 @@ export default function StartSession() {
     );
   }, [userEnvironments]);
 
-  /* ═══ Timer Controls ═══ */
   const startTimer = useCallback(async () => {
     if (!userRef.current) return toast.error("Please log in first");
     completedPomodorosInSessionRef.current = 0;
@@ -1256,7 +1192,6 @@ export default function StartSession() {
     setIsRunning(true); setIsBreak(false);
     startTimerInternal(); await requestWakeLock();
 
-    // FIX #5: Restore pomodoro state from sessionStorage on start
     const savedPomo = sessionStorage.getItem('sb_pomodoro_state');
     if (savedPomo) {
       try {
@@ -1265,7 +1200,7 @@ export default function StartSession() {
         if (startTime && !sessionStartWallTimeRef.current) {
           sessionStartWallTimeRef.current = startTime;
         }
-      } catch (_) { /* ignore parse errors */ }
+      } catch (_) {}
     }
 
     const modeStr    = deepWorkEnabled ? " · 🛡️ Deep Work" : pomodoroMode ? " · 🍅 Pomodoro" : "";
@@ -1275,7 +1210,6 @@ export default function StartSession() {
 
     showEnvPickerToast();
 
-    // INTEGRATION #8: Apply smart suggestion
     if (envSuggestion) {
       setTimeout(() => {
         toast(
@@ -1312,6 +1246,27 @@ export default function StartSession() {
     }
   }, [requestWakeLock, startTimerInternal, deepWorkEnabled, pomodoroMode, isOnline, envSuggestion, showEnvPickerToast]);
 
+  const fetchRecentSessions = useCallback(async () => {
+    const uid = userRef.current?.uid;
+    if (!uid || !isOnline) return;
+    try {
+      const q = query(
+        collection(db, "sessions"),
+        where("userId", "==", uid),
+        orderBy("endedAt", "desc"),
+        limit(3)
+      );
+      const snap = await getDocs(q);
+      setRecentSessions(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
+    } catch (err) {
+      console.error("Recent sessions fetch error:", err);
+    }
+  }, [isOnline]);
+
+  useEffect(() => {
+    if (user && isOnline) fetchRecentSessions();
+  }, [user, isOnline, fetchRecentSessions]);
+
   const stopTimer = useCallback(async () => {
     if (!isRunningRef.current) return;
     isRunningRef.current = false; setIsRunning(false); await releaseWakeLock();
@@ -1327,6 +1282,20 @@ export default function StartSession() {
     const hourKey           = String(new Date().getHours()).padStart(2, "0");
     const field             = selectedFieldRef.current;
     const env               = currentEnvironmentRef.current;
+
+    if (sessionSeconds >= 86400) {
+      toast.error("⏹ You cannot study more than 24 hours — there are only 24 hours in a day! Session discarded.");
+      sessionStartWallTimeRef.current  = null;
+      sessionStartDateRef.current      = null;
+      accumulatedSecondsRef.current    = 0;
+      completedPomodorosInSessionRef.current = 0;
+      setDisplaySeconds(0);
+      setPomodoroTimeLeft(25 * 60);
+      sessionStorage.removeItem('sb_pomodoro_state');
+      sessionStorage.removeItem('sb_active_session');
+      return;
+    }
+
     let completedPomodoros  = 0, abortedPomodoros = 0;
     if (pomodoroModeRef.current) {
       completedPomodoros = completedPomodorosInSessionRef.current;
@@ -1340,9 +1309,7 @@ export default function StartSession() {
     completedPomodorosInSessionRef.current = 0;
     setDisplaySeconds(0); setPomodoroTimeLeft(25 * 60);
 
-    // FIX #5: Clear persisted pomodoro state
     sessionStorage.removeItem('sb_pomodoro_state');
-    // FIX #7: Clear recovery state
     sessionStorage.removeItem('sb_active_session');
 
     if (sessionSeconds > 5) {
@@ -1355,16 +1322,16 @@ export default function StartSession() {
         if (isOnline) {
           const envMsg = env ? ` at ${env.name}` : "";
           toast.success(`✅ Saved! ${fmtTime(sessionSeconds)} for ${field}${envMsg}`);
+          await fetchRecentSessions();
         } else {
           toast(`📦 ${fmtTime(sessionSeconds)} queued — syncs when online.`, { icon: "🔌" });
         }
       } catch (e) { console.error(e); toast.error("Failed to save session"); }
     }
-  }, [getTotalSessionSeconds, releaseWakeLock, saveSessionChunk, isOnline]);
+  }, [getTotalSessionSeconds, releaseWakeLock, saveSessionChunk, isOnline, fetchRecentSessions]);
 
   useEffect(() => { stopTimerRef.current = stopTimer; }, [stopTimer]);
 
-  /* ═══ Checkpoint — passes env meta ═══ */
   useEffect(() => {
     if (!isRunning) { clearInterval(checkpointIntervalRef.current); checkpointIntervalRef.current = null; return; }
     checkpointIntervalRef.current = setInterval(async () => {
@@ -1404,16 +1371,11 @@ export default function StartSession() {
     accumulatedSecondsRef.current    = 0;
     completedPomodorosInSessionRef.current = 0;
     checkpointBackoffRef.current     = 1000;
-
-    // FIX #5: Clear persisted pomodoro state
     sessionStorage.removeItem('sb_pomodoro_state');
-    // FIX #7: Clear recovery state
     sessionStorage.removeItem('sb_active_session');
-
     toast("Timer reset");
   }, [releaseWakeLock]);
 
-  /* ═══ Daily reset ═══ */
   useEffect(() => {
     if (!userData || !userRef.current || !isOnline) return;
     const todayKey = localYMD();
@@ -1437,7 +1399,7 @@ export default function StartSession() {
     }
   }, [userData, isOnline]);
 
-const addField = async () => {
+  const addField = async () => {
     const name = newFieldName.trim();
     if (!name) return toast.error("Enter a field name");
     const fields = userData?.studyFields || ["General"];
@@ -1445,11 +1407,11 @@ const addField = async () => {
     if (!userRef.current) return toast.error("Please log in first");
     try {
       await updateDoc(doc(db, "users", userRef.current.uid), { studyFields: [...fields, name] });
-      setNewFieldName(""); 
+      setNewFieldName("");
       toast.success(`📚 "${name}" added`);
-    } catch (e) { 
+    } catch (e) {
       console.error("Add field error:", e);
-      toast.error("Failed to add field: " + e.message); 
+      toast.error("Failed to add field: " + e.message);
     }
   };
 
@@ -1499,7 +1461,6 @@ const addField = async () => {
     } catch (e) { console.error(e); toast.error("Failed to remove field"); }
   }, [removeModal, userData, selectedField]);
 
-  /* ═══ Task Helpers ═══ */
   const userDocRef = useCallback(() => userRef.current ? doc(db, "users", userRef.current.uid) : null, []);
 
   const addTask = useCallback(async () => {
@@ -1562,9 +1523,98 @@ const addField = async () => {
 
   useEffect(() => { if (activePanel !== "tasks") setLastDeleted(null); }, [activePanel]);
 
-  /* ══════════════════════════════════════════
-     DEEP WORK
-  ══════════════════════════════════════════ */
+  const handleDeleteSession = useCallback(async (sessionId, sessionData) => {
+    if (!userRef.current) return;
+    try {
+      await deleteDoc(doc(db, "sessions", sessionId));
+      const { duration, field, date, week, month } = sessionData;
+      if (duration > 0) {
+        const userDocRef2 = doc(db, "users", userRef.current.uid);
+        const updates = {};
+        const todayKey = localYMD();
+        const currentWeekKey = localISOWeek();
+        const currentMonthKey = localYM();
+
+        updates[`fieldTimes.${field}`] = increment(-duration);
+        updates.totalTimeAllTime = increment(-duration);
+
+        if (date) {
+          updates[`dailyStats.${date}.totalTime`] = increment(-duration);
+          updates[`dailyStats.${date}.fieldTimes.${field}`] = increment(-duration);
+          updates[`dailyStats.${date}.sessionsCount`] = increment(-1);
+          if (date === todayKey) updates.totalTimeToday = increment(-duration);
+        }
+        if (week === currentWeekKey) updates.totalTimeWeek = increment(-duration);
+        if (month === currentMonthKey) updates.totalTimeMonth = increment(-duration);
+        if (week) {
+          updates[`weeklyStats.${week}.totalTime`] = increment(-duration);
+          updates[`weeklyStats.${week}.fieldTimes.${field}`] = increment(-duration);
+          updates[`weeklyStats.${week}.sessionsCount`] = increment(-1);
+        }
+        if (month) {
+          updates[`monthlyStats.${month}.totalTime`] = increment(-duration);
+          updates[`monthlyStats.${month}.fieldTimes.${field}`] = increment(-duration);
+          updates[`monthlyStats.${month}.sessionsCount`] = increment(-1);
+        }
+        await updateDoc(userDocRef2, updates);
+      }
+      toast.success("Session deleted");
+      setRecentSessions((prev) => prev.filter((s) => s.id !== sessionId));
+    } catch (err) {
+      console.error(err);
+      toast.error("Failed to delete session");
+    }
+  }, []);
+
+  const handleUpdateSession = useCallback(async (sessionId, newField, newEnv) => {
+    if (!userRef.current) return;
+    try {
+      const sessionRef = doc(db, "sessions", sessionId);
+      const sessionSnap = await getDoc(sessionRef);
+      if (!sessionSnap.exists()) return;
+      const oldData = sessionSnap.data();
+      const oldField = oldData.field;
+      const duration = oldData.duration || 0;
+      const newFieldName = newField || oldField;
+      const newEnvName = newEnv?.name ?? oldData.environment;
+      const newEnvType = newEnv?.type ?? oldData.environmentType;
+
+      await updateDoc(sessionRef, {
+        field: newFieldName,
+        environment: newEnvName,
+        environmentType: newEnvType,
+      });
+
+      if (newFieldName !== oldField && duration > 0) {
+        const userDocRef2 = doc(db, "users", userRef.current.uid);
+        const { date, week, month } = oldData;
+        const updates = {};
+        updates[`fieldTimes.${oldField}`] = increment(-duration);
+        updates[`fieldTimes.${newFieldName}`] = increment(duration);
+        if (date) {
+          updates[`dailyStats.${date}.fieldTimes.${oldField}`] = increment(-duration);
+          updates[`dailyStats.${date}.fieldTimes.${newFieldName}`] = increment(duration);
+        }
+        if (week) {
+          updates[`weeklyStats.${week}.fieldTimes.${oldField}`] = increment(-duration);
+          updates[`weeklyStats.${week}.fieldTimes.${newFieldName}`] = increment(duration);
+        }
+        if (month) {
+          updates[`monthlyStats.${month}.fieldTimes.${oldField}`] = increment(-duration);
+          updates[`monthlyStats.${month}.fieldTimes.${newFieldName}`] = increment(duration);
+        }
+        await updateDoc(userDocRef2, updates);
+      }
+
+      toast.success("Session updated");
+      setEditingSession(null);
+      await fetchRecentSessions();
+    } catch (err) {
+      console.error(err);
+      toast.error("Failed to update session");
+    }
+  }, [fetchRecentSessions]);
+
   const fetchDWData = useCallback(async () => {
     const uid = userRef.current?.uid;
     if (!uid || !isOnline) return;
@@ -1585,23 +1635,19 @@ const addField = async () => {
     if (deepWorkEnabled && userRef.current) fetchDWData();
   }, [deepWorkEnabled, fetchDWData]);
 
-  /* ═══ FIX #6: Deep Work timer — Date.now() delta, no drift ═══ */
   useEffect(() => {
     if (!dwActive || dwPaused || isRunning) return;
-
     let rafId;
     const tick = () => {
       const elapsed = Math.floor((Date.now() - dwSessionStartRef.current) / 1000);
       const clamped = Math.min(elapsed, dwDuration * 60);
       setDwElapsed(clamped);
-
       if (clamped >= dwDuration * 60) {
         handleDWComplete();
         return;
       }
       rafId = requestAnimationFrame(tick);
     };
-
     rafId = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(rafId);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1696,9 +1742,6 @@ const addField = async () => {
     setDwPaused(true); setDwShowInterrupt(true);
   }, [dwElapsed, handleDWStop]);
 
-  /* ══════════════════════════════════════════
-     DISTRACTION LOGGER
-  ══════════════════════════════════════════ */
   useEffect(() => {
     if (!user || !isOnline) { if (!isOnline) return; setDlLogs([]); return; }
     if (dlUnsubLogsRef.current) dlUnsubLogsRef.current();
@@ -1814,7 +1857,6 @@ const addField = async () => {
     } catch (err) { console.error(err); toast.error("Delete failed"); }
   }, [dlLogs, user]);
 
-  /* ── DL derived data ── */
   const dlTodayLogs = useMemo(() => {
     const start = startOfDay();
     return dlLogs.filter((l) => getTimestamp(l) >= start);
@@ -1868,7 +1910,6 @@ const addField = async () => {
     return result.slice(0, 3);
   }, [dlTodayLogs, dlTodayBreakdown]);
 
-  /* ═══ Derived / Memoised ═══ */
   const studyFields    = useMemo(() => userData?.studyFields || ["General"], [userData?.studyFields]);
   const liveSessionSeconds = useMemo(() => isRunning ? displaySeconds : 0, [isRunning, displaySeconds]);
   const timeStats      = useMemo(() => {
@@ -1906,9 +1947,6 @@ const addField = async () => {
   const insights      = useInsights(userData, isRunning, liveSessionSeconds);
   const displayTime   = pomodoroMode ? pomodoroTimeLeft : displaySeconds;
 
-  /* ════════════════════════════════════════
-     RENDER
-  ════════════════════════════════════════ */
   if (loading) {
     return (
       <div className="ss-page">
@@ -1937,7 +1975,6 @@ const addField = async () => {
       onMouseMove={recordInteraction} onKeyDown={recordInteraction}
       onTouchStart={recordInteraction} onClick={recordInteraction}
     >
-      {/* ── INACTIVITY MODAL ── */}
       <AnimatePresence>
         {inactivityModal && (
           <motion.div className="ss-modal-backdrop" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
@@ -1956,7 +1993,6 @@ const addField = async () => {
         )}
       </AnimatePresence>
 
-      {/* ── Nav Warning ── */}
       <AnimatePresence>
         {navWarning.open && (
           <motion.div className="ss-modal-backdrop" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
@@ -1975,7 +2011,6 @@ const addField = async () => {
         )}
       </AnimatePresence>
 
-      {/* ── Field Removal Modal ── */}
       <AnimatePresence>
         {removeModal.open && (
           <motion.div className="ss-modal-backdrop" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setRemoveModal({ open: false, field: null, keepTime: false })}>
@@ -2002,7 +2037,6 @@ const addField = async () => {
         )}
       </AnimatePresence>
 
-      {/* ── DW Interrupt Modal ── */}
       <AnimatePresence>
         {dwShowInterrupt && (
           <motion.div className="ss-modal-backdrop" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => { setDwShowInterrupt(false); setDwPaused(false); }}>
@@ -2026,7 +2060,6 @@ const addField = async () => {
         )}
       </AnimatePresence>
 
-      {/* ── INTEGRATION #5: Env Picker Modal ── */}
       <AnimatePresence>
         {showEnvPicker && (
           <motion.div className="ss-modal-backdrop" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setShowEnvPicker(false)}>
@@ -2084,8 +2117,42 @@ const addField = async () => {
         )}
       </AnimatePresence>
 
+      <AnimatePresence>
+        {editingSession && (
+          <motion.div className="ss-modal-backdrop" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setEditingSession(null)}>
+            <motion.div className="ss-modal" initial={{ opacity: 0, scale: 0.9, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.9, y: 20 }} onClick={(e) => e.stopPropagation()}>
+              <div className="ss-modal-head info">
+                <span>Edit Session</span>
+                <button className="ss-modal-close" onClick={() => setEditingSession(null)}>✕</button>
+              </div>
+              <div className="ss-modal-body">
+                <label style={{ color: "var(--t3)", fontSize: "0.78rem", marginBottom: "0.3rem", display: "block" }}>Field</label>
+                <select className="ss-select" style={{ width: "100%" }} value={editingSession.field} onChange={(e) => setEditingSession((p) => ({ ...p, field: e.target.value }))}>
+                  {studyFields.map((f) => <option key={f} value={f}>{f}</option>)}
+                </select>
+                <label style={{ color: "var(--t3)", fontSize: "0.78rem", marginTop: "0.75rem", marginBottom: "0.3rem", display: "block" }}>Location</label>
+                <select className="ss-select" style={{ width: "100%" }} value={editingSession.environment || ""} onChange={(e) => {
+                  const env = userEnvironments.find((ue) => ue.name === e.target.value);
+                  setEditingSession((p) => ({ ...p, environment: env?.name || null, environmentType: env?.type || null }));
+                }}>
+                  <option value="">No location</option>
+                  {userEnvironments.map((env) => (
+                    <option key={env.id} value={env.name}>
+                      {envTypeInfo(env.type).emoji} {env.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="ss-modal-foot">
+                <button className="ss-btn-cancel" onClick={() => setEditingSession(null)}>Cancel</button>
+                <button className="ss-btn-sm ss-btn-purple" onClick={() => handleUpdateSession(editingSession.id, editingSession.field, editingSession.environment ? { name: editingSession.environment, type: editingSession.environmentType } : null)}>Save Changes</button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       <div className="ss-container">
-        {/* ── OFFLINE / SYNC BANNERS ── */}
         <AnimatePresence>
           {!isOnline && (
             <motion.div className="ss-offline-banner" initial={{ opacity: 0, y: -12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -12 }}>
@@ -2104,7 +2171,6 @@ const addField = async () => {
 
         <motion.div className="ss-main-grid" variants={staggerContainer} initial="initial" animate="animate">
 
-          {/* ══ TIMER CARD ══ */}
           <motion.div className={`ss-card ss-timer-card${deepWorkEnabled ? " dw-mode" : ""}`} variants={cardVariant}>
             <div className="ss-mode-pill">
               {deepWorkEnabled ? (
@@ -2139,7 +2205,6 @@ const addField = async () => {
               )}
             </div>
 
-            {/* ── DW inline info ── */}
             <AnimatePresence>
               {deepWorkEnabled && dwActive && (
                 <motion.div className="dw-inline-info" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }}>
@@ -2155,7 +2220,6 @@ const addField = async () => {
               )}
             </AnimatePresence>
 
-            {/* ══ Best env banner ══ */}
             <AnimatePresence>
               {bestEnvironment && !currentEnvironment && !isRunning && (
                 <motion.div
@@ -2176,9 +2240,6 @@ const addField = async () => {
               )}
             </AnimatePresence>
 
-
-
-            {/* ── Smart suggestion strip ── */}
             <AnimatePresence>
               {envSuggestion && !isRunning && (
                 <motion.div
@@ -2227,7 +2288,6 @@ const addField = async () => {
               )}
             </div>
 
-            {/* ── TOGGLES ── */}
             <div className="ss-mode-toggles">
               <label className={`ss-toggle-row ss-toggle-row--dw${(isRunning || dwActive) ? " disabled" : ""}${deepWorkEnabled ? " active" : ""}`}>
                 <div className={`ss-toggle-track${deepWorkEnabled ? " on dw-on" : ""}`} onClick={() => {
@@ -2298,7 +2358,6 @@ const addField = async () => {
               </button>
             </div>
 
-            {/* DW Stats strip */}
             <AnimatePresence>
               {deepWorkEnabled && (
                 <motion.div className="dw-stats-strip" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
@@ -2372,12 +2431,9 @@ const addField = async () => {
             </AnimatePresence>
           </motion.div>
 
-          {/* ── SIDE CARDS ── */}
           <div className="ss-side-col">
-
-                        {/* ══ Field + Env picker row ══ */}
             <div className="ss-field-env-row">
-                            {currentEnvironment ? (
+              {currentEnvironment ? (
                 <button
                   className="ss-env-pill"
                   style={{ "--env-color": envTypeInfo(currentEnvironment.type).color }}
@@ -2408,10 +2464,7 @@ const addField = async () => {
                   </button>
                 ))}
               </div>
-
             </div>
-
-
 
             <motion.div className="ss-card ss-field-card" variants={cardVariant}>
               <div className="ss-card-title"><span className="ss-card-icon">🎯</span>Add Field</div>
@@ -2421,10 +2474,6 @@ const addField = async () => {
                   onKeyDown={(e) => e.key === "Enter" && addField()} />
                 <button className="ss-btn-sm ss-btn-purple" onClick={addField}>+ Add</button>
               </div>
-
-
-
-
             </motion.div>
 
             <motion.div className="ss-card ss-mini-stats" variants={cardVariant}>
@@ -2467,7 +2516,6 @@ const addField = async () => {
           </div>
         </motion.div>
 
-        {/* ════ BOTTOM TAB BAR ════ */}
         <motion.div className="ss-tab-bar" initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.35, duration: 0.4 }}>
           {[
             { key: "tasks",    icon: "📋", label: "Tasks",        badge: taskStats.pending > 0 ? taskStats.pending : null },
@@ -2486,7 +2534,6 @@ const addField = async () => {
           ))}
         </motion.div>
 
-        {/* ════ OVERLAY PANELS ════ */}
         <AnimatePresence>
           {activePanel === "tasks" && (
             <motion.div className="ss-panel" variants={overlayVariant} initial="initial" animate="animate" exit="exit">
@@ -2597,6 +2644,35 @@ const addField = async () => {
               <HourHistogram dailyStats={userData?.dailyStats} liveSeconds={liveSessionSeconds} isRunning={isRunning} />
               <div className="ss-section-label" style={{ marginTop: "1.5rem" }}>Study Insights</div>
               <InsightCards insights={insights} />
+              <div className="ss-section-label" style={{ marginTop: "1.5rem" }}>Recent Sessions</div>
+              <div className="ss-recent-sessions">
+                {recentSessions.length === 0 ? (
+                  <div className="empty-state-sm">No recent sessions found.</div>
+                ) : (
+                  recentSessions.map((s) => (
+                    <motion.div key={s.id} className="ss-recent-session-row"
+                      initial={{ opacity: 0, x: -8 }} animate={{ opacity: 1, x: 0 }}>
+                      <div className="ss-recent-session-info">
+                        <span className="ss-recent-session-field">{s.field}</span>
+                        <span className="ss-recent-session-meta">
+                          {fmtMins(s.duration)} · {s.environment || "No location"} · {fmtShortDate(s.endedAt?.toDate ? s.endedAt.toDate() : new Date(s.endedAt))}
+                        </span>
+                      </div>
+                      <div className="ss-recent-session-actions">
+                        <button className="ss-task-btn"
+                          onClick={() => setEditingSession({
+                            id: s.id,
+                            field: s.field,
+                            environment: s.environment,
+                            environmentType: s.environmentType,
+                          })}>✎</button>
+                        <button className="ss-task-btn danger"
+                          onClick={() => handleDeleteSession(s.id, s)}>🗑</button>
+                      </div>
+                    </motion.div>
+                  ))
+                )}
+              </div>
             </motion.div>
           )}
 

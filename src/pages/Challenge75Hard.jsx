@@ -18,14 +18,12 @@ import {
 import { onAuthStateChanged } from "firebase/auth";
 import { toast } from "react-hot-toast";
 
-
 import workingAnim     from "../assets/working.json";
 import instructionAnim from "../assets/instruction-animation.json";
 import challengeAnim   from "../assets/challenge-animation.json";
 
 import "./Challenge75Hard.css";
 
-/* ─────────────────────── Service Worker Registration ─────────────────────── */
 if ("serviceWorker" in navigator) {
   navigator.serviceWorker
     .register("/sw.js")
@@ -33,7 +31,6 @@ if ("serviceWorker" in navigator) {
     .catch((err) => console.error("SW registration failed:", err));
 }
 
-/* ─────────────────────── Duration Presets ─────────────────────── */
 const DURATION_PRESETS = [
   {
     id: "7",
@@ -190,11 +187,6 @@ const ICON_OPTIONS = [
 const COLORS   = ["#818cf8","#a855f7","#38bdf8","#34d399","#fbbf24","#f472b6","#fb923c","#f87171"];
 const ICON_MAP = Object.fromEntries(ICON_OPTIONS.map(o => [o.id, o.Icon]));
 
-/* ═══════════════════════════════════════════════════════════════
-   BULLETPROOF DATE HELPERS
-═══════════════════════════════════════════════════════════════ */
-
-/** Safely convert Firestore Timestamp | Date | string → Date */
 function safeToDate(ts) {
   if (!ts) return new Date();
   if (ts.toDate) return ts.toDate();
@@ -203,7 +195,6 @@ function safeToDate(ts) {
   return isNaN(p.getTime()) ? new Date() : p;
 }
 
-/** UTC-based day number — immune to DST / timezone drift */
 function getDayNumber(startDate, totalDays) {
   const start = Date.UTC(
     startDate.getFullYear(),
@@ -215,22 +206,17 @@ function getDayNumber(startDate, totalDays) {
   return Math.min(Math.max(Math.floor((today - start) / 86_400_000) + 1, 1), totalDays);
 }
 
-/** Zero-padded YYYY-MM-DD key for today */
 function todayKey() {
   const d = new Date();
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 
-/* ═══════════════════════════════════════════════════════════════
-   LOCAL ALARM SCHEDULER (survives tab closes via localStorage)
-═══════════════════════════════════════════════════════════════ */
 const ALARM_KEY = "s75-pending-alarms";
 
 const AlarmScheduler = {
   schedule(id, title, body, delayMs) {
     let all = [];
     try { all = JSON.parse(localStorage.getItem(ALARM_KEY) || "[]"); } catch { all = []; }
-    // Remove old entry with same id before adding fresh one
     all = all.filter(a => a.id !== id);
     all.push({ id, fireTime: Date.now() + delayMs, title, body, notified: false });
     localStorage.setItem(ALARM_KEY, JSON.stringify(all));
@@ -256,7 +242,6 @@ const AlarmScheduler = {
               requireInteraction: true,
             })
           ).catch(() => {
-            // Fallback to basic Notification API if SW not available
             new Notification(a.title, { body: a.body, icon: "/favicon.ico" });
           });
         }
@@ -272,17 +257,14 @@ const AlarmScheduler = {
   },
 };
 
-/* ═══════════════════════════════════════════════════════════════
-   FIRESTORE HELPERS
-═══════════════════════════════════════════════════════════════ */
 function chalId(uid, mode, durId)      { return `${uid}_${mode}_${durId}`; }
 function userModeKey(uid, mode, durId) { return `${uid}_${mode}_${durId}`; }
 function getDurPreset(durId)           { return DURATION_PRESETS.find(d => d.id === durId) || DURATION_PRESETS[3]; }
-function serializeTasks(tasks)         { return tasks.map(({ Icon, ...rest }) => rest); } // eslint-disable-line
+function serializeTasks(tasks)         { return tasks.map(({ Icon, ...rest }) => rest); }
 function hydrateTasks(tasks)           { return (tasks || []).map(t => ({ ...t, Icon: ICON_MAP[t.iconId] || LuTarget })); }
 
 async function fetchChallenge(uid, mode, durId) {
-  const snap = await getDoc("users", uid, CHAL_COL, chalId(uid, mode, durId));
+  const snap = await getDoc(doc(db, "users", uid, CHAL_COL, chalId(uid, mode, durId)));
   return snap.exists() ? snap.data() : null;
 }
 
@@ -307,18 +289,12 @@ async function upsertLog(uid, mode, durId, dayNum, fields) {
   else            await updateDoc(snap.docs[0].ref, fields);
 }
 
-/* ═══════════════════════════════════════════════════════════════
-   NOTIFICATION HELPERS
-═══════════════════════════════════════════════════════════════ */
 async function requestNotifPermission() {
   if (!("Notification" in window)) return "unsupported";
   if (Notification.permission === "granted") return "granted";
   return await Notification.requestPermission();
 }
 
-/* ═══════════════════════════════════════════════════════════════
-   CALENDAR HELPERS  — ICS now includes VALARM
-═══════════════════════════════════════════════════════════════ */
 function makeICS(title, description, durationDays) {
   const now = new Date();
   const end = new Date(now);
@@ -371,10 +347,6 @@ function openGoogleCalendar(title, description, durationDays) {
   window.open(`https://calendar.google.com/calendar/render?${params.toString()}`, "_blank");
 }
 
-/* ═══════════════════════════════════════════════════════════════
-   SUB-COMPONENTS
-═══════════════════════════════════════════════════════════════ */
-
 function Burst({ active, accent = "#818cf8" }) {
   const pieces = useMemo(() => Array.from({ length: 32 }, (_, i) => ({
     id: i,
@@ -384,7 +356,7 @@ function Burst({ active, accent = "#818cf8" }) {
     dur:   1.1 + Math.random() * 0.9,
     rot:   Math.random() * 720 - 360,
     size:  0.8 + Math.random() * 0.8,
-  })), []); // eslint-disable-line
+  })), []);
   if (!active) return null;
   return (
     <div className="s75-burst" aria-hidden="true">
@@ -468,7 +440,6 @@ function Heatmap({ logs, accent, accent2, totalDays }) {
   );
 }
 
-/* Duration Picker */
 function DurationPicker({ selected, onSelect, customDays, onCustomDays }) {
   return (
     <div className="s75-duration-section">
@@ -522,7 +493,6 @@ function DurationPicker({ selected, onSelect, customDays, onCustomDays }) {
   );
 }
 
-/* Custom Task Builder */
 function CustomBuilder({ tasks, onChange }) {
   const [label,  setLabel]  = useState("");
   const [hint,   setHint]   = useState("");
@@ -608,9 +578,6 @@ function CustomBuilder({ tasks, onChange }) {
   );
 }
 
-/* ═══════════════════════════════════════════════════════════════
-   NOTIFICATION + CALENDAR CARD  — with AlarmScheduler
-═══════════════════════════════════════════════════════════════ */
 function NotifCard({ cfg, durPreset, dayNum, totalDays, notifEnabled, setNotifEnabled, notifTime, setNotifTime }) {
   const [notifStatus, setNotifStatus] = useState(() => {
     if (typeof window !== "undefined" && "Notification" in window) return Notification.permission;
@@ -676,7 +643,6 @@ function NotifCard({ cfg, durPreset, dayNum, totalDays, notifEnabled, setNotifEn
           Daily Study Reminder
           <small>{notifEnabled ? `Enabled — fires at ${notifTime}` : "Get a nudge every day"}</small>
         </div>
-        {/* Accessible toggle switch */}
         <label className="s75-toggle" aria-label="Toggle daily reminders">
           <input
             type="checkbox"
@@ -740,16 +706,12 @@ function NotifCard({ cfg, durPreset, dayNum, totalDays, notifEnabled, setNotifEn
   );
 }
 
-/* ═══════════════════════════════════════════════════════════════
-   INTRO SCREEN
-═══════════════════════════════════════════════════════════════ */
 function IntroScreen({ onPickModeAndDur, existingChallenges, selectedDur, onSelectDur, customDays, onCustomDays }) {
   const q = useMemo(() => QUOTES[Math.floor(Math.random() * QUOTES.length)], []);
   const effectiveDays = selectedDur?.id === "custom" ? (customDays || null) : selectedDur?.days;
 
   return (
     <div className="s75-intro-wrap">
-      {/* Hero */}
       <div className="s75-hero">
         <motion.div className="s75-hero-text"
           initial={{ opacity: 0, y: 28 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.75 }}>
@@ -792,17 +754,14 @@ function IntroScreen({ onPickModeAndDur, existingChallenges, selectedDur, onSele
         </motion.div>
       </div>
 
-      {/* Duration picker */}
       <div id="s75-dur-anchor">
         <DurationPicker selected={selectedDur} onSelect={onSelectDur} customDays={customDays} onCustomDays={onCustomDays} />
       </div>
 
-      {/* Mode cards — only show after duration is picked */}
       <AnimatePresence>
         {effectiveDays && (
           <motion.div className="s75-modes-section"
             initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}>
-            {/* Summary bar */}
             <div className="s75-selected-summary">
               <span className="s75-sel-pill" style={{ color: selectedDur.color }}>
                 {selectedDur.emoji} {effectiveDays} days
@@ -867,7 +826,6 @@ function IntroScreen({ onPickModeAndDur, existingChallenges, selectedDur, onSele
         )}
       </AnimatePresence>
 
-      {/* How it works */}
       <div className="s75-how">
         <div className="s75-section-label">How it works</div>
         <div className="s75-steps">
@@ -892,16 +850,12 @@ function IntroScreen({ onPickModeAndDur, existingChallenges, selectedDur, onSele
   );
 }
 
-/* ═══════════════════════════════════════════════════════════════
-   MAIN COMPONENT
-═══════════════════════════════════════════════════════════════ */
 export default function ChallengeHard() {
   const [user,      setUser]      = useState(null);
   const [authReady, setAuthReady] = useState(false);
   const [loading,   setLoading]   = useState(false);
   const [saving,    setSaving]    = useState(false);
 
-  /* Duration state — persisted to localStorage */
   const [selectedDur, setSelectedDur] = useState(() => {
     try {
       const saved = JSON.parse(localStorage.getItem("sb-challenge-dur") || "null");
@@ -919,7 +873,6 @@ export default function ChallengeHard() {
     localStorage.setItem("sb-challenge-custom-days", customDays.toString());
   }, [customDays]);
 
-  /* Active challenge session */
   const [challenges,  setChallenges]  = useState({});
   const [logsMap,     setLogsMap]     = useState({});
   const [checked,     setChecked]     = useState({});
@@ -931,13 +884,11 @@ export default function ChallengeHard() {
   const [activeTab,   setActiveTab]   = useState("today");
   const [burst,       setBurst]       = useState(false);
 
-  /* Modals */
   const [showRestart,      setShowRestart]      = useState(false);
   const [showGrace,        setShowGrace]        = useState(false);
   const [showStartConfirm, setShowStartConfirm] = useState(false);
   const [showCustomEd,     setShowCustomEd]     = useState(false);
 
-  /* Notification state */
   const [notifEnabled, setNotifEnabled] = useState(() => {
     try { return JSON.parse(localStorage.getItem("s75-notif-enabled") || "false"); } catch { return false; }
   });
@@ -949,7 +900,6 @@ export default function ChallengeHard() {
   const burstTimer = useRef(null);
   useEffect(() => () => clearTimeout(burstTimer.current), []);
 
-  /* Check pending alarms on mount */
   useEffect(() => { AlarmScheduler.check(); }, []);
 
   useEffect(() => {
@@ -959,7 +909,6 @@ export default function ChallengeHard() {
 
   useEffect(() => { if (authReady && user) loadAll(); }, [authReady, user]); // eslint-disable-line
 
-  /* Computed keys */
   const activeChalKey = activeMode && activeDurId ? `${activeMode}_${activeDurId}` : null;
   const challenge     = activeChalKey ? challenges[activeChalKey] : null;
   const logs          = activeChalKey ? (logsMap[activeChalKey] || []) : [];
@@ -986,7 +935,6 @@ export default function ChallengeHard() {
             const dl        = await fetchLogs(user.uid, mode, durId);
             newLogs[key]    = dl;
             const td        = chal.totalDays || 75;
-            // ← Use safeToDate here instead of .toDate() directly
             const dn        = getDayNumber(safeToDate(chal.startedAt), td);
             const tl        = dl.find(l => l.day === dn);
             newChecked[key] = tl?.tasks || {};
@@ -999,7 +947,6 @@ export default function ChallengeHard() {
       setLogsMap(newLogs);
       setChecked(newChecked);
 
-      /* Restore last active challenge */
       const active = Object.entries(newChal).find(([, v]) => v?.status === "active");
       if (active && !activeMode) {
         const [key, data] = active;
@@ -1016,11 +963,13 @@ export default function ChallengeHard() {
     } finally { setLoading(false); }
   }, [user, activeMode]); // eslint-disable-line
 
-  /* ── Start challenge ── */
-  async function handleStart(mode, durPreset, days) {
+  async function handleStart(mode, durPreset, days, customTasksList) {
     if (!user) return;
     const durId = durPreset.id;
-    if (mode === "custom" && customTasks.length < 2) { toast.error("Add at least 2 tasks first ⚡"); return; }
+    if (mode === "custom" && (!customTasksList || customTasksList.length < 2)) {
+      toast.error("Add at least 2 tasks first ⚡");
+      return;
+    }
     setSaving(true);
     try {
       const data = {
@@ -1028,7 +977,9 @@ export default function ChallengeHard() {
         startedAt: serverTimestamp(),
         streakDays: 0, completedDays: 0, restartCount: 0, graceUsed: 0,
       };
-      if (mode === "custom") data.customTasks = serializeTasks(customTasks);
+      if (mode === "custom") {
+        data.customTasks = customTasksList.map(({ Icon, ...rest }) => rest);
+      }
       await setDoc(doc(db, "users", user.uid, CHAL_COL, chalId(user.uid, mode, durId)), data);
       toast.success(`${MODES[mode].emoji} Day 1 of ${days} begins! Let's go! 🚀`);
       setShowStartConfirm(false);
@@ -1036,6 +987,9 @@ export default function ChallengeHard() {
       setActiveDurId(durId);
       setTotalDays(days);
       setActiveTab("today");
+      if (mode === "custom") {
+        setCustomTasks(customTasksList);
+      }
       await loadAll();
     } catch (err) {
       console.error("handleStart:", err);
@@ -1043,7 +997,6 @@ export default function ChallengeHard() {
     } finally { setSaving(false); }
   }
 
-  /* ── Toggle task ── */
   async function handleCheck(taskId) {
     if (!user || !challenge || !activeChalKey) return;
     const prev    = checked[activeChalKey] || {};
@@ -1051,7 +1004,6 @@ export default function ChallengeHard() {
     setChecked(c => ({ ...c, [activeChalKey]: next }));
     const tasks   = getTasksFor(activeMode);
     const allDone = tasks.every(t => next[t.id]);
-    // ← safeToDate here
     const dayNum  = getDayNumber(safeToDate(challenge.startedAt), totalDays);
     setSaving(true);
     try {
@@ -1060,7 +1012,7 @@ export default function ChallengeHard() {
       });
       const wasAllDone = (logsMap[activeChalKey] || []).find(l => l.day === dayNum)?.allDone;
       if (allDone && !wasAllDone) {
-        const ref = doc(db,"users", uid, CHAL_COL, chalId(user.uid, activeMode, activeDurId));
+        const ref = doc(db, "users", user.uid, CHAL_COL, chalId(user.uid, activeMode, activeDurId));
         await updateDoc(ref, { streakDays: increment(1), completedDays: increment(1) });
         const freshSnap = await getDoc(ref);
         const freshData = freshSnap.data();
@@ -1082,12 +1034,11 @@ export default function ChallengeHard() {
     } finally { setSaving(false); }
   }
 
-  /* ── Restart ── */
   async function handleRestart() {
     if (!user || !activeChalKey) return;
     setSaving(true);
     try {
-      const ref  = doc(db,"users", uid, CHAL_COL, chalId(user.uid, activeMode, activeDurId));
+      const ref  = doc(db, "users", user.uid, CHAL_COL, chalId(user.uid, activeMode, activeDurId));
       const snap = await getDoc(ref);
       const prev = snap.data() || {};
       const nd   = {
@@ -1101,7 +1052,11 @@ export default function ChallengeHard() {
       const old = logsMap[activeChalKey] || [];
       if (old.length > 0) {
         const batch = writeBatch(db);
-        old.forEach(l => { if (l._id) batch.update(doc(db, "users", uid, LOGS_COL, l._id), { archived: true }); });
+        old.forEach(l => {
+          if (l._id) {
+            batch.update(doc(db, "users", user.uid, LOGS_COL, l._id), { archived: true });
+          }
+        });
         await batch.commit();
       }
       toast.success("🔄 Fresh start. Commit harder this time. 💪");
@@ -1114,18 +1069,15 @@ export default function ChallengeHard() {
     } finally { setSaving(false); }
   }
 
-  /* ── Grace day — NOW backfills yesterday's log ── */
   async function useGraceDay() {
     if (!user || !challenge || !activeChalKey) return;
     const used = challenge.graceUsed || 0;
     if (used >= GRACE_MAX) { toast.error("No grace days left."); return; }
     setSaving(true);
     try {
-      // ← safeToDate
       const dayNum    = getDayNumber(safeToDate(challenge.startedAt), totalDays);
       const yesterday = dayNum - 1;
 
-      /* Backfill yesterday's log so streak math stays correct */
       if (yesterday >= 1) {
         const yDate = new Date();
         yDate.setDate(yDate.getDate() - 1);
@@ -1141,7 +1093,7 @@ export default function ChallengeHard() {
         });
       }
 
-      const ref = doc(db, "users", uid, CHAL_COL, chalId(user.uid, activeMode, activeDurId));
+      const ref = doc(db, "users", user.uid, CHAL_COL, chalId(user.uid, activeMode, activeDurId));
       await updateDoc(ref, { graceUsed: increment(1) });
       const snap = await getDoc(ref);
       setChallenges(p => ({ ...p, [activeChalKey]: snap.data() }));
@@ -1156,27 +1108,26 @@ export default function ChallengeHard() {
     } finally { setSaving(false); }
   }
 
-  /* ── Save custom tasks ── */
   async function saveCustomTasks() {
     if (!user || !activeDurId) return;
     try {
-      await updateDoc(doc(db, "users", uid, CHAL_COL, chalId(user.uid, "custom", activeDurId)), { customTasks: serializeTasks(customTasks) });
+      await updateDoc(
+        doc(db, "users", user.uid, CHAL_COL, chalId(user.uid, "custom", activeDurId)),
+        { customTasks: serializeTasks(customTasks) }
+      );
       toast.success("Tasks updated ✅");
       setShowCustomEd(false);
     } catch { toast.error("Couldn't save tasks."); }
   }
 
-  /* ── Reflection with auto-save ── */
   const [reflDraft, setReflDraft] = useState("");
   const cfg    = activeMode ? MODES[activeMode] : null;
   const durPre = activeDurId ? getDurPreset(activeDurId) : null;
-  // ← safeToDate
   const dayNum = challenge ? getDayNumber(safeToDate(challenge.startedAt), totalDays) : 1;
   const todayLog = logs.find(l => l.day === dayNum);
 
   useEffect(() => { setReflDraft(todayLog?.reflection || ""); }, [activeChalKey, todayLog?.reflection]); // eslint-disable-line
 
-  /* Auto-save reflection after 3 s of inactivity */
   useEffect(() => {
     if (!user || !challenge || reflDraft === (todayLog?.reflection || "")) return;
     const t = setTimeout(() => {
@@ -1204,7 +1155,6 @@ export default function ChallengeHard() {
     } catch { toast.error("Save failed."); }
   }
 
-  /* ── Derived values ── */
   const tasks         = cfg ? getTasksFor(activeMode) : [];
   const modeChecked   = (activeChalKey && checked[activeChalKey]) || {};
   const doneTasks     = tasks.filter(t => modeChecked[t.id]).length;
@@ -1227,8 +1177,6 @@ export default function ChallengeHard() {
     return { done, total, pct, best };
   }, [logs]);
 
-  /* ══════════════════════ RENDER GUARDS ══════════════════════ */
-
   if (!authReady || loading) return (
     <div className="s75-loading" role="status" aria-live="polite">
       <div className="s75-loading-pulse" />
@@ -1239,7 +1187,6 @@ export default function ChallengeHard() {
 
   if (!user) return (
     <div className="s75-page">
-  
       <div className="s75-mesh" aria-hidden="true" />
       <div className="s75-layout">
         <div className="s75-auth glass-card">
@@ -1256,10 +1203,8 @@ export default function ChallengeHard() {
     </div>
   );
 
-  /* ── Completed screen ── */
   if (isCompleted && cfg && durPre) return (
     <div className="s75-page">
-    
       <div className="s75-mesh" aria-hidden="true" />
       <Burst active accent={cfg.color} />
       <div className="s75-layout">
@@ -1287,10 +1232,8 @@ export default function ChallengeHard() {
     </div>
   );
 
-  /* ── Intro (no active challenge) ── */
   if (!activeMode || !activeDurId) return (
     <div className="s75-page">
-  
       <div className="s75-mesh" aria-hidden="true" />
       <div className="s75-layout">
         <IntroScreen
@@ -1311,15 +1254,12 @@ export default function ChallengeHard() {
     </div>
   );
 
-  /* ── No active challenge → Start panel ── */
   if (!challenge && cfg && durPre) {
     const effectiveDays = durPre.id === "custom" ? (customDays || 75) : durPre.days;
     return (
       <div className="s75-page">
-    
         <div className="s75-mesh" aria-hidden="true" />
         <div className="s75-layout">
-          {/* Breadcrumb */}
           <div style={{ maxWidth: 1100, margin: "0 auto", padding: "1.5rem 0 .5rem", display: "flex", gap: ".5rem", alignItems: "center", flexWrap: "wrap" }}>
             <button className="s75-link-sm" onClick={() => { setActiveMode(null); setActiveDurId(null); }}>← Back</button>
             <span style={{ fontSize: ".7rem", color: "var(--pookie-border2)" }}>|</span>
@@ -1397,7 +1337,6 @@ export default function ChallengeHard() {
           </div>
         </div>
 
-        {/* Confirm start modal */}
         <AnimatePresence>
           {showStartConfirm && (
             <motion.div className="pookie-overlay" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
@@ -1419,7 +1358,8 @@ export default function ChallengeHard() {
                 <div className="modal-actions" style={{ justifyContent: "center" }}>
                   <button className="btn-ghost" onClick={() => setShowStartConfirm(false)}>Not yet</button>
                   <motion.button className="btn-primary" style={{ background: cfg.grad }}
-                    onClick={() => handleStart(activeMode, durPre, effectiveDays)} disabled={saving} whileTap={{ scale: 0.96 }}>
+                    onClick={() => handleStart(activeMode, durPre, effectiveDays, activeMode === "custom" ? customTasks : undefined)}
+                    disabled={saving} whileTap={{ scale: 0.96 }}>
                     {saving ? "Starting…" : `I'm ready! ${cfg.emoji}`}
                   </motion.button>
                 </div>
@@ -1431,19 +1371,15 @@ export default function ChallengeHard() {
     );
   }
 
-  /* ═══════════════════════ ACTIVE CHALLENGE UI ═══════════════════════ */
   if (!cfg || !durPre || !challenge) return null;
 
   return (
     <div className="s75-page" style={{ "--acc": cfg.color, "--acc2": cfg.color2 }}>
-    
       <div className="s75-mesh" aria-hidden="true" />
       <Burst active={burst} accent={cfg.color} />
 
       <div className="s75-app">
-        {/* ════ LEFT SIDEBAR ════ */}
         <aside className="s75-sidebar" aria-label="Challenge info">
-          {/* Identity card */}
           <motion.div className="s75-identity glass-card"
             style={{ "--card-grad": cfg.grad }}
             initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.5 }}>
@@ -1507,7 +1443,6 @@ export default function ChallengeHard() {
             )}
           </motion.div>
 
-          {/* Sidebar actions */}
           <motion.div className="s75-sidebar-actions"
             initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.2 }}>
             <NotifCard cfg={cfg} durPreset={durPre} dayNum={dayNum} totalDays={totalDays}
@@ -1523,9 +1458,7 @@ export default function ChallengeHard() {
           </motion.div>
         </aside>
 
-        {/* ════ MAIN PANEL ════ */}
         <main className="s75-main" aria-label="Challenge content">
-          {/* Nav tabs */}
           <motion.nav className="s75-nav glass-card-sm" aria-label="Challenge sections"
             initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }}>
             {[
@@ -1545,8 +1478,6 @@ export default function ChallengeHard() {
           </motion.nav>
 
           <AnimatePresence mode="wait">
-
-            {/* ── TODAY TAB ── */}
             {activeTab === "today" && (
               <motion.div key="today"
                 initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -12 }}>
@@ -1569,7 +1500,6 @@ export default function ChallengeHard() {
                           style={{ "--t-color": task.color }}
                           onClick={() => handleCheck(task.id)}
                           disabled={saving}
-                          /* ← Accessibility patches */
                           role="checkbox"
                           aria-checked={done}
                           aria-label={`${task.label} — ${done ? "completed" : "not completed"}`}
@@ -1618,7 +1548,6 @@ export default function ChallengeHard() {
                   </AnimatePresence>
                 </div>
 
-                {/* Reflection — auto-saves after 3 s */}
                 <motion.div className="glass-card s75-reflection"
                   initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.15 }}>
                   <div className="s75-reflection-head">
@@ -1638,7 +1567,6 @@ export default function ChallengeHard() {
                   </div>
                 </motion.div>
 
-                {/* Custom task editor */}
                 {activeMode === "custom" && (
                   <motion.div className="glass-card" style={{ padding: "1.1rem 1.25rem" }}
                     initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.2 }}>
@@ -1661,7 +1589,6 @@ export default function ChallengeHard() {
               </motion.div>
             )}
 
-            {/* ── STATS TAB ── */}
             {activeTab === "stats" && (
               <motion.div key="stats" style={{ display: "flex", flexDirection: "column", gap: "1.1rem" }}
                 initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -12 }}>
@@ -1715,7 +1642,6 @@ export default function ChallengeHard() {
               </motion.div>
             )}
 
-            {/* ── CALENDAR TAB ── */}
             {activeTab === "calendar" && (
               <motion.div key="calendar" style={{ display: "flex", flexDirection: "column", gap: "1.1rem" }}
                 initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -12 }}>
@@ -1750,7 +1676,6 @@ export default function ChallengeHard() {
               </motion.div>
             )}
 
-            {/* ── SETTINGS TAB ── */}
             {activeTab === "settings" && (
               <motion.div key="settings" style={{ display: "flex", flexDirection: "column", gap: "1.1rem" }}
                 initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -12 }}>
@@ -1797,9 +1722,6 @@ export default function ChallengeHard() {
         </main>
       </div>
 
-      {/* ════ MODALS ════ */}
-
-      {/* Restart modal */}
       <AnimatePresence>
         {showRestart && (
           <motion.div className="pookie-overlay" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
@@ -1824,7 +1746,6 @@ export default function ChallengeHard() {
         )}
       </AnimatePresence>
 
-      {/* Grace modal */}
       <AnimatePresence>
         {showGrace && (
           <motion.div className="pookie-overlay" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
