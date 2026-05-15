@@ -1,9 +1,12 @@
 import { useState, useEffect, lazy, Suspense } from 'react';
 import { BrowserRouter as Router, Route, Routes, Navigate } from 'react-router-dom';
+import { Helmet } from 'react-helmet-async';
 import { Toaster } from 'react-hot-toast';
 import { onAuthStateChanged, isSignInWithEmailLink } from 'firebase/auth';
 import { auth } from './components/firebase';
 import TopBar from './components/TopBar';
+
+
 
 // eager — always needed on first load
 import Home       from './pages/Home';
@@ -72,7 +75,11 @@ export default function App() {
   return (
     <Router>
       <TopBar user={user} />
-
+      <Helmet>
+        <html lang="en" />
+        <title>Study Buddy — Track Sessions, Build Habits, Ace Exams</title>
+        <meta name="description" content="Study Buddy is a free study session tracker with Pomodoro timer, flashcards, notes, 3D graphs, habit stacking, and curated resources. Built for students." />
+      </Helmet>
       <Suspense fallback={<PageLoader />}>
         <Routes>
           {/* public */}

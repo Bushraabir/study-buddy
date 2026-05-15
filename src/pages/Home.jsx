@@ -12,6 +12,7 @@ import {
 import { useNavigate } from "react-router-dom";
 import Lottie from "lottie-react";
 import heroAnimation from "../assets/hero-animation.json";
+import { Helmet } from "react-helmet-async";
 import "./Home.css";
 import Tree from "../components/Tree";
 
@@ -324,6 +325,31 @@ export default function Home() {
 
   return (
     <div className="pk-root">
+
+      <Helmet>
+        <title>StudyBuddy — Your Cutest Study Companion | Flashcards, Timer, Notes & Graphs</title>
+        <meta name="description" content="Study smarter, glow harder. Free flashcards with spaced repetition, Pomodoro focus timer, rich notes, and 2D/3D graph plotting. All wrapped in the most adorable productivity app." />
+        <link rel="canonical" href="https://study-buddy-seven-blush.vercel.app/" />
+        
+        {/* Open Graph */}
+        <meta property="og:title" content="StudyBuddy — Your Cutest Study Companion" />
+        <meta property="og:description" content="Free flashcards, Pomodoro timer, rich notes & beautiful graphs. Study smarter, glow harder ✨" />
+        <meta property="og:type" content="website" />
+        <meta property="og:url" content="https://study-buddy-seven-blush.vercel.app/" />
+        <meta property="og:image" content="https://github.com/Bushraabir/study-buddy/blob/main/public/og-image.png?raw=true" />
+        <meta property="og:image:width" content="1200" />
+        <meta property="og:image:height" content="630" />
+        <meta property="og:site_name" content="StudyBuddy" />
+        
+        {/* Twitter */}
+        <meta name="twitter:card" content="summary_large_image" />
+        <meta name="twitter:title" content="StudyBuddy — Your Cutest Study Companion" />
+        <meta name="twitter:description" content="Free flashcards, Pomodoro timer, rich notes & beautiful graphs. Study smarter, glow harder ✨" />
+        <meta name="twitter:image" content="https://github.com/Bushraabir/study-buddy/blob/main/public/og-image.png?raw=true" />
+        
+        {/* Theme color for mobile browsers */}
+        <meta name="theme-color" content="#0f0f23" />
+      </Helmet>
 
       {/* ── atmospheric SVG grid ── */}
       <PremiumGrid />

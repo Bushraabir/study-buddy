@@ -13,6 +13,7 @@ import {
 } from "firebase/firestore";
 import { onAuthStateChanged } from "firebase/auth";
 import { toast } from "react-hot-toast";
+import { Helmet } from "react-helmet-async";
 import "./HabitStacking.css";
 
 const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
@@ -1317,6 +1318,13 @@ export default function HabitStacking() {
   if (!user && !loading) {
     return (
       <div className="hs-page">
+
+        <Helmet>
+          <title>Habit Stacking Grove — Build Lasting Habits | StudyBuddy</title>
+          <meta name="description" content="Plant habits, grow trees, and build lasting routines. Log in to start your personal habit grove with anchor-habit-reward stacking." />
+          <meta property="og:title" content="Habit Stacking Grove — Build Lasting Habits" />
+          <meta property="og:description" content="Plant habits and watch them grow into a beautiful tree grove. Anchor, habit, reward." />
+        </Helmet>
         <div className="hs-empty">
           <div className="hs-empty__seedling"><span className="hs-empty__seedling-leaf">🌿</span><div className="hs-empty__seedling-trunk" /></div>
           <h3>Your habit grove awaits</h3>
@@ -1330,6 +1338,9 @@ export default function HabitStacking() {
   if (loading) {
     return (
       <div className="hs-page">
+        <Helmet>
+          <title>Loading Your Habit Grove… | StudyBuddy</title>
+        </Helmet>
         <div className="hs-grove">{[0, 1, 2].map((i) => <div key={i} className="hs-skeleton" />)}</div>
       </div>
     );
@@ -1337,6 +1348,29 @@ export default function HabitStacking() {
 
   return (
     <div className="hs-page">
+
+    <Helmet>
+      <title>
+        {allDone
+          ? "🌸 All Habits Done! — Habit Grove | StudyBuddy"
+          : `Habit Grove (${stats.doneToday}/${stats.totalHabits} done) — ${pendingCount} pending | StudyBuddy`}
+      </title>
+      <meta 
+        name="description" 
+        content={
+          habits.length === 0
+            ? "Start building habits that stick. Plant your first habit tree using anchor-habit-reward stacking and watch your grove bloom."
+            : `Track ${stats.totalHabits} habits, ${stats.doneToday} completed today. Longest streak: ${stats.longestActive} days. Build routines that last with habit stacking.`
+        } 
+      />
+      <link rel="canonical" href="https://study-buddy-seven-blush.vercel.app/habit-stacking" />
+      <meta property="og:title" content="Habit Stacking Grove — Grow Your Routines" />
+      <meta property="og:description" content="Plant habits, track streaks, and watch your unique tree grove bloom. Anchor → Habit → Reward." />
+      <meta property="og:type" content="website" />
+    </Helmet>
+
+
+
       <Particles />
       <ConfettiBurst active={confetti} />
 

@@ -8,6 +8,7 @@ import { signInWithEmailAndPassword } from "firebase/auth";
 import { Link, useNavigate } from "react-router-dom";
 import { auth } from "../components/firebase";
 import toast from "react-hot-toast";
+import { Helmet } from "react-helmet-async";
 import loginAnimation from "../assets/login-animation.json";
 import "./Login.css";
 
@@ -87,6 +88,30 @@ function Login() {
 
   return (
     <div className="studybuddy-auth-page">
+
+      <Helmet>
+        <title>Sign In · StudyBuddy</title>
+        <meta name="description" content="Welcome back! Sign in to StudyBuddy to track study sessions, master flashcards with spaced repetition, and reach your academic goals." />
+        <link rel="canonical" href="https://study-buddy-seven-blush.vercel.app/login" />
+
+        {/* Open Graph */}
+        <meta property="og:title" content="Sign In · StudyBuddy" />
+        <meta property="og:description" content="Welcome back to StudyBuddy. Track sessions, master flashcards, and reach your goals." />
+        <meta property="og:type" content="website" />
+        <meta property="og:url" content="https://study-buddy-seven-blush.vercel.app/login" />
+        <meta property="og:image" content="https://study-buddy-seven-blush.vercel.app/og-image.png" />
+        <meta property="og:site_name" content="StudyBuddy" />
+
+        {/* Twitter */}
+        <meta name="twitter:card" content="summary_large_image" />
+        <meta name="twitter:title" content="Sign In · StudyBuddy" />
+        <meta name="twitter:description" content="Welcome back to StudyBuddy. Track sessions, master flashcards, and reach your goals." />
+        <meta name="twitter:image" content="https://study-buddy-seven-blush.vercel.app/og-image.png" />
+
+        {/* Noindex for auth pages — optional but recommended */}
+        <meta name="robots" content="noindex, follow" />
+      </Helmet>
+
       <motion.div
         className="studybuddy-auth-card"
         variants={cardVariants}

@@ -7,6 +7,7 @@ import {
   Crosshair, Menu, Layers, X, Calculator, TrendingUp,
   Grid, Maximize2, Download, Info, Search, Zap
 } from 'lucide-react';
+import { Helmet } from 'react-helmet-async';
 import './PlotGraph.css';
 const PALETTE = [
   '#e879f9','#38bdf8','#4ade80','#fbbf24',
@@ -393,6 +394,40 @@ const GraphingCalculator = () => {
 
   return (
     <div className="gc-root">
+
+
+      <Helmet>
+        <title>
+          {equations.length === 0
+            ? "Graphing Calculator — Plot 2D & 3D Equations | StudyBuddy"
+            : `Graphing Calculator (${equations.filter(e => e.visible).length} active) — StudyBuddy`}
+        </title>
+        <meta 
+          name="description" 
+          content={
+            equations.length === 0
+              ? "Free graphing calculator for 2D and 3D equations. Plot explicit, implicit, polar, and parametric functions with real-time analysis."
+              : `Plotting ${equations.filter(e => e.visible).length} equations. Interactive graphing with derivatives, integrals, intersections, and critical points.`
+          } 
+        />
+        <link rel="canonical" href="https://study-buddy-seven-blush.vercel.app/plot-graph" />
+        
+        {/* Open Graph */}
+        <meta property="og:title" content="Graphing Calculator — Visualize Math Beautifully" />
+        <meta property="og:description" content="Plot 2D and 3D equations with real-time analysis. Explicit, implicit, polar, and parametric functions." />
+        <meta property="og:type" content="website" />
+        <meta property="og:url" content="https://study-buddy-seven-blush.vercel.app/plot-graph" />
+        <meta property="og:image" content="https://study-buddy-seven-blush.vercel.app/og-image.png" />
+        <meta property="og:site_name" content="StudyBuddy" />
+        
+        {/* Twitter */}
+        <meta name="twitter:card" content="summary_large_image" />
+        <meta name="twitter:title" content="Graphing Calculator — Visualize Math Beautifully" />
+        <meta name="twitter:description" content="Plot 2D and 3D equations with real-time analysis. Explicit, implicit, polar, and parametric functions." />
+        <meta name="twitter:image" content="https://study-buddy-seven-blush.vercel.app/og-image.png" />
+      </Helmet>
+
+
       {isMobile && (
         <button className="gc-fab" onClick={() => setSidebarOpen(o => !o)} aria-label="Toggle sidebar">
           {sidebarOpen ? <X size={20} /> : <Menu size={20} />}

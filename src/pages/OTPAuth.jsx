@@ -11,6 +11,7 @@ import { auth, db } from "../components/firebase";
 import toast from "react-hot-toast";
 import { useNavigate } from "react-router-dom";
 import loginAnimation from "../assets/login-animation.json";
+import { Helmet } from "react-helmet-async";
 import "./OTPAuth.css";
 
 // ── Steps ──────────────────────────────────────────────────────
@@ -319,6 +320,42 @@ export default function OTPAuth() {
 
   return (
     <div className="otp-page">
+
+      <Helmet>
+        <title>
+          {step === STEP.EMAIL && "Sign In with Magic Link · StudyBuddy"}
+          {step === STEP.OTP && "Check Your Inbox · Magic Link Sent · StudyBuddy"}
+          {step === STEP.NAME && "Welcome! Set Your Name · StudyBuddy"}
+        </title>
+        <meta 
+          name="description" 
+          content={
+            step === STEP.EMAIL
+              ? "Sign in to StudyBuddy with a magic link — no password needed. Track study sessions, master flashcards, and reach your goals."
+              : step === STEP.OTP
+              ? "We've sent a magic link to your email. Click it to sign in automatically."
+              : "Welcome to StudyBuddy! Set your display name to get started with focused studying."
+          } 
+        />
+        <link rel="canonical" href="https://study-buddy-seven-blush.vercel.app/OTPAuth" />
+        
+        {/* Open Graph */}
+        <meta property="og:title" content="Sign In · StudyBuddy" />
+        <meta property="og:description" content="Sign in with a magic link — no password needed. Start tracking your study sessions." />
+        <meta property="og:type" content="website" />
+        <meta property="og:url" content="https://study-buddy-seven-blush.vercel.app/OTPAuth" />
+        <meta property="og:image" content="https://study-buddy-seven-blush.vercel.app/og-image.png" />
+        <meta property="og:site_name" content="StudyBuddy" />
+        
+        {/* Twitter */}
+        <meta name="twitter:card" content="summary_large_image" />
+        <meta name="twitter:title" content="Sign In · StudyBuddy" />
+        <meta name="twitter:description" content="Sign in with a magic link — no password needed. Start tracking your study sessions." />
+        <meta name="twitter:image" content="https://study-buddy-seven-blush.vercel.app/og-image.png" />
+        
+        {/* Noindex for auth pages */}
+        <meta name="robots" content="noindex, follow" />
+      </Helmet>
       <Particles />
 
       {/* Ambient orbs */}

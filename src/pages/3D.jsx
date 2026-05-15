@@ -1,3 +1,4 @@
+import { Helmet } from 'react-helmet-async';
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import Plot from 'react-plotly.js';
 import * as math from 'mathjs';
@@ -504,6 +505,11 @@ const GraphingCalculator3D = () => {
 
   return (
     <div className="graphing-calculator-3d">
+      <Helmet>
+        <title>3D Graphing Calculator — Study Buddy</title>
+        <meta name="description" content="Plot 3D surfaces, parametric curves, and point clouds interactively. Supports z = f(x,y), parametric surfaces, space curves, and animated variables." />
+        <meta name="robots" content="noindex" />
+      </Helmet>
       <div className="sidebar-3d">
         <div className="header-3d">
           <h1>3D Graphing Calculator</h1>

@@ -13,7 +13,7 @@ import { db, auth } from "../components/firebase";
 import { doc, onSnapshot, setDoc, serverTimestamp } from "firebase/firestore";
 import { onAuthStateChanged } from "firebase/auth";
 import { toast } from "react-hot-toast";
-
+import { Helmet } from "react-helmet-async";
 import "./TimeCapsule.css";
 
 const CHALLENGE_TYPES = [
@@ -791,7 +791,18 @@ export default function TimeCapsule() {
   if (!user && !loading) {
     return (
       <div className="tc-page">
-      
+        <Helmet>
+          <title>Time Capsule | StudyBuddy</title>
+          <meta name="description" content="Write letters to your future self. Seal them for 7, 21, 30, 75, or 100 days. Open them when your challenge is done and watch yourself grow." />
+          <meta property="og:title" content="Time Capsule | StudyBuddy" />
+          <meta property="og:description" content="Letters from past you, delivered to future you." />
+          <meta property="og:type" content="website" />
+          <meta property="og:url" content="https://study-buddy-seven-blush.vercel.app/time-capsule" />
+          <meta property="og:image" content="https://study-buddy-seven-blush.vercel.app/og-image.png" />
+          <meta name="twitter:card" content="summary_large_image" />
+          <meta name="twitter:image" content="https://study-buddy-seven-blush.vercel.app/og-image.png" />
+          <link rel="canonical" href="https://study-buddy-seven-blush.vercel.app/time-capsule" />
+        </Helmet>     
         <div className="pookie-auth-gate">
           <div className="tc-gate-icon">💌</div>
           <h2>Letters to your future self</h2>
@@ -819,6 +830,23 @@ export default function TimeCapsule() {
 
   return (
     <div className="tc-page">
+      <Helmet>
+        <title>Time Capsule | StudyBuddy</title>
+        <meta name="description" content="Write letters to your future self. Seal them for 7, 21, 30, 75, or 100 days. Open them when your challenge is done and watch yourself grow." />
+        
+        <meta property="og:title" content="Time Capsule | StudyBuddy" />
+        <meta property="og:description" content="Letters from past you, delivered to future you. The most powerful kind of self-reflection." />
+        <meta property="og:type" content="website" />
+        <meta property="og:url" content="https://study-buddy-seven-blush.vercel.app/time-capsule" />
+        <meta property="og:image" content="https://study-buddy-seven-blush.vercel.app/og-image.png" />
+        
+        <meta name="twitter:card" content="summary_large_image" />
+        <meta name="twitter:image" content="https://study-buddy-seven-blush.vercel.app/og-image.png" />
+        
+        <link rel="canonical" href="https://study-buddy-seven-blush.vercel.app/time-capsule" />
+      </Helmet>
+
+
       <Confetti active={confetti} />
 
       {/* Hero */}

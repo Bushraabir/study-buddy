@@ -16,6 +16,7 @@ import {
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   LineChart, Line, ReferenceLine,
 } from "recharts";
+import { Helmet } from "react-helmet-async";
 import "./Profile.css";
 
 // ─── Animation Variants ───────────────────────────────────────────────────────
@@ -1263,6 +1264,24 @@ function Profile() {
 
   return (
     <div className="profile-page">
+
+      <Helmet>
+        <title>{`${displayName || 'Your'} Profile | StudyBuddy`}</title>
+        <meta name="description" content={`View ${displayName || 'your'} study stats, streaks, achievements, and productivity score on StudyBuddy.`} />
+        
+        <meta property="og:title" content={`${displayName || 'Your'} Study Profile | StudyBuddy`} />
+        <meta property="og:description" content="Track focus streaks, study hours, field breakdowns, and task completion." />
+        <meta property="og:type" content="profile" />
+        <meta property="og:url" content="https://study-buddy-seven-blush.vercel.app/profile" />
+        <meta property="og:image" content="https://study-buddy-seven-blush.vercel.app/og-image.png" />
+        
+        <meta name="twitter:card" content="summary_large_image" />
+        <meta name="twitter:image" content="https://study-buddy-seven-blush.vercel.app/og-image.png" />
+        
+        <link rel="canonical" href="https://study-buddy-seven-blush.vercel.app/profile" />
+      </Helmet>
+
+      
       <div className="bg-orb bg-orb-1" />
       <div className="bg-orb bg-orb-2" />
       <div className="bg-orb bg-orb-3" />

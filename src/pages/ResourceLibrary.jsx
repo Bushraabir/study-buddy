@@ -15,6 +15,7 @@ import {
   deleteDoc, doc, serverTimestamp, orderBy, getDoc,
   arrayUnion, arrayRemove, setDoc,
 } from "firebase/firestore";
+import { Helmet } from "react-helmet-async";
 import { db, auth } from "../components/firebase";
 import "./ResourceLibrary.css";
 
@@ -1472,6 +1473,24 @@ export default function ResourceLibrary() {
 
   return (
     <div className="rl-page">
+
+    <Helmet>
+        <title>Resources | StudyBuddy</title>
+        <meta name="description" content="Curated free study resources — videos, articles, courses, and tools matched to your learning journey. Save, complete, and build study playlists." />
+        
+        <meta property="og:title" content="Resources | StudyBuddy" />
+        <meta property="og:description" content="Curated free study resources — videos, articles, courses, and tools matched to your learning journey." />
+        <meta property="og:type" content="website" />
+        <meta property="og:url" content="https://study-buddy-seven-blush.vercel.app/resources" />
+        <meta property="og:image" content="https://study-buddy-seven-blush.vercel.app/og-image.png" />
+        
+        <meta name="twitter:card" content="summary_large_image" />
+        <meta name="twitter:image" content="https://study-buddy-seven-blush.vercel.app/og-image.png" />
+        
+        <link rel="canonical" href="https://study-buddy-seven-blush.vercel.app/resources" />
+      </Helmet>
+
+
       {/* Ambient background */}
       <div className="rl-bg" aria-hidden="true">
         <div className="rl-bg__blob rl-bg__blob--1" />

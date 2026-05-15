@@ -1,3 +1,4 @@
+import { Helmet } from 'react-helmet-async';
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import Lottie from "lottie-react";
@@ -1179,6 +1180,9 @@ export default function ChallengeHard() {
 
   if (!authReady || loading) return (
     <div className="s75-loading" role="status" aria-live="polite">
+      <Helmet>
+        <title>Loading Your Challenge… | StudyBuddy</title>
+      </Helmet>
       <div className="s75-loading-pulse" />
       <Lottie animationData={workingAnim} loop style={{ width: 110, height: 110 }} />
       <p>Loading your challenge…</p>
@@ -1187,6 +1191,12 @@ export default function ChallengeHard() {
 
   if (!user) return (
     <div className="s75-page">
+      <Helmet>
+        <title>Study Challenge — Build Habits That Stick | StudyBuddy</title>
+        <meta name="description" content="Join a 7 to 180-day study challenge. Pick your timeline, track daily tasks, and transform your academic discipline." />
+        <meta property="og:title" content="Study Challenge — Build Habits That Stick" />
+        <meta property="og:description" content="Pick your timeline, choose your style, and build academic habits that last." />
+      </Helmet>
       <div className="s75-mesh" aria-hidden="true" />
       <div className="s75-layout">
         <div className="s75-auth glass-card">
@@ -1205,6 +1215,10 @@ export default function ChallengeHard() {
 
   if (isCompleted && cfg && durPre) return (
     <div className="s75-page">
+      <Helmet>
+        <title>Challenge Completed! 🏆 {totalDays} Days | StudyBuddy</title>
+        <meta name="description" content={`You completed ${totalDays} days of focused study. Every task done, every day counted.`} />
+      </Helmet>
       <div className="s75-mesh" aria-hidden="true" />
       <Burst active accent={cfg.color} />
       <div className="s75-layout">
@@ -1234,6 +1248,16 @@ export default function ChallengeHard() {
 
   if (!activeMode || !activeDurId) return (
     <div className="s75-page">
+      <Helmet>
+        <title>Flexible Study Challenge — 7 to 180 Days | StudyBuddy</title>
+        <meta name="description" content="Choose your study challenge duration and style. Deep Work, Academic Edge, or build your own. Track progress, earn streaks, and build lifelong habits." />
+        <link rel="canonical" href="https://study-buddy-seven-blush.vercel.app/75hard" />
+        <meta property="og:title" content="Flexible Study Challenge — Transform Your Mind" />
+        <meta property="og:description" content="Pick your timeline and build academic habits that actually stick." />
+        <meta property="og:type" content="website" />
+        </Helmet>
+
+
       <div className="s75-mesh" aria-hidden="true" />
       <div className="s75-layout">
         <IntroScreen
@@ -1258,6 +1282,10 @@ export default function ChallengeHard() {
     const effectiveDays = durPre.id === "custom" ? (customDays || 75) : durPre.days;
     return (
       <div className="s75-page">
+        <Helmet>
+          <title>{`${cfg.emoji} ${cfg.label} — ${effectiveDays}-Day Study Challenge | StudyBuddy`}</title>
+          <meta name="description" content={`Start ${cfg.label}: ${cfg.description} A ${effectiveDays}-day commitment to transform your study habits.`} />
+        </Helmet>
         <div className="s75-mesh" aria-hidden="true" />
         <div className="s75-layout">
           <div style={{ maxWidth: 1100, margin: "0 auto", padding: "1.5rem 0 .5rem", display: "flex", gap: ".5rem", alignItems: "center", flexWrap: "wrap" }}>
@@ -1375,6 +1403,12 @@ export default function ChallengeHard() {
 
   return (
     <div className="s75-page" style={{ "--acc": cfg.color, "--acc2": cfg.color2 }}>
+      
+      <Helmet>
+        <title>{`${cfg.label} Day ${dayNum}/${totalDays} — Study Challenge | StudyBuddy`}</title>
+        <meta name="description" content={`Day ${dayNum} of ${totalDays}. ${doneTasks}/${tasks.length} tasks completed today. ${cfg.description}`} />
+      </Helmet> 
+
       <div className="s75-mesh" aria-hidden="true" />
       <Burst active={burst} accent={cfg.color} />
 

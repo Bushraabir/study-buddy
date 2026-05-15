@@ -278,6 +278,30 @@ function ForgotPass() {
 
   return (
     <div className="fp-page">
+
+      <Helmet>
+       <title>
+         {step === 0 && "Forgot Password · Reset Your Account | StudyBuddy"}
+         {step === 1 && "Check Your Inbox · Password Reset | StudyBuddy"}
+         {step === 2 && "Set New Password · Secure Your Account | StudyBuddy"}
+       </title>
+       <meta 
+         name="description" 
+         content={
+           step === 0
+             ? "Enter your email to receive a secure password reset link for your StudyBuddy account."
+             : step === 1
+             ? "We've sent a reset link to your email. Click the link to continue setting your new password."
+             : "Create a strong new password to secure your StudyBuddy account."
+         } 
+       />
+       <link rel="canonical" href="https://study-buddy-seven-blush.vercel.app/forgot-password" />
+       <meta property="og:title" content="Reset Password | StudyBuddy" />
+       <meta property="og:description" content="Securely reset your StudyBuddy account password." />
+       <meta property="og:type" content="website" />
+      </Helmet>
+
+
       <motion.div
         className="fp-card"
         variants={pageVariants}

@@ -11,6 +11,7 @@ import {
 import { collection, addDoc, getDocs, doc, updateDoc, deleteDoc, query, where, serverTimestamp } from "firebase/firestore";
 import { db, auth } from "../components/firebase";
 import toast from "react-hot-toast";
+import { Helmet } from "react-helmet-async";
 import "./EnvironmentOptimizer.css";
 
 // ─── constants ──────────────────────────────────────────────────────────────
@@ -480,6 +481,19 @@ export default function EnvironmentOptimizer() {
   // ── render ─────────────────────────────────────────────────────────────────
   return (
     <div className="eo-page">
+
+      <Helmet>
+        <title>Environment Optimizer — Find Your Best Study Spots | FocusFlow</title>
+        <meta name="description" content="Track and compare your study environments to discover where you focus best. Analyze session data, focus scores, and optimize your productivity." />
+        <link rel="canonical" href="https://yourdomain.com/environment-optimizer" />
+        <meta property="og:title" content="Environment Optimizer — Find Your Best Study Spots" />
+        <meta property="og:description" content="Track and compare your study environments to discover where you focus best." />
+        <meta property="og:type" content="website" />
+        <meta property="og:url" content="https://yourdomain.com/environment-optimizer" />
+        <meta name="twitter:card" content="summary_large_image" />
+      </Helmet>
+
+
       {/* page header */}
       <motion.div
         className="eo-hero"

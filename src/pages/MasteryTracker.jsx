@@ -23,7 +23,7 @@ import {
 } from "firebase/firestore";
 import { onAuthStateChanged } from "firebase/auth";
 import { toast } from "react-hot-toast";
-
+import { Helmet } from "react-helmet-async";
 import "./MasteryTracker.css";
 
 // ── Constants ────────────────────────────────────────────────────────────────
@@ -879,7 +879,12 @@ export default function MasteryTracker() {
   if (!user && !loading) {
     return (
       <div className="mt-page">
-        <Seo title="Mastery Tracker | StudyBuddy" />
+        <Helmet>
+          <title>Mastery Tracker — Build Confidence Heatmaps | StudyBuddy</title>
+          <meta name="description" content="Rate your confidence per topic and watch yourself grow. Build mastery heatmaps across every subject, topic by topic." />
+          <meta property="og:title" content="Mastery Tracker — Build Confidence Heatmaps" />
+          <meta property="og:description" content="Rate your confidence per topic and watch yourself grow. Visualize your learning progress with interactive heatmaps." />
+        </Helmet>     
         <div className="mt-gate">
           <div className="mt-gate-icon"><LuBrain size={36} /></div>
           <h2>Track your mastery</h2>
@@ -892,7 +897,10 @@ export default function MasteryTracker() {
 
   if (loading) {
     return (
-      <div className="mt-loading">
+      <div className="mt-loading">\
+        <Helmet>
+          <title>Loading Your Mastery Map… | StudyBuddy</title>
+        </Helmet>
         <motion.div
           animate={{ scale: [1, 1.18, 1], rotate: [0, 10, -10, 0] }}
           transition={{ repeat: Infinity, duration: 1.8 }}
@@ -907,6 +915,34 @@ export default function MasteryTracker() {
 
   return (
     <div className="mt-page">
+
+
+      <Helmet>
+        <title>
+          {subjects.length === 0
+            ? "Mastery Tracker — Start Building Your Heatmap | StudyBuddy"
+            : `Mastery Tracker (${stats.overallPct}% overall · ${stats.understoodCount} understood) | StudyBuddy`}
+        </title>
+        <meta 
+          name="description" 
+          content={
+            subjects.length === 0
+              ? "Add subjects and topics to start rating your confidence. Build interactive mastery heatmaps and track your learning progress over time."
+              : `Tracking ${stats.totalTopics} topics across ${subjects.length} subjects. ${stats.overallPct}% overall mastery, ${stats.understoodCount} topics fully understood.`
+          } 
+        />
+        <link rel="canonical" href="https://study-buddy-seven-blush.vercel.app/mastery-tracker" />
+        <meta property="og:title" content="Mastery Tracker — Visualize Your Learning" />
+        <meta property="og:description" content="Rate confidence per topic, build heatmaps, and watch your knowledge grow. Interactive radar charts and progress tracking." />
+        <meta property="og:type" content="website" />
+        <meta property="og:url" content="https://study-buddy-seven-blush.vercel.app/mastery-tracker" />
+        <meta property="og:image" content="https://study-buddy-seven-blush.vercel.app/og-image.png" />
+        <meta property="og:site_name" content="StudyBuddy" />
+        <meta name="twitter:card" content="summary_large_image" />
+        <meta name="twitter:title" content="Mastery Tracker — Visualize Your Learning" />
+        <meta name="twitter:description" content="Rate confidence per topic, build heatmaps, and watch your knowledge grow." />
+        <meta name="twitter:image" content="https://study-buddy-seven-blush.vercel.app/og-image.png" />
+      </Helmet>
      <Confetti active={confetti} />
 
       {/* ── Header ── */}

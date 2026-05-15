@@ -6,6 +6,7 @@ import {
 import { onAuthStateChanged } from "firebase/auth";
 import { motion, AnimatePresence } from "framer-motion";
 import toast from "react-hot-toast";
+import { Helmet } from "react-helmet-async";
 import "./FlashCards.css";
 
 const POOKIE_EMOJIS = ["🌸", "💖", "✨", "🎀", "💝", "🌷", "🦋", "💫", "🍓", "🌺"];
@@ -197,6 +198,12 @@ const Flashcards = () => {
   if (!user) {
     return (
       <div className="pookie-page">
+        <Helmet>
+          <title>Flashcards — Log in to Study | StudyBuddy</title>
+          <meta name="description" content="Create, organize, and quiz yourself with flashcards. Log in to build your personal study deck." />
+          <meta property="og:title" content="Flashcards — Log in to Study" />
+          <meta property="og:description" content="Create, organize, and quiz yourself with flashcards." />
+        </Helmet>
         <div className="pookie-header">
           <div className="pookie-badge">🔒 Private Zone</div>
           <h1 className="pookie-title">Bestie, log in first 🥺</h1>
@@ -208,6 +215,29 @@ const Flashcards = () => {
 
   return (
     <div className="pookie-page">
+      <Helmet>
+        <title>
+          {quizMode
+            ? quizFinished
+              ? `Quiz Results: ${scorePercent}% | Flashcards | StudyBuddy`
+              : `Quiz Mode (${currentQuizIndex + 1}/${quizCards.length}) | Flashcards | StudyBuddy`
+            : `Your Flashcards (${flashcards.length}) | StudyBuddy`}
+        </title>
+        <meta 
+          name="description" 
+          content={
+            quizMode
+              ? "Test your knowledge with an interactive flashcard quiz."
+              : `Browse and manage ${flashcards.length} flashcards. Create cards with tags, flip to reveal answers, and challenge yourself.`
+          } 
+        />
+        <link rel="canonical" href="https://study-buddy-seven-blush.vercel.app/flash-cards" />
+        <meta property="og:title" content="Your Flashcards | StudyBuddy" />
+        <meta property="og:description" content="Browse, create, and quiz yourself with your personal flashcard deck." />
+        <meta property="og:type" content="website" />
+      </Helmet>
+
+
       <div className="pookie-sparkles" aria-hidden="true">
         {Array.from({ length: 8 }).map((_, i) => <span key={i} className="pookie-sparkle" style={{ "--i": i }} />)}
       </div>

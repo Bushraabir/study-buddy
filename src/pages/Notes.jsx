@@ -17,7 +17,7 @@ import Highlight from "@tiptap/extension-highlight";
 import TaskList from "@tiptap/extension-task-list";
 import TaskItem from "@tiptap/extension-task-item";
 import { Plugin, PluginKey } from "prosemirror-state";
-
+import { Helmet } from "react-helmet-async";
 import Fuse from "fuse.js";
 import { motion, AnimatePresence } from "framer-motion";
 
@@ -1219,6 +1219,12 @@ export default function Notes() {
   if (!uid) {
     return (
       <div className="nb-root">
+        <Helmet>
+          <title>My Notebook — Rich Notes & Knowledge Graph | StudyBuddy</title>
+          <meta name="description" content="Create rich text notes with wiki links, tags, and a visual knowledge graph. Log in to build your personal knowledge base." />
+          <meta property="og:title" content="My Notebook — Rich Notes & Knowledge Graph" />
+          <meta property="og:description" content="Create rich text notes with wiki links and build a visual knowledge graph." />
+        </Helmet>
         <div className="nb-auth-wall"><h2>Please log in to access your notes.</h2></div>
       </div>
     );
@@ -1226,6 +1232,37 @@ export default function Notes() {
 
   return (
     <div className="nb-root">
+
+      <Helmet>
+        <title>
+          {selectedNote
+            ? `${selectedNote.title || "Untitled"} — My Notebook | StudyBuddy`
+            : showGraph
+            ? "Knowledge Graph — Visualize Your Notes | StudyBuddy"
+            : `My Notebook (${notes.length} notes) | StudyBuddy`}
+        </title>
+        <meta 
+          name="description" 
+          content={
+            selectedNote
+              ? `Editing "${selectedNote.title || "Untitled"}". ${wordCount(selectedNote.content || "")} words. Part of your personal knowledge graph.`
+              : showGraph
+              ? "Visualize your notes as an interactive knowledge graph. Drag, zoom, and explore connections between your ideas."
+              : `Create ${notes.length} rich text notes with wiki links, tags, and a visual knowledge graph. Build your personal knowledge base.`
+          } 
+        />
+        <link rel="canonical" href="https://study-buddy-seven-blush.vercel.app/notes" />
+        <meta property="og:title" content="My Notebook — Rich Notes & Knowledge Graph" />
+        <meta property="og:description" content="Create rich text notes with wiki links, tags, and a visual knowledge graph." />
+        <meta property="og:type" content="website" />
+        <meta property="og:url" content="https://study-buddy-seven-blush.vercel.app/notes" />
+        <meta property="og:image" content="https://study-buddy-seven-blush.vercel.app/og-image.png" />
+        <meta property="og:site_name" content="StudyBuddy" />
+        <meta name="twitter:card" content="summary_large_image" />
+        <meta name="twitter:title" content="My Notebook — Rich Notes & Knowledge Graph" />
+        <meta name="twitter:description" content="Create rich text notes with wiki links, tags, and a visual knowledge graph." />
+        <meta name="twitter:image" content="https://study-buddy-seven-blush.vercel.app/og-image.png" />
+      </Helmet>
       <div className="nb-orb nb-orb--1" />
       <div className="nb-orb nb-orb--2" />
       <div className="nb-orb nb-orb--3" />

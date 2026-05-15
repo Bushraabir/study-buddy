@@ -10,8 +10,9 @@ import { auth, db } from "../components/firebase";
 import toast from "react-hot-toast";
 import Lottie from "lottie-react";
 import registrationAnimation from "../assets/login-animation.json";
-import "./Login.css";   // shared auth design system
-import "./Register.css"; // register-specific overrides
+import { Helmet } from "react-helmet-async";
+import "./Login.css";   
+import "./Register.css"; 
 
 // ── Validation Schema ──────────────────────────────────────────
 const registerSchema = Yup.object({
@@ -120,6 +121,24 @@ function Register() {
 
   return (
     <div className="studybuddy-auth-page">
+
+      <Helmet>
+        <title>Create Account | StudyBuddy</title>
+        <meta name="description" content="Sign up for StudyBuddy — free flashcards, focus timers, rich notes & beautiful study graphs. Start acing exams today." />
+        
+        <meta property="og:title" content="Create Account | StudyBuddy" />
+        <meta property="og:description" content="Join StudyBuddy for free. Build habits, track progress, and ace every exam." />
+        <meta property="og:type" content="website" />
+        <meta property="og:url" content="https://study-buddy-seven-blush.vercel.app/register" />
+        <meta property="og:image" content="https://study-buddy-seven-blush.vercel.app/og-image.png" />
+        
+        <meta name="twitter:card" content="summary_large_image" />
+        <meta name="twitter:image" content="https://study-buddy-seven-blush.vercel.app/og-image.png" />
+        
+        <link rel="canonical" href="https://study-buddy-seven-blush.vercel.app/register" />
+      </Helmet>
+
+
       <motion.div
         className="studybuddy-auth-card studybuddy-auth-card--register"
         variants={cardVariants}

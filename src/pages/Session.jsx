@@ -6,30 +6,15 @@ import React, {
   useMemo,
 } from "react";
 import {
-  doc,
-  onSnapshot,
-  updateDoc,
-  setDoc,
-  serverTimestamp,
-  runTransaction,
-  collection,
-  addDoc,
-  getDocs,
-  getDoc,
-  query,
-  where,
-  orderBy,
-  deleteDoc,
-  writeBatch,
-  increment,
-  Timestamp,
-  limit,
-  deleteField,
+  doc, onSnapshot, updateDoc, setDoc,
+  serverTimestamp, runTransaction, collection, addDoc, getDocs, getDoc, query,
+  where, orderBy, deleteDoc, writeBatch, increment, Timestamp, limit, deleteField,
 } from "firebase/firestore";
 import { auth, db } from "../components/firebase";
 import { onAuthStateChanged } from "firebase/auth";
 import toast from "react-hot-toast";
 import { motion, AnimatePresence } from "framer-motion";
+import { Helmet } from "react-helmet-async";
 import Lottie from "lottie-react";
 import clockAnimation from "../assets/3d-clock-animation.json";
 import "./Session.css";
@@ -1975,6 +1960,25 @@ export default function StartSession() {
       onMouseMove={recordInteraction} onKeyDown={recordInteraction}
       onTouchStart={recordInteraction} onClick={recordInteraction}
     >
+
+      <Helmet>
+        <title>Study Session | StudyBuddy</title>
+        <meta name="description" content="Start a Pomodoro or Deep Work session. Track tasks, distractions, and field-specific study time with real-time analytics." />
+        
+        <meta property="og:title" content="Study Session | StudyBuddy" />
+        <meta property="og:description" content="Focus timer with Pomodoro, Deep Work, task tracking, distraction logging, and environment optimization." />
+        <meta property="og:type" content="website" />
+        <meta property="og:url" content="https://study-buddy-seven-blush.vercel.app/session" />
+        <meta property="og:image" content="https://study-buddy-seven-blush.vercel.app/og-image.png" />
+        
+        <meta name="twitter:card" content="summary_large_image" />
+        <meta name="twitter:image" content="https://study-buddy-seven-blush.vercel.app/og-image.png" />
+        
+        <link rel="canonical" href="https://study-buddy-seven-blush.vercel.app/session" />
+      </Helmet>
+
+
+      
       <AnimatePresence>
         {inactivityModal && (
           <motion.div className="ss-modal-backdrop" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
