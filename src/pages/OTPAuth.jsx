@@ -14,13 +14,10 @@ import loginAnimation from "../assets/login-animation.json";
 import { Helmet } from "react-helmet-async";
 import "./OTPAuth.css";
 
-// ── Steps ──────────────────────────────────────────────────────
 const STEP = { EMAIL: "email", OTP: "otp", NAME: "name", DONE: "done" };
-
-// ── OTP digit count ────────────────────────────────────────────
 const OTP_LENGTH = 6;
+const STORAGE_KEY = "sb_otp_email";
 
-// ── Particle background (purely decorative) ────────────────────
 function Particles() {
   return (
     <div className="otp-particles" aria-hidden="true">
@@ -31,7 +28,6 @@ function Particles() {
   );
 }
 
-// ── Step indicator ─────────────────────────────────────────────
 function StepDots({ step }) {
   const steps = [STEP.EMAIL, STEP.OTP, STEP.NAME];
   const idx = steps.indexOf(step);
@@ -49,7 +45,6 @@ function StepDots({ step }) {
   );
 }
 
-// ── Main Component ─────────────────────────────────────────────
 export default function OTPAuth() {
   const [step, setStep] = useState(STEP.EMAIL);
   const [email, setEmail] = useState("");
@@ -61,62 +56,89 @@ export default function OTPAuth() {
   const navigate = useNavigate();
   const timerRef = useRef(null);
 
-  // ── Handle magic link return on page load ──────────────────
-  useEffect(() => {
-    if (isSignInWithEmailLink(auth, window.location.href)) {
-      const savedEmail = localStorage.getItem("sb_otp_email");
-      if (savedEmail) {
-        handleMagicLinkSignIn(savedEmail);
-      } else {
-        // Edge case: opened on a different device
-        const promptedEmail = window.prompt(
-          "Please enter your email to confirm sign-in:"
-        );
-        if (promptedEmail) {
-          handleMagicLinkSignIn(promptedEmail.trim().toLowerCase());
-        }
-      }
-    }
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
-
-  // ── Resend countdown ───────────────────────────────────────
-  useEffect(() => {
-    if (resendTimer > 0) {
-      timerRef.current = setInterval(() => {
-        setResendTimer((t) => {
-          if (t <= 1) {
-            clearInterval(timerRef.current);
-            return 0;
-          }
-          return t - 1;
-        });
-      }, 1000);
-    }
-    return () => clearInterval(timerRef.current);
-  }, [resendTimer]);
-
-  // ── Build actionCodeSettings dynamically ──────────────────
-  // CRITICAL FIX: url must be the exact page origin so Firebase
-  // sends the link back here. This domain MUST be added to
-  // Firebase Console → Authentication → Settings → Authorized domains.
-  const getActionCodeSettings = useCallback(() => {
-    return {
+  const getActionCodeSettings = useCallback(() => ({
     url: `${window.location.origin}/`,
     handleCodeInApp: true,
-    };
-  }, []);
+  }), []);
 
-  // ── Send magic link ────────────────────────────────────────
   const sendMagicLink = useCallback(
     async (emailAddr) => {
       const actionCodeSettings = getActionCodeSettings();
       await sendSignInLinkToEmail(auth, emailAddr, actionCodeSettings);
-      localStorage.setItem("sb_otp_email", emailAddr);
+      localStorage.setItem(STORAGE_KEY, emailAddr);
     },
     [getActionCodeSettings]
   );
 
-  // ── Step 1: Email submit ───────────────────────────────────
+  const handleMagicLinkSignIn = useCallback(
+    async (emailAddr) => {
+      setLoading(true);
+      try {
+        const result = await signInWithEmailLink(auth, emailAddr, window.location.href);
+        localStorage.removeItem(STORAGE_KEY);
+        window.history.replaceState({}, document.title, window.location.pathname);
+
+        const userRef = doc(db, "users", result.user.uid);
+        const snap = await getDoc(userRef);
+
+        if (snap.exists()) {
+          toast.success("Welcome back! 🎉");
+          setLoading(false);
+          navigate("/session");
+        } else {
+          setStep(STEP.NAME);
+          setLoading(false);
+        }
+      } catch (err) {
+        console.error("signInWithEmailLink error:", err.code, err.message);
+        if (err.code === "auth/invalid-action-code") {
+          toast.error("Link expired or already used. Please request a new one.", { duration: 5000 });
+        } else if (err.code === "auth/invalid-email") {
+          toast.error("Email mismatch. Please re-enter your email.");
+        } else {
+          toast.error("Sign-in failed. Please try again.");
+        }
+        setStep(STEP.EMAIL);
+        setLoading(false);
+      }
+    },
+    [navigate]
+  );
+
+  useEffect(() => {
+    if (!isSignInWithEmailLink(auth, window.location.href)) return;
+
+    const savedEmail = localStorage.getItem(STORAGE_KEY);
+
+    if (savedEmail) {
+      handleMagicLinkSignIn(savedEmail);
+    } else {
+      const promptedEmail = window.prompt(
+        "Please enter the email address you used to sign in:"
+      );
+      if (promptedEmail) {
+        handleMagicLinkSignIn(promptedEmail.trim().toLowerCase());
+      } else {
+        toast.error("Email required to complete sign-in.");
+        setStep(STEP.EMAIL);
+      }
+    }
+  }, [handleMagicLinkSignIn]);
+
+  useEffect(() => {
+    if (resendTimer <= 0) return;
+    timerRef.current = setInterval(() => {
+      setResendTimer((t) => {
+        if (t <= 1) {
+          clearInterval(timerRef.current);
+          return 0;
+        }
+        return t - 1;
+      });
+    }, 1000);
+    return () => clearInterval(timerRef.current);
+  }, [resendTimer]);
+
   const handleEmailSubmit = useCallback(
     async (e) => {
       e.preventDefault();
@@ -134,16 +156,14 @@ export default function OTPAuth() {
         toast.success("✉️ Magic link sent! Check your inbox.");
       } catch (err) {
         console.error("sendSignInLinkToEmail error:", err.code, err.message);
-
-        // Provide actionable error messages per Firebase error code
         if (err.code === "auth/operation-not-allowed") {
           toast.error(
-            "Email link sign-in is not enabled. Please enable it in Firebase Console → Authentication → Sign-in methods.",
+            "Email link sign-in is not enabled. Enable it in Firebase Console → Authentication → Sign-in methods.",
             { duration: 6000 }
           );
         } else if (err.code === "auth/unauthorized-continue-uri") {
           toast.error(
-            `Domain not authorized. Add "${window.location.hostname}" to Firebase Console → Authentication → Settings → Authorized domains.`,
+            `Add "${window.location.hostname}" to Firebase Console → Authentication → Settings → Authorized domains.`,
             { duration: 8000 }
           );
         } else if (err.code === "auth/invalid-email") {
@@ -160,55 +180,6 @@ export default function OTPAuth() {
     [email, sendMagicLink]
   );
 
-  // ── Magic link sign-in handler ─────────────────────────────
-  const handleMagicLinkSignIn = useCallback(
-    async (emailAddr) => {
-      setLoading(true);
-      try {
-        const result = await signInWithEmailLink(
-          auth,
-          emailAddr,
-          window.location.href
-        );
-        localStorage.removeItem("sb_otp_email");
-        // Clean the OOB code from the URL without a page reload
-        window.history.replaceState(
-          {},
-          document.title,
-          window.location.pathname
-        );
-
-        // Check Firestore for existing user
-        const userRef = doc(db, "users", result.user.uid);
-        const snap = await getDoc(userRef);
-
-        if (snap.exists()) {
-          toast.success("Welcome back! 🎉");
-          navigate("/session");
-        } else {
-          setStep(STEP.NAME);
-          setLoading(false);
-        }
-      } catch (err) {
-        console.error("signInWithEmailLink error:", err.code, err.message);
-        if (err.code === "auth/invalid-action-code") {
-          toast.error(
-            "Link expired or already used. Please request a new one.",
-            { duration: 5000 }
-          );
-        } else if (err.code === "auth/invalid-email") {
-          toast.error("Email mismatch. Please re-enter your email.");
-        } else {
-          toast.error("Sign-in failed. Please try again.");
-        }
-        setStep(STEP.EMAIL);
-        setLoading(false);
-      }
-    },
-    [navigate]
-  );
-
-  // ── OTP digits input (decorative UX) ──────────────────────
   const handleDigitChange = useCallback(
     (i, val) => {
       const char = val.replace(/\D/g, "").slice(-1);
@@ -231,20 +202,13 @@ export default function OTPAuth() {
 
   const handleDigitPaste = useCallback((e) => {
     e.preventDefault();
-    const pasted = e.clipboardData
-      .getData("text")
-      .replace(/\D/g, "")
-      .slice(0, OTP_LENGTH);
+    const pasted = e.clipboardData.getData("text").replace(/\D/g, "").slice(0, OTP_LENGTH);
     const next = Array(OTP_LENGTH).fill("");
-    pasted.split("").forEach((c, idx) => {
-      next[idx] = c;
-    });
+    pasted.split("").forEach((c, idx) => { next[idx] = c; });
     setOtp(next);
-    const focusIdx = Math.min(pasted.length, OTP_LENGTH - 1);
-    digitRefs.current[focusIdx]?.focus();
+    digitRefs.current[Math.min(pasted.length, OTP_LENGTH - 1)]?.focus();
   }, []);
 
-  // ── Resend ─────────────────────────────────────────────────
   const handleResend = useCallback(async () => {
     if (resendTimer > 0) return;
     setLoading(true);
@@ -260,7 +224,6 @@ export default function OTPAuth() {
     }
   }, [email, resendTimer, sendMagicLink]);
 
-  // ── Step 3: Name submit (new user) ─────────────────────────
   const handleNameSubmit = useCallback(
     async (e) => {
       e.preventDefault();
@@ -290,6 +253,7 @@ export default function OTPAuth() {
           monthlyStats: {},
         });
         toast.success("Account created! Let's start studying 🚀");
+        setLoading(false);
         navigate("/session");
       } catch (err) {
         console.error("Firestore setDoc error:", err.message);
@@ -301,7 +265,6 @@ export default function OTPAuth() {
     [name, navigate]
   );
 
-  // ── Slide variants ─────────────────────────────────────────
   const slideIn = {
     initial: { opacity: 0, x: 40, filter: "blur(4px)" },
     animate: {
@@ -318,47 +281,40 @@ export default function OTPAuth() {
     },
   };
 
+  const helmetTitle =
+    step === STEP.EMAIL
+      ? "Sign In with Magic Link · StudyBuddy"
+      : step === STEP.OTP
+      ? "Check Your Inbox · Magic Link Sent · StudyBuddy"
+      : "Welcome! Set Your Name · StudyBuddy";
+
+  const helmetDescription =
+    step === STEP.EMAIL
+      ? "Sign in to StudyBuddy with a magic link — no password needed."
+      : step === STEP.OTP
+      ? "We've sent a magic link to your email. Click it to sign in automatically."
+      : "Welcome to StudyBuddy! Set your display name to get started.";
+
   return (
     <div className="otp-page">
-
       <Helmet>
-        <title>
-          {step === STEP.EMAIL && "Sign In with Magic Link · StudyBuddy"}
-          {step === STEP.OTP && "Check Your Inbox · Magic Link Sent · StudyBuddy"}
-          {step === STEP.NAME && "Welcome! Set Your Name · StudyBuddy"}
-        </title>
-        <meta 
-          name="description" 
-          content={
-            step === STEP.EMAIL
-              ? "Sign in to StudyBuddy with a magic link — no password needed. Track study sessions, master flashcards, and reach your goals."
-              : step === STEP.OTP
-              ? "We've sent a magic link to your email. Click it to sign in automatically."
-              : "Welcome to StudyBuddy! Set your display name to get started with focused studying."
-          } 
-        />
+        <title>{helmetTitle}</title>
+        <meta name="description" content={helmetDescription} />
         <link rel="canonical" href="https://study-buddy-seven-blush.vercel.app/OTPAuth" />
-        
-        {/* Open Graph */}
         <meta property="og:title" content="Sign In · StudyBuddy" />
-        <meta property="og:description" content="Sign in with a magic link — no password needed. Start tracking your study sessions." />
+        <meta property="og:description" content="Sign in with a magic link — no password needed." />
         <meta property="og:type" content="website" />
         <meta property="og:url" content="https://study-buddy-seven-blush.vercel.app/OTPAuth" />
         <meta property="og:image" content="https://study-buddy-seven-blush.vercel.app/og-image.png" />
         <meta property="og:site_name" content="StudyBuddy" />
-        
-        {/* Twitter */}
         <meta name="twitter:card" content="summary_large_image" />
         <meta name="twitter:title" content="Sign In · StudyBuddy" />
-        <meta name="twitter:description" content="Sign in with a magic link — no password needed. Start tracking your study sessions." />
+        <meta name="twitter:description" content="Sign in with a magic link — no password needed." />
         <meta name="twitter:image" content="https://study-buddy-seven-blush.vercel.app/og-image.png" />
-        
-        {/* Noindex for auth pages */}
         <meta name="robots" content="noindex, follow" />
       </Helmet>
-      <Particles />
 
-      {/* Ambient orbs */}
+      <Particles />
       <div className="otp-orb otp-orb--1" />
       <div className="otp-orb otp-orb--2" />
       <div className="otp-orb otp-orb--3" />
@@ -369,7 +325,6 @@ export default function OTPAuth() {
         animate={{ opacity: 1, y: 0, scale: 1 }}
         transition={{ duration: 0.6, ease: [0.25, 0.1, 0.25, 1] }}
       >
-        {/* ── Left panel ── */}
         <div className="otp-panel otp-panel--left">
           <div className="otp-lottie-wrap">
             <Lottie animationData={loginAnimation} loop />
@@ -396,27 +351,20 @@ export default function OTPAuth() {
           </ul>
         </div>
 
-        {/* ── Right panel ── */}
         <div className="otp-panel otp-panel--right">
           <StepDots step={step} />
 
           <AnimatePresence mode="wait">
-            {/* ── STEP: EMAIL ── */}
             {step === STEP.EMAIL && (
               <motion.div key="email" className="otp-form-wrap" {...slideIn}>
                 <div className="otp-form-header">
                   <div className="otp-icon-badge">✉️</div>
                   <h2>Welcome</h2>
-                  <p>
-                    Enter your email and we'll send you a magic link — no
-                    password needed.
-                  </p>
+                  <p>Enter your email and we'll send you a magic link — no password needed.</p>
                 </div>
                 <form onSubmit={handleEmailSubmit} noValidate>
                   <div className="otp-field-group">
-                    <label htmlFor="otp-email" className="otp-label">
-                      Email address
-                    </label>
+                    <label htmlFor="otp-email" className="otp-label">Email address</label>
                     <input
                       id="otp-email"
                       type="email"
@@ -443,19 +391,14 @@ export default function OTPAuth() {
               </motion.div>
             )}
 
-            {/* ── STEP: OTP / WAITING ── */}
             {step === STEP.OTP && (
               <motion.div key="otp" className="otp-form-wrap" {...slideIn}>
                 <div className="otp-form-header">
                   <div className="otp-icon-badge">🔗</div>
                   <h2>Check your email</h2>
-                  <p>
-                    We sent a magic link to <strong>{email}</strong>. Click it
-                    to continue.
-                  </p>
+                  <p>We sent a magic link to <strong>{email}</strong>. Click it to continue.</p>
                 </div>
 
-                {/* Visual OTP digits — decorative only */}
                 <div
                   className="otp-digits"
                   onPaste={handleDigitPaste}
@@ -478,8 +421,7 @@ export default function OTPAuth() {
                 </div>
 
                 <p className="otp-hint">
-                  💡 Open the link on <strong>this device</strong> — it will
-                  sign you in automatically.
+                  💡 Open the link on <strong>this device</strong> — it will sign you in automatically.
                 </p>
 
                 <div className="otp-actions-row">
@@ -495,17 +437,11 @@ export default function OTPAuth() {
                   </button>
                   <button
                     type="button"
-                    className={`otp-btn otp-btn--outline ${
-                      resendTimer > 0 ? "otp-btn--disabled" : ""
-                    }`}
+                    className={`otp-btn otp-btn--outline ${resendTimer > 0 ? "otp-btn--disabled" : ""}`}
                     onClick={handleResend}
                     disabled={resendTimer > 0 || loading}
                   >
-                    {loading
-                      ? "Sending…"
-                      : resendTimer > 0
-                      ? `Resend in ${resendTimer}s`
-                      : "Resend link"}
+                    {loading ? "Sending…" : resendTimer > 0 ? `Resend in ${resendTimer}s` : "Resend link"}
                   </button>
                 </div>
 
@@ -516,22 +452,16 @@ export default function OTPAuth() {
               </motion.div>
             )}
 
-            {/* ── STEP: NAME (new user) ── */}
             {step === STEP.NAME && (
               <motion.div key="name" className="otp-form-wrap" {...slideIn}>
                 <div className="otp-form-header">
                   <div className="otp-icon-badge">🎉</div>
                   <h2>One last thing</h2>
-                  <p>
-                    What should we call you? This is your StudyBuddy display
-                    name.
-                  </p>
+                  <p>What should we call you? This is your StudyBuddy display name.</p>
                 </div>
                 <form onSubmit={handleNameSubmit} noValidate>
                   <div className="otp-field-group">
-                    <label htmlFor="otp-name" className="otp-label">
-                      Your name
-                    </label>
+                    <label htmlFor="otp-name" className="otp-label">Your name</label>
                     <input
                       id="otp-name"
                       type="text"

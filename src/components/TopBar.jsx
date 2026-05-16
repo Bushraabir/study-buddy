@@ -354,7 +354,7 @@ export default function TopBar() {
                 </button>
               </>
             ) : (
-              <button className="sb-btn sb-btn--login" onClick={() => handleNav("/OTPAuth")}>
+              <button className="sb-btn sb-btn--login" onClick={() => handleNav("/login")}>
                 <FaSignInAlt size={13} />
                 <span>Login</span>
               </button>
@@ -458,7 +458,7 @@ export default function TopBar() {
                 ) : (
                   <button
                     className="sb-mob-btn sb-mob-btn--login"
-                    onClick={() => handleNav("/OTPAuth")}
+                    onClick={() => handleNav("/login")}
                   >
                     <FaSignInAlt size={14} />
                     <span>Login to StudyBuddy</span>

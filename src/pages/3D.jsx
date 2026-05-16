@@ -1,826 +1,776 @@
+import React, {
+  useState, useEffect, useCallback, useRef, useMemo, useDeferredValue,
+} from 'react';
 import { Helmet } from 'react-helmet-async';
-import React, { useState, useEffect, useCallback, useRef } from 'react';
 import Plot from 'react-plotly.js';
 import * as math from 'mathjs';
-import { 
-  Trash2, Plus, Eye, EyeOff, Settings, Grid, ZoomIn, ZoomOut, 
-  RotateCcw, Box, Play, Pause, RotateCw, Move, Layers } from 'lucide-react';
-import './3D.css'
+import {
+  Trash2, Plus, Eye, EyeOff, Settings2, RotateCcw, Box, Play, Pause,
+  RotateCw, Move, Layers, Download, Upload, Undo2, Redo2,
+  ChevronLeft, ChevronRight, FlaskConical, Waves, Wind, Check, X,
+} from 'lucide-react';
+import './3D.css';
 
-const GraphingCalculator3D = () => {
-  const [surfaces, setSurfaces] = useState([
-    { id: 1, expression: 'z = sin(x) * cos(y)', type: 'surface', color: '#8b5cf6', visible: true, opacity: 0.8 }
-  ]);
-  const [curves, setCurves] = useState([]);
-  const [points, setPoints] = useState([]);
-  const [newExpression, setNewExpression] = useState('');
-  const [activeTab, setActiveTab] = useState('surface'); // surface, curve, points
-  const [nextId, setNextId] = useState(2);
-  
-  const [graphSettings, setGraphSettings] = useState({
-    xMin: -5, xMax: 5, yMin: -5, yMax: 5, zMin: -5, zMax: 5,
-    resolution: 50, showAxes: true, showGrid: true,
-    backgroundColor: 'rgba(15, 15, 35, 0.9)',
-    cameraPosition: { eye: { x: 1.5, y: 1.5, z: 1.5 } }
-  });
-  
-  const [animation, setAnimation] = useState({
-    enabled: false, speed: 1, parameter: 't', timeValue: 0
-  });
-  
-  const [showSettings, setShowSettings] = useState(false);
-  const [variables, setVariables] = useState({ t: 0 });
-  const animationRef = useRef();
+/* ─── constants ────────────────────────────────────────────────── */
+const KNOWN_SYMS = new Set([
+  'x','y','z','t','u','v','e','pi','i','E','PI',
+  'sin','cos','tan','asin','acos','atan','atan2',
+  'sinh','cosh','tanh','asinh','acosh','atanh',
+  'log','ln','log10','log2','sqrt','abs','ceil',
+  'floor','round','sign','exp','pow','mod','max','min',
+  'gamma','factorial',
+]);
 
-  const colors = ['#8b5cf6', '#06b6d4', '#10b981', '#f59e0b', '#ef4444', '#ec4899', '#84cc16', '#f97316'];
-  const surfaceTypes = [
-    { value: 'surface', label: 'Surface z = f(x,y)', icon: Layers },
-    { value: 'parametric_surface', label: 'Parametric Surface', icon: Box },
-    { value: 'curve', label: 'Space Curve', icon: Move },
-    { value: 'points', label: 'Point Cloud', icon: Grid }
-  ];
+const PALETTE = [
+    '#FF6B6B',  // Soft Red
+    '#4ECDC4',  // Turquoise
+    '#45B7D1',  // Sky Blue
+    '#96CEB4',  // Sage
+    '#FFEAA7',  // Cream Gold
+    '#DDA0DD',  // Plum
+    '#98D8C8',  // Mint
+    '#F7DC6F',  // Soft Yellow
+    '#BB8FCE',  // Lavender
+    '#85C1E9',  // Cornflower
+    '#F8C471',  // Apricot
+    '#82E0AA',  // Pastel Green
+];
 
-  // Generate surface data z = f(x,y)
-  const generateSurfaceData = useCallback((expression, resolution = 50) => {
-    const { xMin, xMax, yMin, yMax } = graphSettings;
-    const xStep = (xMax - xMin) / (resolution - 1);
-    const yStep = (yMax - yMin) / (resolution - 1);
-    
-    const x = [];
-    const y = [];
-    const z = [];
-    
-    for (let i = 0; i < resolution; i++) {
-      const xRow = [];
-      const yRow = [];
-      const zRow = [];
-      
-      for (let j = 0; j < resolution; j++) {
-        const xVal = xMin + i * xStep;
-        const yVal = yMin + j * yStep;
-        
-        try {
-          const expr = expression.replace(/z\s*=\s*/i, '').trim();
-          const zVal = math.evaluate(expr, { x: xVal, y: yVal, ...variables });
-          
-          if (typeof zVal === 'number' && isFinite(zVal)) {
-            xRow.push(xVal);
-            yRow.push(yVal);
-            zRow.push(zVal);
-          } else {
-            xRow.push(xVal);
-            yRow.push(yVal);
-            zRow.push(null);
-          }
-        } catch (error) {
-          xRow.push(xVal);
-          yRow.push(yVal);
-          zRow.push(null);
-        }
+const MAX_HISTORY = 40;
+
+const hex2rgba = (hex, a) => {
+  const r = parseInt(hex.slice(1,3),16);
+  const g = parseInt(hex.slice(3,5),16);
+  const b = parseInt(hex.slice(5,7),16);
+  return `rgba(${r},${g},${b},${a})`;
+};
+
+/* ─── MathExpression class ──────────────────────────────────────── */
+class MathExpr {
+  constructor(raw, type = 'surface') {
+    this.raw   = raw;
+    this.type  = type;
+    this.error = null;
+    this._compiled = null;
+    this._dX = null;
+    this._dY = null;
+
+    try {
+      let src = raw;
+      if (type === 'surface') src = raw.replace(/^\s*z\s*=\s*/i, '').trim();
+      this._node = math.parse(src);
+      this._compiled = this._node.compile();
+      if (type === 'surface') {
+        try { this._dX = math.derivative(this._node, 'x'); } catch {}
+        try { this._dY = math.derivative(this._node, 'y'); } catch {}
       }
-      
-      x.push(xRow);
-      y.push(yRow);
-      z.push(zRow);
+    } catch (e) {
+      this.error = e.message;
     }
-    
-    return { x, y, z };
-  }, [graphSettings, variables]);
+  }
 
-  // Generate parametric surface data
-  const generateParametricSurface = useCallback((expressions) => {
-    const resolution = graphSettings.resolution;
-    const uMin = -2, uMax = 2, vMin = -2, vMax = 2;
-    const uStep = (uMax - uMin) / (resolution - 1);
-    const vStep = (vMax - vMin) / (resolution - 1);
-    
-    const x = [];
-    const y = [];
-    const z = [];
-    
-    // Parse expressions
-    const xExpr = expressions.x || 'u';
-    const yExpr = expressions.y || 'v';
-    const zExpr = expressions.z || '0';
-    
-    for (let i = 0; i < resolution; i++) {
-      const xRow = [];
-      const yRow = [];
-      const zRow = [];
-      
-      for (let j = 0; j < resolution; j++) {
-        const u = uMin + i * uStep;
-        const v = vMin + j * vStep;
-        
-        try {
-          const xVal = math.evaluate(xExpr, { u, v, ...variables });
-          const yVal = math.evaluate(yExpr, { u, v, ...variables });
-          const zVal = math.evaluate(zExpr, { u, v, ...variables });
-          
-          xRow.push(typeof xVal === 'number' && isFinite(xVal) ? xVal : null);
-          yRow.push(typeof yVal === 'number' && isFinite(yVal) ? yVal : null);
-          zRow.push(typeof zVal === 'number' && isFinite(zVal) ? zVal : null);
-        } catch (error) {
-          xRow.push(null);
-          yRow.push(null);
-          zRow.push(null);
-        }
-      }
-      
-      x.push(xRow);
-      y.push(yRow);
-      z.push(zRow);
-    }
-    
-    return { x, y, z };
-  }, [graphSettings, variables]);
+  eval(scope) {
+    if (!this._compiled) return null;
+    try {
+      const v = this._compiled.evaluate(scope);
+      return typeof v === 'number' && isFinite(v) ? v : null;
+    } catch { return null; }
+  }
 
-  // Generate space curve data
-  const generateSpaceCurve = useCallback((expressions, numPoints = 500) => {
-    const tMin = -10, tMax = 10;
-    const tStep = (tMax - tMin) / (numPoints - 1);
-    
-    const x = [];
-    const y = [];
-    const z = [];
-    
-    // Parse expressions
-    const xExpr = expressions.x || 't';
-    const yExpr = expressions.y || '0';
-    const zExpr = expressions.z || '0';
-    
-    for (let i = 0; i < numPoints; i++) {
-      const t = tMin + i * tStep;
-      
+  dX(scope) {
+    if (!this._dX) return null;
+    try {
+      const v = this._dX.compile().evaluate(scope);
+      return typeof v === 'number' && isFinite(v) ? v : null;
+    } catch { return null; }
+  }
+
+  dY(scope) {
+    if (!this._dY) return null;
+    try {
+      const v = this._dY.compile().evaluate(scope);
+      return typeof v === 'number' && isFinite(v) ? v : null;
+    } catch { return null; }
+  }
+
+  vars() {
+    if (!this._node) return [];
+    const out = new Set();
+    this._node.traverse(n => {
+      if (n.isSymbolNode && !KNOWN_SYMS.has(n.name)) out.add(n.name);
+    });
+    return [...out];
+  }
+}
+
+/* ─── Gaussian curvature (numerical) ───────────────────────────── */
+const gaussK = (exprRaw, x, y, vars, h = 1e-4) => {
+  try {
+    const src = exprRaw.replace(/^\s*z\s*=\s*/i,'').trim();
+    const f = (dx,dy) => {
       try {
-        const xVal = math.evaluate(xExpr, { t, ...variables });
-        const yVal = math.evaluate(yExpr, { t, ...variables });
-        const zVal = math.evaluate(zExpr, { t, ...variables });
-        
-        if (typeof xVal === 'number' && typeof yVal === 'number' && typeof zVal === 'number' &&
-            isFinite(xVal) && isFinite(yVal) && isFinite(zVal)) {
-          x.push(xVal);
-          y.push(yVal);
-          z.push(zVal);
-        }
-      } catch (error) {
-        // Skip invalid points
-      }
-    }
-    
-    return { x, y, z };
-  }, [variables]);
+        const v = math.evaluate(src, { x: x+dx, y: y+dy, ...vars });
+        return typeof v === 'number' && isFinite(v) ? v : 0;
+      } catch { return 0; }
+    };
+    const f0  = f(0,0);
+    const fx  = (f(h,0)-f(-h,0))/(2*h);
+    const fy  = (f(0,h)-f(0,-h))/(2*h);
+    const fxx = (f(h,0) - 2*f0 + f(-h,0))/(h*h);
+    const fyy = (f(0,h) - 2*f0 + f(0,-h))/(h*h);
+    const fxy = (f(h,h)-f(h,-h)-f(-h,h)+f(-h,-h))/(4*h*h);
+    const D   = (1+fx*fx+fy*fy)**2;
+    return D > 1e-12 ? (fxx*fyy - fxy*fxy)/D : 0;
+  } catch { return 0; }
+};
 
-  // Generate point cloud data
-  const generatePointCloud = useCallback((expression, numPoints = 1000) => {
-    const { xMin, xMax, yMin, yMax, zMin, zMax } = graphSettings;
-    const x = [];
-    const y = [];
-    const z = [];
-    
-    for (let i = 0; i < numPoints; i++) {
-      const xVal = Math.random() * (xMax - xMin) + xMin;
-      const yVal = Math.random() * (yMax - yMin) + yMin;
-      const zVal = Math.random() * (zMax - zMin) + zMin;
-      
-      try {
-        // Evaluate condition for point inclusion
-        const condition = math.evaluate(expression, { x: xVal, y: yVal, z: zVal, ...variables });
-        
-        if (condition) {
-          x.push(xVal);
-          y.push(yVal);
-          z.push(zVal);
-        }
-      } catch (error) {
-        // Skip invalid points
-      }
-    }
-    
-    return { x, y, z };
-  }, [graphSettings, variables]);
+/* ─── SURFACE TYPE DEFINITIONS ──────────────────────────────────── */
+const TYPES = [
+  { id:'surface',   label:'Surface',   Icon:Layers,       ph:'sin(x)*cos(y)' },
+  { id:'parametric',label:'Parametric',Icon:Box,          ph:'x=cos(u)*cos(v), y=cos(u)*sin(v), z=sin(u)' },
+  { id:'curve',     label:'Curve',     Icon:Move,         ph:'x=cos(t), y=sin(t), z=t/5' },
+  { id:'implicit',  label:'Implicit',  Icon:FlaskConical, ph:'x^2+y^2+z^2-4' },
+  { id:'vector',    label:'Vector',    Icon:Wind,         ph:'P=y, Q=-x, R=0' },
+  { id:'complex',   label:'Complex',   Icon:Waves,        ph:'z^2' },
+];
 
-  // Parse different expression types
-  const parseExpression = useCallback((expression, type) => {
-    if (type === 'parametric_surface' || type === 'curve') {
-      const parts = expression.split(',').map(part => part.trim());
-      const result = {};
-      
-      parts.forEach(part => {
-        if (part.includes('x =')) {
-          result.x = part.replace(/x\s*=\s*/i, '').trim();
-        } else if (part.includes('y =')) {
-          result.y = part.replace(/y\s*=\s*/i, '').trim();
-        } else if (part.includes('z =')) {
-          result.z = part.replace(/z\s*=\s*/i, '').trim();
-        }
-      });
-      
-      return result;
+const EXAMPLES = {
+  surface:    ['sin(x)*cos(y)','x^2+y^2','cos(sqrt(x^2+y^2))','exp(-(x^2+y^2))','sin(x^2+y^2)/(x^2+y^2+0.1)','x*y'],
+  parametric: ['x=cos(u)*cos(v), y=cos(u)*sin(v), z=sin(u)','x=(2+cos(u))*cos(v), y=(2+cos(u))*sin(v), z=sin(u)','x=u*cos(v), y=u*sin(v), z=u'],
+  curve:      ['x=cos(t), y=sin(t), z=t/5','x=sin(t), y=cos(t), z=sin(2*t)','x=exp(-t/10)*cos(t), y=exp(-t/10)*sin(t), z=t/5'],
+  implicit:   ['x^2+y^2+z^2-4','x^2+y^2-z^2-1','sin(x)+cos(y)+sin(z)','(x^2+y^2+z^2+2)^2-16*(x^2+y^2)'],
+  vector:     ['P=y, Q=-x, R=0','P=x, Q=y, R=z','P=sin(y), Q=cos(x), R=0'],
+  complex:    ['z^2','z^3-1','sin(z)','exp(z)','1/z'],
+};
+
+const DEFAULT_SETTINGS = {
+  xMin:-5,xMax:5, yMin:-5,yMax:5, zMin:-5,zMax:5,
+  resolution:40, showGrid:true, showAxes:true,
+  curvature:false, adaptiveMesh:true,
+};
+
+/* ─── Component ─────────────────────────────────────────────────── */
+export default function GraphingCalculator3D() {
+
+  /* state */
+  const [objects, setObjects] = useState(() => {
+    try {
+      const s = localStorage.getItem('sb-3d');
+      if (s) { const p = JSON.parse(s); if (p.objects?.length) return p.objects; }
+    } catch {}
+    return [{ id:1, expression:'sin(x)*cos(y)', type:'surface', color:'#f472b6', visible:true, opacity:0.85, name:'Sine Wave' }];
+  });
+  const [nextId, setNextId]     = useState(2);
+  const [activeTab, setTab]     = useState('surface');
+  const [newExpr, setNewExpr]   = useState('');
+  const [settings, setSettings] = useState(DEFAULT_SETTINGS);
+  const [vars, setVars]         = useState({});
+  const [anim, setAnim]         = useState({ on:false, param:'t', speed:1 });
+  const [sidebar, setSidebar]   = useState(true);
+  const [showCfg, setShowCfg]   = useState(false);
+  const [selId, setSelId]       = useState(null);
+  const [mathPanel, setMathPanel]= useState(null);
+  const [copied, setCopied]     = useState(false);
+  const [history, setHistory]   = useState([]);
+  const [hIdx, setHIdx]         = useState(-1);
+
+  /* refs */
+  const liveVarsRef  = useRef({});
+  const cameraRef    = useRef({ eye:{ x:1.5, y:1.5, z:1.5 } });
+  const exprCache    = useRef(new Map());
+  const animRef      = useRef();
+  const frameRef     = useRef(0);
+
+  /* deferred */
+  const dObj  = useDeferredValue(objects);
+  const dSet  = useDeferredValue(settings);
+
+  /* ── history ─────────────────────────────────────────────────── */
+  const pushHist = useCallback(snap => {
+    setHistory(h => [...h.slice(0, hIdx+1), JSON.parse(JSON.stringify(snap))].slice(-MAX_HISTORY));
+    setHIdx(i => Math.min(i+1, MAX_HISTORY-1));
+  }, [hIdx]);
+
+  const undo = useCallback(() => {
+    if (hIdx <= 0) return;
+    const s = history[hIdx-1];
+    setObjects(s.objects); setSettings(s.settings); setVars(s.vars);
+    setHIdx(i=>i-1); exprCache.current.clear();
+  }, [history, hIdx]);
+
+  const redo = useCallback(() => {
+    if (hIdx >= history.length-1) return;
+    const s = history[hIdx+1];
+    setObjects(s.objects); setSettings(s.settings); setVars(s.vars);
+    setHIdx(i=>i+1); exprCache.current.clear();
+  }, [history, hIdx]);
+
+  /* ── persist ─────────────────────────────────────────────────── */
+  useEffect(() => {
+    const t = setTimeout(() => {
+      try { localStorage.setItem('sb-3d', JSON.stringify({ objects, settings, vars })); } catch {}
+    }, 600);
+    return () => clearTimeout(t);
+  }, [objects, settings, vars]);
+
+  /* ── sync liveVarsRef ────────────────────────────────────────── */
+  useEffect(() => { liveVarsRef.current = vars; }, [vars]);
+
+  /* ── extract variable names from expressions ─────────────────── */
+  useEffect(() => {
+    const extra = {};
+    objects.forEach(obj => {
+      let e = exprCache.current.get(obj.expression+'|'+obj.type);
+      if (!e) { e = new MathExpr(obj.expression, obj.type); exprCache.current.set(obj.expression+'|'+obj.type, e); }
+      e.vars().forEach(n => { if (!(n in vars) && !(n in extra)) extra[n] = 0; });
+    });
+    if (Object.keys(extra).length) {
+      setVars(v => { const nv = {...v, ...extra}; liveVarsRef.current = nv; return nv; });
     }
-    
-    return expression;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [objects]);
+
+  /* ── animation loop ──────────────────────────────────────────── */
+  useEffect(() => {
+    if (!anim.on) { cancelAnimationFrame(animRef.current); return; }
+    const tick = () => {
+      liveVarsRef.current = { ...liveVarsRef.current, [anim.param]: (liveVarsRef.current[anim.param]||0) + 0.03*anim.speed };
+      if (++frameRef.current % 2 === 0) setVars({...liveVarsRef.current});
+      animRef.current = requestAnimationFrame(tick);
+    };
+    animRef.current = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(animRef.current);
+  }, [anim.on, anim.param, anim.speed]);
+
+  /* ── keyboard shortcuts ──────────────────────────────────────── */
+  useEffect(() => {
+    const h = e => {
+      if (e.target.tagName==='INPUT'||e.target.tagName==='TEXTAREA') return;
+      if ((e.ctrlKey||e.metaKey)&&e.key==='z') { e.preventDefault(); undo(); }
+      if ((e.ctrlKey||e.metaKey)&&e.key==='y') { e.preventDefault(); redo(); }
+      if (e.key===' ') { e.preventDefault(); setAnim(a=>({...a,on:!a.on})); }
+      if (e.key==='g') setSettings(s=>({...s,showGrid:!s.showGrid}));
+      if (e.key==='c') setSettings(s=>({...s,curvature:!s.curvature}));
+    };
+    window.addEventListener('keydown',h);
+    return ()=>window.removeEventListener('keydown',h);
+  }, [undo, redo]);
+
+  /* ── mesh generators ─────────────────────────────────────────── */
+  // CRITICAL FIX: Generators now take `currentVars` as parameter instead of reading ref
+  // This makes them pure functions with stable references
+
+  const getExpr = useCallback((raw, type) => {
+    const key = raw+'|'+type;
+    if (!exprCache.current.has(key)) exprCache.current.set(key, new MathExpr(raw, type));
+    return exprCache.current.get(key);
   }, []);
 
-  // Process each graph object
-  const processGraphObject = useCallback((obj) => {
-    try {
-      let data = {};
-      
-      switch (obj.type) {
-        case 'surface':
-          data = generateSurfaceData(obj.expression);
-          return {
-            ...data,
-            type: 'surface',
-            name: obj.expression,
-            colorscale: [[0, obj.color + '20'], [1, obj.color]],
-            opacity: obj.opacity,
-            visible: obj.visible,
-            showscale: false,
-            contours: {
-              z: { show: true, usecolormap: true, highlightcolor: "limegreen", project: { z: true } }
-            }
-          };
-          
-        case 'parametric_surface':
-          const surfaceExpressions = parseExpression(obj.expression, 'parametric_surface');
-          data = generateParametricSurface(surfaceExpressions);
-          return {
-            ...data,
-            type: 'surface',
-            name: obj.expression,
-            colorscale: [[0, obj.color + '20'], [1, obj.color]],
-            opacity: obj.opacity,
-            visible: obj.visible,
-            showscale: false
-          };
-          
-        case 'curve':
-          const curveExpressions = parseExpression(obj.expression, 'curve');
-          data = generateSpaceCurve(curveExpressions);
-          return {
-            ...data,
-            type: 'scatter3d',
-            mode: 'lines',
-            name: obj.expression,
-            line: { color: obj.color, width: 4 },
-            visible: obj.visible
-          };
-          
-        case 'points':
-          data = generatePointCloud(obj.expression);
-          return {
-            ...data,
-            type: 'scatter3d',
-            mode: 'markers',
-            name: obj.expression,
-            marker: { 
-              color: obj.color, 
-              size: 3,
-              opacity: obj.opacity || 0.8
-            },
-            visible: obj.visible
-          };
-          
-        default:
-          return null;
-      }
-    } catch (error) {
-      console.error('Error processing graph object:', error);
-      return null;
-    }
-  }, [generateSurfaceData, generateParametricSurface, generateSpaceCurve, generatePointCloud, parseExpression]);
+  const genSurface = useCallback((obj, currentVars) => {
+    const { xMin,xMax,yMin,yMax,resolution,curvature } = dSet;
+    const e = getExpr(obj.expression, 'surface');
+    if (e.error) { console.warn('Surface expr error:', e.error); return null; }
 
-  // Extract variables from expressions
-  useEffect(() => {
-    const extractedVars = { ...variables };
-    let updated = false;
-    
-    const allObjects = [...surfaces, ...curves, ...points];
-    
-    allObjects.forEach(obj => {
-      try {
-        const node = math.parse(obj.expression);
-        node.filter(node => node.isSymbolNode).forEach(symbolNode => {
-          const name = symbolNode.name;
-          if (!['x', 'y', 'z', 't', 'u', 'v', 'e', 'pi', 'sin', 'cos', 'tan', 'log', 'ln', 'sqrt', 'abs'].includes(name) &&
-              !extractedVars.hasOwnProperty(name)) {
-            extractedVars[name] = 1;
-            updated = true;
-          }
-        });
-      } catch (error) {
-        // Skip parsing errors
-      }
-    });
-    
-    if (updated) {
-      setVariables(extractedVars);
-    }
-  }, [surfaces, curves, points, variables]);
+    const res = resolution;
+    const x=[],y=[],z=[],sc=[];
 
-  // Animation loop
-  useEffect(() => {
-    if (animation.enabled) {
-      const animate = () => {
-        setVariables(prev => ({
-          ...prev,
-          [animation.parameter]: prev[animation.parameter] + 0.1 * animation.speed
-        }));
-        animationRef.current = requestAnimationFrame(animate);
-      };
-      animationRef.current = requestAnimationFrame(animate);
-    } else if (animationRef.current) {
-      cancelAnimationFrame(animationRef.current);
-    }
-    
-    return () => {
-      if (animationRef.current) {
-        cancelAnimationFrame(animationRef.current);
+    for (let i=0;i<res;i++) {
+      const xr=[],yr=[],zr=[],cr=[];
+      const xv = xMin + (i/(res-1))*(xMax-xMin);
+      for (let j=0;j<res;j++) {
+        const yv = yMin + (j/(res-1))*(yMax-yMin);
+        const zv = e.eval({ x:xv, y:yv, ...currentVars });
+        xr.push(xv); yr.push(yv); zr.push(zv);
+        if (curvature) cr.push(gaussK(obj.expression, xv, yv, currentVars));
       }
+      x.push(xr); y.push(yr); z.push(zr); if (curvature) sc.push(cr);
+    }
+
+    const trace = { 
+      type:'surface', 
+      x,y,z, 
+      name:obj.name||obj.expression, 
+      opacity:obj.opacity, 
+      showscale:false,
+      hovertemplate:`<b>%{fullData.name}</b><br>X:%{x:.3f} Y:%{y:.3f} Z:%{z:.3f}<extra></extra>` 
     };
-  }, [animation]);
 
-  const addGraphObject = () => {
-    if (newExpression.trim()) {
-      const newObj = {
-        id: nextId,
-        expression: newExpression.trim(),
-        type: activeTab,
-        color: colors[(nextId - 1) % colors.length],
-        visible: true,
-        opacity: activeTab === 'surface' ? 0.8 : 0.9
-      };
-      
-      if (activeTab === 'surface' || activeTab === 'parametric_surface') {
-        setSurfaces([...surfaces, newObj]);
-      } else if (activeTab === 'curve') {
-        setCurves([...curves, newObj]);
-      } else if (activeTab === 'points') {
-        setPoints([...points, newObj]);
+    if (curvature && sc.length) {
+      trace.surfacecolor = sc;
+      trace.colorscale = [[0,'#3b82f6'],[0.5,'#10b981'],[1,'#ef4444']];
+      trace.showscale = true;
+      trace.colorbar = { title:'K', thickness:10, len:0.4, tickfont:{size:10,color:'#94a3b8'} };
+    } else {
+      trace.colorscale = [[0,hex2rgba(obj.color,0.12)],[1,obj.color]];
+    }
+    return trace;
+  }, [dSet, getExpr]);
+
+  const genParametric = useCallback((obj, currentVars) => {
+    const { resolution } = dSet;
+    const parts = {};
+    obj.expression.split(',').forEach(p => {
+      const m = p.trim().match(/^([xyz])\s*=\s*(.+)$/i);
+      if (m) parts[m[1].toLowerCase()] = m[2].trim();
+    });
+    const ex = getExpr(parts.x||'u','parametric');
+    const ey = getExpr(parts.y||'v','parametric');
+    const ez = getExpr(parts.z||'0','parametric');
+    if (ex.error||ey.error||ez.error) return null;
+    const x=[],y=[],z=[];
+    for (let i=0;i<resolution;i++) {
+      const xr=[],yr=[],zr=[];
+      const u = -Math.PI + (i/(resolution-1))*2*Math.PI;
+      for (let j=0;j<resolution;j++) {
+        const v = -Math.PI + (j/(resolution-1))*2*Math.PI;
+        const sc = { u,v,...currentVars };
+        xr.push(ex.eval(sc)); yr.push(ey.eval(sc)); zr.push(ez.eval(sc));
       }
-      
-      setNewExpression('');
-      setNextId(nextId + 1);
+      x.push(xr); y.push(yr); z.push(zr);
     }
-  };
+    return { type:'surface', x,y,z, name:obj.name||'Parametric',
+      colorscale:[[0,hex2rgba(obj.color,0.12)],[1,obj.color]], opacity:obj.opacity, showscale:false };
+  }, [dSet, getExpr]);
 
-  const updateGraphObject = (id, field, value, type) => {
-    if (type === 'surface' || type === 'parametric_surface') {
-      setSurfaces(surfaces.map(obj => obj.id === id ? { ...obj, [field]: value } : obj));
-    } else if (type === 'curve') {
-      setCurves(curves.map(obj => obj.id === id ? { ...obj, [field]: value } : obj));
-    } else if (type === 'points') {
-      setPoints(points.map(obj => obj.id === id ? { ...obj, [field]: value } : obj));
+  const genCurve = useCallback((obj, currentVars) => {
+    const parts = {};
+    obj.expression.split(',').forEach(p => {
+      const m = p.trim().match(/^([xyz])\s*=\s*(.+)$/i);
+      if (m) parts[m[1].toLowerCase()] = m[2].trim();
+    });
+    const ex=getExpr(parts.x||'t','curve'), ey=getExpr(parts.y||'0','curve'), ez=getExpr(parts.z||'0','curve');
+    if (ex.error||ey.error||ez.error) return null;
+    const x=[],y=[],z=[];
+    for (let i=0;i<800;i++) {
+      const t = -10 + (i/799)*20;
+      const sc = { t,...currentVars };
+      const xv=ex.eval(sc), yv=ey.eval(sc), zv=ez.eval(sc);
+      if (xv!==null&&yv!==null&&zv!==null) { x.push(xv);y.push(yv);z.push(zv); }
     }
-  };
+    return { type:'scatter3d', mode:'lines', x,y,z, name:obj.name||'Curve',
+      line:{ color:obj.color, width:4 } };
+  }, [getExpr]);
 
-  const deleteGraphObject = (id, type) => {
-    if (type === 'surface' || type === 'parametric_surface') {
-      setSurfaces(surfaces.filter(obj => obj.id !== id));
-    } else if (type === 'curve') {
-      setCurves(curves.filter(obj => obj.id !== id));
-    } else if (type === 'points') {
-      setPoints(points.filter(obj => obj.id !== id));
+  const genImplicit = useCallback((obj, currentVars) => {
+    const { xMin,xMax,yMin,yMax,zMin,zMax } = dSet;
+    const e = getExpr(obj.expression,'implicit');
+    if (e.error) return null;
+    const res=22, xs=[],ys=[],zs=[],vs=[];
+    for (let i=0;i<res;i++) for (let j=0;j<res;j++) for (let k=0;k<res;k++) {
+      const xv=xMin+(i/(res-1))*(xMax-xMin), yv=yMin+(j/(res-1))*(yMax-yMin), zv=zMin+(k/(res-1))*(zMax-zMin);
+      const v=e.eval({x:xv,y:yv,z:zv,...currentVars});
+      xs.push(xv);ys.push(yv);zs.push(zv);vs.push(v??0);
     }
-  };
+    return { type:'isosurface', x:xs,y:ys,z:zs, value:vs,
+      isomin:-0.5,isomax:0.5, surface:{show:true,count:1,fill:0.9},
+      colorscale:[[0,hex2rgba(obj.color,0.3)],[1,obj.color]], showscale:false, opacity:obj.opacity,
+      caps:{x:{show:false},y:{show:false},z:{show:false}}, name:obj.name||'Implicit' };
+  }, [dSet, getExpr]);
 
-  const toggleVisibility = (id, type) => {
-    const obj = [...surfaces, ...curves, ...points].find(o => o.id === id);
-    if (obj) {
-      updateGraphObject(id, 'visible', !obj.visible, type);
+  const genVector = useCallback((obj, currentVars) => {
+    const { xMin,xMax,yMin,yMax,zMin,zMax } = dSet;
+    const parts = {};
+    obj.expression.split(',').forEach(p => {
+      const m = p.trim().match(/^([PQR])\s*=\s*(.+)$/i);
+      if (m) parts[m[1].toUpperCase()] = m[2].trim();
+    });
+    const fp=getExpr(parts.P||'0','vector'), fq=getExpr(parts.Q||'0','vector'), fr=getExpr(parts.R||'0','vector');
+    if (fp.error||fq.error||fr.error) return null;
+    const x=[],y=[],z=[],u=[],v=[],w=[];
+    const res=8;
+    for (let i=0;i<res;i++) for (let j=0;j<res;j++) for (let k=0;k<res;k++) {
+      const xv=xMin+(i/(res-1))*(xMax-xMin), yv=yMin+(j/(res-1))*(yMax-yMin), zv=zMin+(k/(res-1))*(zMax-zMin);
+      const sc={x:xv,y:yv,z:zv,...currentVars};
+      const pv=fp.eval(sc),qv=fq.eval(sc),rv=fr.eval(sc);
+      if (pv!==null&&qv!==null&&rv!==null) { x.push(xv);y.push(yv);z.push(zv);u.push(pv);v.push(qv);w.push(rv); }
     }
-  };
+    return { type:'cone', x,y,z,u,v,w, sizemode:'absolute', sizeref:0.3, anchor:'tail',
+      colorscale:[[0,obj.color],[1,obj.color]], showscale:false, opacity:obj.opacity, name:obj.name||'Vector Field' };
+  }, [dSet, getExpr]);
 
-  const resetView = () => {
-    setGraphSettings(prev => ({
-      ...prev,
-      xMin: -5, xMax: 5, yMin: -5, yMax: 5, zMin: -5, zMax: 5,
-      cameraPosition: { eye: { x: 1.5, y: 1.5, z: 1.5 } }
-    }));
-  };
+  const genComplex = useCallback((obj, currentVars) => {
+    const { xMin,xMax,yMin,yMax,resolution } = dSet;
+    const e = getExpr(obj.expression,'complex');
+    if (e.error) return null;
+    const res=Math.min(resolution,48), x=[],y=[],z=[],sc=[];
+    for (let i=0;i<res;i++) {
+      const xr=[],yr=[],zr=[],cr=[];
+      const xv=xMin+(i/(res-1))*(xMax-xMin);
+      for (let j=0;j<res;j++) {
+        const yv=yMin+(j/(res-1))*(yMax-yMin);
+        const scope={x:xv,y:yv,z:math.complex(xv,yv),...currentVars};
+        let mag=0,phase=0;
+        try {
+          const r=e.eval(scope);
+          if (typeof r==='object'&&'re'in r) { mag=Math.sqrt(r.re**2+r.im**2); phase=Math.atan2(r.im,r.re); }
+          else if (typeof r==='number') { mag=Math.abs(r); phase=r>=0?0:Math.PI; }
+        } catch {}
+        xr.push(xv); yr.push(yv); zr.push(Math.min(mag,10)); cr.push((phase+Math.PI)/(2*Math.PI));
+      }
+      x.push(xr);y.push(yr);z.push(zr);sc.push(cr);
+    }
+    return { type:'surface', x,y,z, surfacecolor:sc,
+      colorscale:[[0,'#ef4444'],[0.17,'#f59e0b'],[0.33,'#84cc16'],[0.5,'#10b981'],[0.67,'#06b6d4'],[0.83,'#3b82f6'],[1,'#8b5cf6']],
+      opacity:obj.opacity, showscale:true, colorbar:{title:'Phase',thickness:10,len:0.4},
+      name:obj.name||'Complex' };
+  }, [dSet, getExpr]);
 
-  const toggleAnimation = () => {
-    setAnimation(prev => ({ ...prev, enabled: !prev.enabled }));
-  };
+  /* ── plotData ─────────────────────────────────────────────────── */
+  // CRITICAL FIX: We use liveVarsRef.current HERE, at evaluation time, not in dependencies
+  // But we trigger recompute by using a state variable that changes when vars change
+  const [varsTick, setVarsTick] = useState(0);
 
-  // Prepare plot data
-  const allObjects = [...surfaces, ...curves, ...points];
-  const plotData = allObjects.map(processGraphObject).filter(Boolean);
+  // Increment tick when vars change (for animation)
+  useEffect(() => {
+    setVarsTick(t => t + 1);
+  }, [vars]);
 
-  const layout = {
-    paper_bgcolor: 'rgba(0,0,0,0)',
-    plot_bgcolor: 'rgba(0,0,0,0)',
-    font: { color: '#e5e7eb', family: 'Inter, sans-serif' },
-    scene: {
-      bgcolor: graphSettings.backgroundColor,
-      xaxis: {
-        range: [graphSettings.xMin, graphSettings.xMax],
-        showgrid: graphSettings.showGrid,
-        gridcolor: 'rgba(139, 92, 246, 0.3)',
-        showline: graphSettings.showAxes,
-        linecolor: 'rgba(139, 92, 246, 0.5)',
-        title: { text: 'X', font: { color: '#e5e7eb' } },
-        tickcolor: 'rgba(139, 92, 246, 0.4)',
-        color: '#e5e7eb'
-      },
-      yaxis: {
-        range: [graphSettings.yMin, graphSettings.yMax],
-        showgrid: graphSettings.showGrid,
-        gridcolor: 'rgba(139, 92, 246, 0.3)',
-        showline: graphSettings.showAxes,
-        linecolor: 'rgba(139, 92, 246, 0.5)',
-        title: { text: 'Y', font: { color: '#e5e7eb' } },
-        tickcolor: 'rgba(139, 92, 246, 0.4)',
-        color: '#e5e7eb'
-      },
-      zaxis: {
-        range: [graphSettings.zMin, graphSettings.zMax],
-        showgrid: graphSettings.showGrid,
-        gridcolor: 'rgba(139, 92, 246, 0.3)',
-        showline: graphSettings.showAxes,
-        linecolor: 'rgba(139, 92, 246, 0.5)',
-        title: { text: 'Z', font: { color: '#e5e7eb' } },
-        tickcolor: 'rgba(139, 92, 246, 0.4)',
-        color: '#e5e7eb'
-      },
-      camera: graphSettings.cameraPosition
+  const plotData = useMemo(() => {
+    const currentVars = liveVarsRef.current;
+    const out = [];
+
+    dObj.filter(o=>o.visible).forEach(obj => {
+      try {
+        let t;
+        if (obj.type==='surface')    t = genSurface(obj, currentVars);
+        else if (obj.type==='parametric') t = genParametric(obj, currentVars);
+        else if (obj.type==='curve')      t = genCurve(obj, currentVars);
+        else if (obj.type==='implicit')   t = genImplicit(obj, currentVars);
+        else if (obj.type==='vector')     t = genVector(obj, currentVars);
+        else if (obj.type==='complex')    t = genComplex(obj, currentVars);
+
+        if (t && (t.x || t.value)) {
+          // Validate data isn't all null
+          const hasData = t.x && (Array.isArray(t.x[0]) ? t.x.some(r=>r.some(v=>v!==null)) : t.x.length>0);
+          if (hasData) out.push(t);
+        }
+      } catch (err) { console.warn('mesh err', obj.expression, err); }
+    });
+
+    console.log('Generated traces:', out.length, 'for', dObj.filter(o=>o.visible).length, 'visible objects');
+    return out;
+  }, [dObj, dSet, varsTick, genSurface, genParametric, genCurve, genImplicit, genVector, genComplex]);
+
+  /* ── layout ──────────────────────────────────────────────────── */
+  const layout = useMemo(() => ({
+    paper_bgcolor:'rgba(0,0,0,0)', plot_bgcolor:'rgba(0,0,0,0)',
+    font:{ color:'#f8fafc', family:'Nunito, sans-serif', size:12 },
+    scene:{
+      bgcolor:'rgba(15,15,35,0.55)',
+      aspectmode:'cube',
+      xaxis:{ range:[dSet.xMin,dSet.xMax], showgrid:dSet.showGrid, gridcolor:'rgba(244,114,182,0.15)',
+        showline:dSet.showAxes, linecolor:'rgba(244,114,182,0.5)', linewidth:2,
+        zerolinecolor:'rgba(244,114,182,0.4)', zerolinewidth:2, color:'#94a3b8',
+        title:{ text:'X', font:{color:'#f472b6',size:13} } },
+      yaxis:{ range:[dSet.yMin,dSet.yMax], showgrid:dSet.showGrid, gridcolor:'rgba(168,85,247,0.15)',
+        showline:dSet.showAxes, linecolor:'rgba(168,85,247,0.5)', linewidth:2,
+        zerolinecolor:'rgba(168,85,247,0.4)', zerolinewidth:2, color:'#94a3b8',
+        title:{ text:'Y', font:{color:'#a855f7',size:13} } },
+      zaxis:{ range:[dSet.zMin,dSet.zMax], showgrid:dSet.showGrid, gridcolor:'rgba(251,113,133,0.15)',
+        showline:dSet.showAxes, linecolor:'rgba(251,113,133,0.5)', linewidth:2,
+        zerolinecolor:'rgba(251,113,133,0.4)', zerolinewidth:2, color:'#94a3b8',
+        title:{ text:'Z', font:{color:'#fb7185',size:13} } },
+      camera: cameraRef.current,
+      hoverlabel:{ bgcolor:'rgba(15,15,35,0.95)', bordercolor:'rgba(139,92,246,0.4)', font:{color:'#fff',size:12} },
     },
-    margin: { l: 0, r: 0, t: 0, b: 0 },
-    showlegend: false
+    margin:{ l:0,r:0,t:8,b:0 },
+    showlegend:true,
+    legend:{ x:0.02,y:0.98, bgcolor:'rgba(15,15,35,0.8)', bordercolor:'rgba(139,92,246,0.2)', borderwidth:1, font:{color:'#e2e8f0',size:11} },
+  }), [dSet]);
+
+  /* ── CRUD ────────────────────────────────────────────────────── */
+  const addObj = useCallback(() => {
+    if (!newExpr.trim()) return;
+    const obj = { id:nextId, expression:newExpr.trim(), type:activeTab,
+      color:PALETTE[(nextId-1)%PALETTE.length], visible:true, opacity:0.85,
+      name:`${activeTab} ${nextId}` };
+    const next=[...objects,obj];
+    setObjects(next); setNextId(n=>n+1); setNewExpr('');
+    pushHist({ objects:next, settings, vars });
+  }, [newExpr,activeTab,nextId,objects,settings,vars,pushHist]);
+
+  const updateObj = useCallback((id,patch) => {
+    setObjects(prev=>{
+      const next=prev.map(o=>o.id===id?{...o,...patch}:o);
+      // Clear stale cache when expression changes
+      if (patch.expression !== undefined) {
+        const old = prev.find(o=>o.id===id);
+        if (old) exprCache.current.delete(old.expression+'|'+old.type);
+      }
+      return next;
+    });
+  }, []);
+
+  const deleteObj = useCallback((id) => {
+    const next=objects.filter(o=>o.id!==id);
+    setObjects(next); if(selId===id) setSelId(null);
+    pushHist({objects:next,settings,vars});
+  }, [objects,selId,settings,vars,pushHist]);
+
+  /* ── math info panel ─────────────────────────────────────────── */
+  const computeMath = (obj) => {
+    if (obj.type!=='surface') return null;
+    const e = new MathExpr(obj.expression,'surface');
+    if (e.error) return { error:e.error };
+    const scope = { x:0, y:0, ...liveVarsRef.current };
+    const fx=e.dX(scope), fy=e.dY(scope);
+    const K=gaussK(obj.expression,0,0,liveVarsRef.current);
+    const cl = K>0.01?'Elliptic (dome/bowl)':K<-0.01?'Hyperbolic (saddle)':'Parabolic';
+    return { fx, fy, grad:fx!==null&&fy!==null?Math.sqrt(fx*fx+fy*fy):null, K, cl };
   };
 
-  const config = {
-    responsive: true,
-    displayModeBar: true,
-    modeBarButtonsToRemove: [
-      'zoom3d', 'pan3d', 'orbitRotation', 'tableRotation', 'handleDrag3d',
-      'resetCameraDefault3d', 'resetCameraLastSave3d', 'hoverClosest3d'
-    ],
-    displaylogo: false
+  /* ── export / import ─────────────────────────────────────────── */
+  const exportJSON = () => {
+    const blob=new Blob([JSON.stringify({objects,settings,vars},null,2)],{type:'application/json'});
+    const url=URL.createObjectURL(blob);
+    const a=document.createElement('a'); a.href=url; a.download=`3d-graph-${Date.now()}.json`; a.click();
+    URL.revokeObjectURL(url); setCopied(true); setTimeout(()=>setCopied(false),2000);
+  };
+  const importJSON = e => {
+    const file=e.target.files?.[0]; if(!file) return;
+    const r=new FileReader();
+    r.onload = ev => {
+      try { const d=JSON.parse(ev.target.result); if(d.objects) setObjects(d.objects); if(d.settings) setSettings(d.settings); if(d.vars) setVars(d.vars); exprCache.current.clear(); } catch {}
+    };
+    r.readAsText(file);
   };
 
-  const getPlaceholderForType = (type) => {
-    switch (type) {
-      case 'surface': return 'z = sin(x) * cos(y)';
-      case 'parametric_surface': return 'x = u*cos(v), y = u*sin(v), z = u';
-      case 'curve': return 'x = cos(t), y = sin(t), z = t';
-      case 'points': return 'x^2 + y^2 + z^2 < 1';
-      default: return 'Enter equation...';
-    }
-  };
+  /* ── camera presets ──────────────────────────────────────────── */
+  const setCamera = eye => { cameraRef.current={eye}; setSettings(s=>({...s})); };
 
-  const getExamplesForType = (type) => {
-    switch (type) {
-      case 'surface':
-        return [
-          'z = x^2 + y^2',
-          'z = sin(x) * cos(y)',
-          'z = x*y',
-          'z = cos(sqrt(x^2 + y^2))'
-        ];
-      case 'parametric_surface':
-        return [
-          'x = u*cos(v), y = u*sin(v), z = u',
-          'x = cos(u)*cos(v), y = cos(u)*sin(v), z = sin(u)',
-          'x = u, y = v, z = u^2 + v^2'
-        ];
-      case 'curve':
-        return [
-          'x = cos(t), y = sin(t), z = t',
-          'x = t, y = t^2, z = t^3',
-          'x = sin(t), y = cos(t), z = sin(2*t)'
-        ];
-      case 'points':
-        return [
-          'x^2 + y^2 + z^2 < 1',
-          'abs(x) + abs(y) + abs(z) < 1',
-          'sin(x*y*z) > 0'
-        ];
-      default:
-        return [];
-    }
-  };
+  /* ── derived ─────────────────────────────────────────────────── */
+  const tabObjs = useMemo(()=>objects.filter(o=>o.type===activeTab),[objects,activeTab]);
 
+  /* ═══════════════════════════════════════════════════════════════
+     RENDER
+  ════════════════════════════════════════════════════════════════ */
   return (
-    <div className="graphing-calculator-3d">
+    <div className="g3d-root">
       <Helmet>
-        <title>3D Graphing Calculator — Study Buddy</title>
-        <meta name="description" content="Plot 3D surfaces, parametric curves, and point clouds interactively. Supports z = f(x,y), parametric surfaces, space curves, and animated variables." />
-        <meta name="robots" content="noindex" />
+        <title>3D Graphing Calculator — StudyBuddy</title>
+        <meta name="description" content="Interactive 3D graphing: surfaces, parametric, curves, vector fields, complex domain coloring."/>
+        <meta name="robots" content="noindex"/>
       </Helmet>
-      <div className="sidebar-3d">
-        <div className="header-3d">
-          <h1>3D Graphing Calculator</h1>
-          <div className="controls-3d">
-            <button onClick={() => setShowSettings(!showSettings)} className="control-btn-3d">
-              <Settings size={18} />
-            </button>
-            <button onClick={toggleAnimation} className={`control-btn-3d ${animation.enabled ? 'active' : ''}`}>
-              {animation.enabled ? <Pause size={18} /> : <Play size={18} />}
-            </button>
-            <button onClick={resetView} className="control-btn-3d">
-              <RotateCcw size={18} />
-            </button>
+
+      {/* ── math analysis overlay ─────────────────────────────── */}
+      {mathPanel && (
+        <div className="g3d-overlay" onClick={()=>setMathPanel(null)}>
+          <div className="g3d-math-panel glass-card" onClick={e=>e.stopPropagation()}>
+            <div className="g3d-math-head">
+              <span className="g3d-math-title">∂ Analysis</span>
+              <button className="icon-btn" onClick={()=>setMathPanel(null)}><X size={14}/></button>
+            </div>
+            {(() => {
+              const info = computeMath(mathPanel.obj);
+              if (!info) return <p className="g3d-math-note">Only available for z = f(x,y) surfaces.</p>;
+              if (info.error) return <p className="g3d-math-note g3d-math-note--err">Error: {info.error}</p>;
+              return (
+                <div className="g3d-math-rows">
+                  <div className="g3d-math-row"><span>∂z/∂x at (0,0)</span><code>{info.fx?.toFixed(4)??'N/A'}</code></div>
+                  <div className="g3d-math-row"><span>∂z/∂y at (0,0)</span><code>{info.fy?.toFixed(4)??'N/A'}</code></div>
+                  <div className="g3d-math-row"><span>|∇f| at (0,0)</span><code>{info.grad?.toFixed(4)??'N/A'}</code></div>
+                  <div className="g3d-math-row"><span>Gaussian K</span><code>{info.K?.toFixed(4)??'N/A'}</code></div>
+                  <div className="g3d-math-row"><span>Classification</span><span className="g3d-badge">{info.cl}</span></div>
+                </div>
+              );
+            })()}
           </div>
         </div>
+      )}
 
-        {showSettings && (
-          <div className="settings-panel-3d">
-            <h3>Graph Settings</h3>
-            <div className="setting-grid">
-              <div className="setting-group-3d">
-                <label>X Range:</label>
-                <div className="range-inputs-3d">
-                  <input
-                    type="number"
-                    value={graphSettings.xMin}
-                    onChange={(e) => setGraphSettings(prev => ({ ...prev, xMin: parseFloat(e.target.value) }))}
-                    step="0.5"
-                  />
-                  <input
-                    type="number"
-                    value={graphSettings.xMax}
-                    onChange={(e) => setGraphSettings(prev => ({ ...prev, xMax: parseFloat(e.target.value) }))}
-                    step="0.5"
-                  />
-                </div>
-              </div>
-              <div className="setting-group-3d">
-                <label>Y Range:</label>
-                <div className="range-inputs-3d">
-                  <input
-                    type="number"
-                    value={graphSettings.yMin}
-                    onChange={(e) => setGraphSettings(prev => ({ ...prev, yMin: parseFloat(e.target.value) }))}
-                    step="0.5"
-                  />
-                  <input
-                    type="number"
-                    value={graphSettings.yMax}
-                    onChange={(e) => setGraphSettings(prev => ({ ...prev, yMax: parseFloat(e.target.value) }))}
-                    step="0.5"
-                  />
-                </div>
-              </div>
-              <div className="setting-group-3d">
-                <label>Z Range:</label>
-                <div className="range-inputs-3d">
-                  <input
-                    type="number"
-                    value={graphSettings.zMin}
-                    onChange={(e) => setGraphSettings(prev => ({ ...prev, zMin: parseFloat(e.target.value) }))}
-                    step="0.5"
-                  />
-                  <input
-                    type="number"
-                    value={graphSettings.zMax}
-                    onChange={(e) => setGraphSettings(prev => ({ ...prev, zMax: parseFloat(e.target.value) }))}
-                    step="0.5"
-                  />
-                </div>
-              </div>
-            </div>
-            <div className="setting-group-3d">
-              <label>Resolution: {graphSettings.resolution}</label>
-              <input
-                type="range"
-                min="20"
-                max="100"
-                value={graphSettings.resolution}
-                onChange={(e) => setGraphSettings(prev => ({ ...prev, resolution: parseInt(e.target.value) }))}
-              />
-            </div>
-            <div className="checkbox-group">
-              <label>
-                <input
-                  type="checkbox"
-                  checked={graphSettings.showGrid}
-                  onChange={(e) => setGraphSettings(prev => ({ ...prev, showGrid: e.target.checked }))}
-                />
-                Show Grid
-              </label>
-              <label>
-                <input
-                  type="checkbox"
-                  checked={graphSettings.showAxes}
-                  onChange={(e) => setGraphSettings(prev => ({ ...prev, showAxes: e.target.checked }))}
-                />
-                Show Axes
-              </label>
-            </div>
-          </div>
-        )}
+      {/* ── sidebar ───────────────────────────────────────────── */}
+      <aside className={`g3d-sidebar glass-card${sidebar?'':' g3d-sidebar--closed'}`}>
+        <button className="g3d-collapse-btn icon-btn" onClick={()=>setSidebar(s=>!s)} aria-label="Toggle sidebar">
+          {sidebar ? <ChevronLeft size={15}/> : <ChevronRight size={15}/>}
+        </button>
 
-        <div className="tabs-3d">
-          {surfaceTypes.map(type => {
-            const Icon = type.icon;
-            return (
-              <button
-                key={type.value}
-                onClick={() => setActiveTab(type.value)}
-                className={`tab-btn-3d ${activeTab === type.value ? 'active' : ''}`}
-                title={type.label}
-              >
-                <Icon size={16} />
+        {sidebar && (<>
+
+          {/* header */}
+          <div className="g3d-hd">
+            <h1 className="pookie-display-title g3d-title">3D Grapher</h1>
+            <div className="g3d-hd-actions">
+              <button onClick={undo} disabled={hIdx<=0} className="icon-btn" title="Undo (Ctrl+Z)"><Undo2 size={13}/></button>
+              <button onClick={redo} disabled={hIdx>=history.length-1} className="icon-btn" title="Redo (Ctrl+Y)"><Redo2 size={13}/></button>
+              <button onClick={()=>setAnim(a=>({...a,on:!a.on}))} className={`icon-btn${anim.on?' g3d-btn-active':''}`} title="Play/Pause (Space)">
+                {anim.on?<Pause size={13}/>:<Play size={13}/>}
               </button>
-            );
-          })}
-        </div>
-
-        <div className="expressions-section-3d">
-          <h3>{surfaceTypes.find(t => t.value === activeTab)?.label}</h3>
-          
-          <div className="add-expression-3d">
-            <textarea
-              value={newExpression}
-              onChange={(e) => setNewExpression(e.target.value)}
-              placeholder={getPlaceholderForType(activeTab)}
-              rows={3}
-            />
-            <button onClick={addGraphObject} className="add-btn-3d">
-              <Plus size={18} />
-            </button>
+              <button onClick={()=>{ cameraRef.current={eye:{x:1.5,y:1.5,z:1.5}}; setSettings(s=>({...s})); }} className="icon-btn" title="Reset view"><RotateCcw size={13}/></button>
+              <button onClick={()=>setShowCfg(s=>!s)} className={`icon-btn${showCfg?' g3d-btn-active':''}`} title="Settings"><Settings2 size={13}/></button>
+              <button onClick={exportJSON} className="icon-btn" title="Export JSON">{copied?<Check size={13}/>:<Download size={13}/>}</button>
+              <label className="icon-btn" title="Import JSON" style={{cursor:'pointer'}}>
+                <Upload size={13}/>
+                <input type="file" accept=".json" onChange={importJSON} style={{display:'none'}}/>
+              </label>
+            </div>
           </div>
 
-          <div className="expressions-list-3d">
-            {allObjects.map((obj) => (
-              <div key={obj.id} className="expression-item-3d">
-                <div className="expression-color-3d" style={{ backgroundColor: obj.color }}></div>
-                <textarea
-                  value={obj.expression}
-                  onChange={(e) => updateGraphObject(obj.id, 'expression', e.target.value, obj.type)}
-                  className="expression-input-3d"
-                  rows={2}
-                />
-                <div className="expression-controls">
-                  {(obj.type === 'surface' || obj.type === 'parametric_surface' || obj.type === 'points') && (
-                    <div className="opacity-control">
-                      <label>Opacity</label>
-                      <input
-                        type="range"
-                        min="0.1"
-                        max="1"
-                        step="0.1"
-                        value={obj.opacity}
-                        onChange={(e) => updateGraphObject(obj.id, 'opacity', parseFloat(e.target.value), obj.type)}
-                      />
+          {/* settings panel */}
+          {showCfg && (
+            <div className="g3d-cfg glass-card-sm">
+              <p className="field-label" style={{color:'var(--pookie-pink)'}}>Bounds &amp; Resolution</p>
+              {[['X','xMin','xMax'],['Y','yMin','yMax'],['Z','zMin','zMax']].map(([ax,mn,mx])=>(
+                <div key={ax} className="g3d-bound-row">
+                  <span className="g3d-ax-label">{ax}</span>
+                  <input type="number" className="field-input g3d-num-input" value={settings[mn]}
+                    onChange={e=>setSettings(s=>({...s,[mn]:parseFloat(e.target.value)||s[mn]}))} step="1"/>
+                  <span className="g3d-arrow">→</span>
+                  <input type="number" className="field-input g3d-num-input" value={settings[mx]}
+                    onChange={e=>setSettings(s=>({...s,[mx]:parseFloat(e.target.value)||s[mx]}))} step="1"/>
+                </div>
+              ))}
+              <div className="g3d-res-row">
+                <span className="field-label" style={{margin:0}}>Res: {settings.resolution}</span>
+                <input type="range" min="15" max="80" value={settings.resolution}
+                  onChange={e=>setSettings(s=>({...s,resolution:parseInt(e.target.value)}))} className="g3d-slider"/>
+              </div>
+              <div className="g3d-toggles">
+                {[['showGrid','Grid'],['showAxes','Axes'],['curvature','Curvature']].map(([k,lb])=>(
+                  <label key={k} className="g3d-toggle">
+                    <input type="checkbox" checked={settings[k]} onChange={e=>setSettings(s=>({...s,[k]:e.target.checked}))}/>
+                    <span>{lb}</span>
+                  </label>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* type tabs */}
+          <div className="g3d-tabs">
+            {TYPES.map(({id,label,Icon})=>(
+              <button key={id} className={`g3d-tab${activeTab===id?' g3d-tab--active':''}`} onClick={()=>setTab(id)}>
+                <Icon size={12}/><span>{label}</span>
+              </button>
+            ))}
+          </div>
+
+          {/* add expression */}
+          <div className="g3d-add-row">
+            <textarea className="field-input g3d-expr-ta" rows={2} value={newExpr}
+              onChange={e=>setNewExpr(e.target.value)}
+              onKeyDown={e=>{ if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();addObj();} }}
+              placeholder={TYPES.find(t=>t.id===activeTab)?.ph}/>
+            <button onClick={addObj} className="btn-primary g3d-add-btn" disabled={!newExpr.trim()}><Plus size={16}/></button>
+          </div>
+
+          {/* expression list */}
+          <div className="g3d-list">
+            {tabObjs.length===0 && (
+              <div className="g3d-empty"><p>No {activeTab} plots yet.</p><p style={{fontSize:'0.75rem'}}>Type an expression above ↑</p></div>
+            )}
+            {tabObjs.map(obj=>{
+              const cached = exprCache.current.get(obj.expression+'|'+obj.type);
+              const hasErr = cached?.error;
+              return (
+                <div key={obj.id}
+                  className={`g3d-card glass-card-sm${selId===obj.id?' g3d-card--sel':''}${hasErr?' g3d-card--err':''}`}
+                  onClick={()=>setSelId(obj.id===selId?null:obj.id)}>
+                  <div className="g3d-card-hd">
+                    <label className="g3d-swatch" style={{background:obj.color}}>
+                      <input type="color" value={obj.color}
+                        onChange={e=>{e.stopPropagation();updateObj(obj.id,{color:e.target.value});}}
+                        onClick={e=>e.stopPropagation()}/>
+                    </label>
+                    <span className="g3d-type-tag" style={{background:hex2rgba(obj.color,0.18),color:obj.color}}>{obj.type}</span>
+                    {hasErr && <span className="g3d-err-dot" title={cached.error}>!</span>}
+                    <div style={{flex:1}}/>
+                    {obj.type==='surface' && (
+                      <button onClick={e=>{e.stopPropagation();setMathPanel({obj});}} className="icon-btn" title="Math analysis" style={{width:26,height:26}}>∂</button>
+                    )}
+                    <button onClick={e=>{e.stopPropagation();updateObj(obj.id,{visible:!obj.visible});}}
+                      className={`icon-btn${obj.visible?'':' g3d-hidden'}`} title="Toggle visibility">
+                      {obj.visible?<Eye size={12}/>:<EyeOff size={12}/>}
+                    </button>
+                    <button onClick={e=>{e.stopPropagation();deleteObj(obj.id);}}
+                      className="icon-btn icon-btn--danger" title="Delete"><Trash2 size={12}/></button>
+                  </div>
+                  <textarea className="field-input g3d-expr-edit" rows={2} value={obj.expression}
+                    onChange={e=>{updateObj(obj.id,{expression:e.target.value}); exprCache.current.delete(obj.expression+'|'+obj.type);}}
+                    onClick={e=>e.stopPropagation()}/>
+                  {(obj.type==='surface'||obj.type==='parametric'||obj.type==='implicit'||obj.type==='complex') && (
+                    <div className="g3d-opacity-row">
+                      <span className="field-label" style={{margin:0,fontSize:'0.68rem'}}>Opacity</span>
+                      <input type="range" min="0.1" max="1" step="0.05" value={obj.opacity}
+                        onClick={e=>e.stopPropagation()}
+                        onChange={e=>updateObj(obj.id,{opacity:parseFloat(e.target.value)})}
+                        className="g3d-slider"/>
                     </div>
                   )}
-                  <button
-                    onClick={() => toggleVisibility(obj.id, obj.type)}
-                    className={`visibility-btn-3d ${obj.visible ? 'visible' : 'hidden'}`}
-                  >
-                    {obj.visible ? <Eye size={16} /> : <EyeOff size={16} />}
-                  </button>
-                  <button
-                    onClick={() => deleteGraphObject(obj.id, obj.type)}
-                    className="delete-btn-3d"
-                  >
-                    <Trash2 size={16} />
-                  </button>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
-        </div>
 
-        {Object.keys(variables).length > 0 && (
-          <div className="variables-section-3d">
-            <h3>Variables & Animation</h3>
-            {Object.keys(variables).map((varName) => (
-              <div key={varName} className="variable-slider-3d">
-                <div className="variable-header">
-                  <label>{varName}: {variables[varName].toFixed(2)}</label>
-                  <button
-                    onClick={() => setAnimation(prev => ({ ...prev, parameter: varName }))}
-                    className={`animate-btn ${animation.parameter === varName ? 'active' : ''}`}
-                    title="Animate this variable"
-                  >
-                    <RotateCw size={12} />
-                  </button>
+          {/* variable sliders */}
+          {Object.keys(vars).length > 0 && (
+            <div className="g3d-vars glass-card-sm">
+              <p className="field-label" style={{color:'var(--pookie-pink)'}}>Variables</p>
+              {Object.keys(vars).map(name=>(
+                <div key={name} className="g3d-var">
+                  <div className="g3d-var-hd">
+                    <span className="g3d-var-name">{name} = {(vars[name]||0).toFixed(2)}</span>
+                    <button onClick={()=>setAnim(a=>({...a,param:name,on:true}))}
+                      className={`icon-btn${anim.param===name&&anim.on?' g3d-btn-active':''}`}
+                      style={{width:24,height:24}} title={`Animate ${name}`}><RotateCw size={10}/></button>
+                  </div>
+                  <input type="range" min="-10" max="10" step="0.1" value={vars[name]||0}
+                    onChange={e=>{const v=parseFloat(e.target.value); liveVarsRef.current={...liveVarsRef.current,[name]:v}; setVars(p=>({...p,[name]:v}));}}
+                    className="g3d-slider"/>
                 </div>
-                <input
-                  type="range"
-                  min="-10"
-                  max="10"
-                  step="0.1"
-                  value={variables[varName]}
-                  onChange={(e) => setVariables(prev => ({
-                    ...prev,
-                    [varName]: parseFloat(e.target.value)
-                  }))}
-                />
-              </div>
-            ))}
-            {animation.parameter && (
-              <div className="animation-controls">
-                <label>Animation Speed: {animation.speed.toFixed(1)}</label>
-                <input
-                  type="range"
-                  min="0.1"
-                  max="3"
-                  step="0.1"
-                  value={animation.speed}
-                  onChange={(e) => setAnimation(prev => ({ ...prev, speed: parseFloat(e.target.value) }))}
-                />
-              </div>
-            )}
-          </div>
-        )}
+              ))}
+              {anim.on && (
+                <div className="g3d-var">
+                  <div className="g3d-var-hd"><span className="g3d-var-name">Speed: {anim.speed.toFixed(1)}×</span></div>
+                  <input type="range" min="0.1" max="5" step="0.1" value={anim.speed}
+                    onChange={e=>setAnim(a=>({...a,speed:parseFloat(e.target.value)}))} className="g3d-slider"/>
+                </div>
+              )}
+            </div>
+          )}
 
-        <div className="examples-3d">
-          <h3>Examples</h3>
-          <div className="example-buttons-3d">
-            {getExamplesForType(activeTab).map((example, index) => (
-              <button
-                key={index}
-                onClick={() => setNewExpression(example)}
-                className="example-btn-3d"
-              >
-                {example.length > 25 ? example.substring(0, 25) + '...' : example}
-              </button>
-            ))}
+          {/* examples */}
+          <div className="g3d-examples glass-card-sm">
+            <p className="field-label" style={{color:'var(--pookie-pink)'}}>Examples</p>
+            <div className="g3d-ex-list">
+              {(EXAMPLES[activeTab]||[]).map((ex,i)=>(
+                <button key={i} className="btn-ghost g3d-ex-btn" onClick={()=>setNewExpr(ex)}>
+                  {ex.length>34?ex.slice(0,34)+'…':ex}
+                </button>
+              ))}
+            </div>
           </div>
+
+        </>)}
+      </aside>
+
+      {/* ── main graph canvas ─────────────────────────────────── */}
+      <main className="g3d-canvas">
+
+        {/* info bar */}
+        <div className="g3d-info glass-card-sm">
+          <span>Objects: {objects.filter(o=>o.visible).length}/{objects.length}</span>
+          <span>Res: {settings.resolution}²</span>
+          {anim.on && <span className="g3d-anim-dot">● {anim.param}</span>}
         </div>
 
-        <div className="learning-tips-3d">
-          <h3>Learning Tips</h3>
-          <div className="tips-content">
-            <p>🎯 <strong>Surfaces:</strong> Use z = f(x,y) for height maps</p>
-            <p>🌟 <strong>Parametric:</strong> Great for complex 3D shapes</p>
-            <p>📍 <strong>Curves:</strong> Perfect for 3D trajectories</p>
-            <p>🎨 <strong>Animation:</strong> Click ⟲ next to variables to animate</p>
-          </div>
-        </div>
-      </div>
-
-      <div className="graph-container-3d">
-        <div className="graph-overlay">
-          <div className="graph-info">
-            <span>Objects: {allObjects.length}</span>
-            <span>Resolution: {graphSettings.resolution}×{graphSettings.resolution}</span>
-            {animation.enabled && (
-              <span className="animation-indicator">
-                🎬 Animating {animation.parameter}
-              </span>
-            )}
-          </div>
-        </div>
-        
         <Plot
           data={plotData}
           layout={layout}
-          config={config}
-          style={{ width: '100%', height: '100%' }}
-          onRelayout={(event) => {
-            if (event['scene.camera']) {
-              setGraphSettings(prev => ({
-                ...prev,
-                cameraPosition: event['scene.camera']
-              }));
-            }
-          }}
+          config={{ responsive:true, displayModeBar:true,
+            modeBarButtonsToRemove:['resetCameraDefault3d','resetCameraLastSave3d','hoverClosest3d'],
+            displaylogo:false }}
+          style={{ width:'100%', height:'100%' }}
+          onRelayout={ev=>{ if(ev['scene.camera']) cameraRef.current=ev['scene.camera']; }}
         />
-        
-        <div className="quick-controls">
-          <button onClick={() => {
-            setGraphSettings(prev => ({
-              ...prev,
-              cameraPosition: { eye: { x: 2, y: 0, z: 0 } }
-            }));
-          }} className="view-btn" title="Front View">
-            Front
-          </button>
-          <button onClick={() => {
-            setGraphSettings(prev => ({
-              ...prev,
-              cameraPosition: { eye: { x: 0, y: 2, z: 0 } }
-            }));
-          }} className="view-btn" title="Side View">
-            Side
-          </button>
-          <button onClick={() => {
-            setGraphSettings(prev => ({
-              ...prev,
-              cameraPosition: { eye: { x: 0, y: 0, z: 2 } }
-            }));
-          }} className="view-btn" title="Top View">
-            Top
-          </button>
-          <button onClick={() => {
-            setGraphSettings(prev => ({
-              ...prev,
-              cameraPosition: { eye: { x: 1.5, y: 1.5, z: 1.5 } }
-            }));
-          }} className="view-btn" title="Isometric View">
-            ISO
-          </button>
+
+        {/* camera presets */}
+        <div className="g3d-view-btns">
+          {[['Front',{x:2.5,y:0,z:0}],['Side',{x:0,y:2.5,z:0}],['Top',{x:0,y:0,z:2.5}],['ISO',{x:1.5,y:1.5,z:1.5}]].map(([lb,eye])=>(
+            <button key={lb} className="btn-ghost g3d-view-btn" onClick={()=>setCamera(eye)}>{lb}</button>
+          ))}
         </div>
-      </div>
+
+      </main>
     </div>
   );
-};
-
-export default GraphingCalculator3D;
+}
