@@ -10,8 +10,11 @@ import {
   ChevronLeft, ChevronRight, FlaskConical, Waves, Wind, Check, X,
 } from 'lucide-react';
 import './3D.css';
+import { useCAS } from '../hooks/useCAS';
+import CASLoader from '../components/graphing/CASLoader';
+import '../components/graphing/CAS.css';
 
-/* ─── constants ────────────────────────────────────────────────── */
+/* ─── constants ─────────────────────────────────────────────────── */
 const KNOWN_SYMS = new Set([
   'x','y','z','t','u','v','e','pi','i','E','PI',
   'sin','cos','tan','asin','acos','atan','atan2',
@@ -22,18 +25,9 @@ const KNOWN_SYMS = new Set([
 ]);
 
 const PALETTE = [
-    '#FF6B6B',  // Soft Red
-    '#4ECDC4',  // Turquoise
-    '#45B7D1',  // Sky Blue
-    '#96CEB4',  // Sage
-    '#FFEAA7',  // Cream Gold
-    '#DDA0DD',  // Plum
-    '#98D8C8',  // Mint
-    '#F7DC6F',  // Soft Yellow
-    '#BB8FCE',  // Lavender
-    '#85C1E9',  // Cornflower
-    '#F8C471',  // Apricot
-    '#82E0AA',  // Pastel Green
+  '#FF6B6B','#4ECDC4','#45B7D1','#96CEB4','#FFEAA7',
+  '#DDA0DD','#98D8C8','#F7DC6F','#BB8FCE','#85C1E9',
+  '#F8C471','#82E0AA',
 ];
 
 const MAX_HISTORY = 40;
@@ -69,28 +63,65 @@ class MathExpr {
     }
   }
 
+  // FIX 3: Handle complex numbers and all return types robustly
   eval(scope) {
     if (!this._compiled) return null;
     try {
       const v = this._compiled.evaluate(scope);
-      return typeof v === 'number' && isFinite(v) ? v : null;
-    } catch { return null; }
+
+      // Plain finite number — the common case
+      if (typeof v === 'number') {
+        return isFinite(v) ? v : null;
+      }
+
+      // Complex number object — extract real part for surface types,
+      // return full object for complex domain coloring
+      if (v && typeof v === 'object') {
+        if ('re' in v && 'im' in v) {
+          // For complex graph type, caller wants the full object
+          if (this.type === 'complex') return v;
+          // For all other types, use real part only
+          const re = v.re;
+          return typeof re === 'number' && isFinite(re) ? re : null;
+        }
+        // Some mathjs results wrap a scalar in an object with 're' only
+        if ('re' in v) {
+          const re = v.re;
+          return typeof re === 'number' && isFinite(re) ? re : null;
+        }
+      }
+
+      return null;
+    } catch (err) {
+      if (process.env.NODE_ENV === 'development') console.warn('[StudyBuddy] Non-blocking math error:', err);
+      return null;
+    }
   }
 
   dX(scope) {
     if (!this._dX) return null;
     try {
       const v = this._dX.compile().evaluate(scope);
-      return typeof v === 'number' && isFinite(v) ? v : null;
-    } catch { return null; }
+      if (typeof v === 'number' && isFinite(v)) return v;
+      if (v && typeof v === 'object' && 're' in v && isFinite(v.re)) return v.re;
+      return null;
+    } catch (err) {
+      if (process.env.NODE_ENV === 'development') console.warn('[StudyBuddy] Non-blocking math error:', err);
+      return null;
+    }
   }
 
   dY(scope) {
     if (!this._dY) return null;
     try {
       const v = this._dY.compile().evaluate(scope);
-      return typeof v === 'number' && isFinite(v) ? v : null;
-    } catch { return null; }
+      if (typeof v === 'number' && isFinite(v)) return v;
+      if (v && typeof v === 'object' && 're' in v && isFinite(v.re)) return v.re;
+      return null;
+    } catch (err) {
+      if (process.env.NODE_ENV === 'development') console.warn('[StudyBuddy] Non-blocking math error:', err);
+      return null;
+    }
   }
 
   vars() {
@@ -110,7 +141,9 @@ const gaussK = (exprRaw, x, y, vars, h = 1e-4) => {
     const f = (dx,dy) => {
       try {
         const v = math.evaluate(src, { x: x+dx, y: y+dy, ...vars });
-        return typeof v === 'number' && isFinite(v) ? v : 0;
+        if (typeof v === 'number' && isFinite(v)) return v;
+        if (v && typeof v === 'object' && 're' in v && isFinite(v.re)) return v.re;
+        return 0;
       } catch { return 0; }
     };
     const f0  = f(0,0);
@@ -126,12 +159,12 @@ const gaussK = (exprRaw, x, y, vars, h = 1e-4) => {
 
 /* ─── SURFACE TYPE DEFINITIONS ──────────────────────────────────── */
 const TYPES = [
-  { id:'surface',   label:'Surface',   Icon:Layers,       ph:'sin(x)*cos(y)' },
-  { id:'parametric',label:'Parametric',Icon:Box,          ph:'x=cos(u)*cos(v), y=cos(u)*sin(v), z=sin(u)' },
-  { id:'curve',     label:'Curve',     Icon:Move,         ph:'x=cos(t), y=sin(t), z=t/5' },
-  { id:'implicit',  label:'Implicit',  Icon:FlaskConical, ph:'x^2+y^2+z^2-4' },
-  { id:'vector',    label:'Vector',    Icon:Wind,         ph:'P=y, Q=-x, R=0' },
-  { id:'complex',   label:'Complex',   Icon:Waves,        ph:'z^2' },
+  { id:'surface',    label:'Surface',   Icon:Layers,       ph:'sin(x)*cos(y)' },
+  { id:'parametric', label:'Parametric',Icon:Box,          ph:'x=cos(u)*cos(v), y=cos(u)*sin(v), z=sin(u)' },
+  { id:'curve',      label:'Curve',     Icon:Move,         ph:'x=cos(t), y=sin(t), z=t/5' },
+  { id:'implicit',   label:'Implicit',  Icon:FlaskConical, ph:'x^2+y^2+z^2-4' },
+  { id:'vector',     label:'Vector',    Icon:Wind,         ph:'P=y, Q=-x, R=0' },
+  { id:'complex',    label:'Complex',   Icon:Waves,        ph:'z^2' },
 ];
 
 const EXAMPLES = {
@@ -160,32 +193,33 @@ export default function GraphingCalculator3D() {
     } catch {}
     return [{ id:1, expression:'sin(x)*cos(y)', type:'surface', color:'#f472b6', visible:true, opacity:0.85, name:'Sine Wave' }];
   });
-  const [nextId, setNextId]     = useState(2);
-  const [activeTab, setTab]     = useState('surface');
-  const [newExpr, setNewExpr]   = useState('');
-  const [settings, setSettings] = useState(DEFAULT_SETTINGS);
-  const [vars, setVars]         = useState({});
-  const [anim, setAnim]         = useState({ on:false, param:'t', speed:1 });
-  const [sidebar, setSidebar]   = useState(true);
-  const [showCfg, setShowCfg]   = useState(false);
-  const [selId, setSelId]       = useState(null);
+  const [nextId, setNextId]      = useState(2);
+  const [activeTab, setTab]      = useState('surface');
+  const [newExpr, setNewExpr]    = useState('');
+  const [settings, setSettings]  = useState(DEFAULT_SETTINGS);
+  const [vars, setVars]          = useState({});
+  const [anim, setAnim]          = useState({ on:false, param:'t', speed:1 });
+  const [sidebar, setSidebar]    = useState(true);
+  const [showCfg, setShowCfg]    = useState(false);
+  const [selId, setSelId]        = useState(null);
   const [mathPanel, setMathPanel]= useState(null);
-  const [copied, setCopied]     = useState(false);
-  const [history, setHistory]   = useState([]);
-  const [hIdx, setHIdx]         = useState(-1);
+  const [copied, setCopied]      = useState(false);
+  const [history, setHistory]    = useState([]);
+  const [hIdx, setHIdx]          = useState(-1);
 
   /* refs */
   const liveVarsRef  = useRef({});
+  const { status: casStatus, progress: casProgress } = useCAS();
   const cameraRef    = useRef({ eye:{ x:1.5, y:1.5, z:1.5 } });
   const exprCache    = useRef(new Map());
   const animRef      = useRef();
   const frameRef     = useRef(0);
 
   /* deferred */
-  const dObj  = useDeferredValue(objects);
-  const dSet  = useDeferredValue(settings);
+  const dObj = useDeferredValue(objects);
+  const dSet = useDeferredValue(settings);
 
-  /* ── history ─────────────────────────────────────────────────── */
+  /* ── history ───────────────────────────────────────────────────── */
   const pushHist = useCallback(snap => {
     setHistory(h => [...h.slice(0, hIdx+1), JSON.parse(JSON.stringify(snap))].slice(-MAX_HISTORY));
     setHIdx(i => Math.min(i+1, MAX_HISTORY-1));
@@ -205,7 +239,7 @@ export default function GraphingCalculator3D() {
     setHIdx(i=>i+1); exprCache.current.clear();
   }, [history, hIdx]);
 
-  /* ── persist ─────────────────────────────────────────────────── */
+  /* ── persist ───────────────────────────────────────────────────── */
   useEffect(() => {
     const t = setTimeout(() => {
       try { localStorage.setItem('sb-3d', JSON.stringify({ objects, settings, vars })); } catch {}
@@ -213,10 +247,10 @@ export default function GraphingCalculator3D() {
     return () => clearTimeout(t);
   }, [objects, settings, vars]);
 
-  /* ── sync liveVarsRef ────────────────────────────────────────── */
+  /* ── sync liveVarsRef ──────────────────────────────────────────── */
   useEffect(() => { liveVarsRef.current = vars; }, [vars]);
 
-  /* ── extract variable names from expressions ─────────────────── */
+  /* ── extract variable names from expressions ───────────────────── */
   useEffect(() => {
     const extra = {};
     objects.forEach(obj => {
@@ -230,7 +264,7 @@ export default function GraphingCalculator3D() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [objects]);
 
-  /* ── animation loop ──────────────────────────────────────────── */
+  /* ── animation loop ────────────────────────────────────────────── */
   useEffect(() => {
     if (!anim.on) { cancelAnimationFrame(animRef.current); return; }
     const tick = () => {
@@ -242,7 +276,7 @@ export default function GraphingCalculator3D() {
     return () => cancelAnimationFrame(animRef.current);
   }, [anim.on, anim.param, anim.speed]);
 
-  /* ── keyboard shortcuts ──────────────────────────────────────── */
+  /* ── keyboard shortcuts ────────────────────────────────────────── */
   useEffect(() => {
     const h = e => {
       if (e.target.tagName==='INPUT'||e.target.tagName==='TEXTAREA') return;
@@ -256,9 +290,10 @@ export default function GraphingCalculator3D() {
     return ()=>window.removeEventListener('keydown',h);
   }, [undo, redo]);
 
-  /* ── mesh generators ─────────────────────────────────────────── */
-  // CRITICAL FIX: Generators now take `currentVars` as parameter instead of reading ref
-  // This makes them pure functions with stable references
+  /* ── mesh generators ────────────────────────────────────────────
+     Each generator takes `currentVars` as parameter (not via ref closure)
+     making them pure with stable references.
+  ───────────────────────────────────────────────────────────────── */
 
   const getExpr = useCallback((raw, type) => {
     const key = raw+'|'+type;
@@ -266,33 +301,66 @@ export default function GraphingCalculator3D() {
     return exprCache.current.get(key);
   }, []);
 
+  // FIX 1 & 2: Handle complex numbers and validate values in genSurface
   const genSurface = useCallback((obj, currentVars) => {
     const { xMin,xMax,yMin,yMax,resolution,curvature } = dSet;
     const e = getExpr(obj.expression, 'surface');
-    if (e.error) { console.warn('Surface expr error:', e.error); return null; }
+
+    if (e.error) {
+      console.warn('[StudyBuddy] Surface expr error:', e.error);
+      return null;
+    }
+
+    // FIX 2: Debug log to help diagnose evaluation issues in dev
+    if (process.env.NODE_ENV === 'development') {
+      const testVal = e.eval({ x:0, y:0, ...currentVars });
+      console.log('[StudyBuddy] Surface test eval at (0,0):', testVal, 'type:', typeof testVal);
+    }
 
     const res = resolution;
     const x=[],y=[],z=[],sc=[];
+    let validCount = 0;
 
     for (let i=0;i<res;i++) {
       const xr=[],yr=[],zr=[],cr=[];
       const xv = xMin + (i/(res-1))*(xMax-xMin);
       for (let j=0;j<res;j++) {
         const yv = yMin + (j/(res-1))*(yMax-yMin);
-        const zv = e.eval({ x:xv, y:yv, ...currentVars });
-        xr.push(xv); yr.push(yv); zr.push(zv);
+
+        // FIX 1: e.eval() now handles complex numbers internally,
+        // returning the real part (or null) for surface types.
+        let zv = e.eval({ x:xv, y:yv, ...currentVars });
+
+        xr.push(xv);
+        yr.push(yv);
+        // FIX 1: Push null for invalid values — Plotly renders gaps, not errors
+        if (typeof zv === 'number' && isFinite(zv)) {
+          zr.push(zv);
+          validCount++;
+        } else {
+          zr.push(null);
+        }
+
         if (curvature) cr.push(gaussK(obj.expression, xv, yv, currentVars));
       }
       x.push(xr); y.push(yr); z.push(zr); if (curvature) sc.push(cr);
     }
 
-    const trace = { 
-      type:'surface', 
-      x,y,z, 
-      name:obj.name||obj.expression, 
-      opacity:obj.opacity, 
-      showscale:false,
-      hovertemplate:`<b>%{fullData.name}</b><br>X:%{x:.3f} Y:%{y:.3f} Z:%{z:.3f}<extra></extra>` 
+    // FIX 4: Validate — don't return a trace with zero usable points
+    if (validCount === 0) {
+      console.warn('[StudyBuddy] No valid Z values for expression:', obj.expression);
+      return null;
+    }
+
+    if (process.env.NODE_ENV === 'development') {
+      console.log('[StudyBuddy] Surface valid points:', validCount, '/', res * res, 'for:', obj.expression);
+    }
+
+    const trace = {
+      type:'surface', x,y,z, name:obj.name||obj.expression, opacity:obj.opacity, showscale:false,
+      hovertemplate:`<b>%{fullData.name}</b><br>X:%{x:.3f} Y:%{y:.3f} Z:%{z:.3f}<extra></extra>`,
+      // Plotly handles null values as gaps — no extra config needed
+      connectgaps: false,
     };
 
     if (curvature && sc.length) {
@@ -318,18 +386,25 @@ export default function GraphingCalculator3D() {
     const ez = getExpr(parts.z||'0','parametric');
     if (ex.error||ey.error||ez.error) return null;
     const x=[],y=[],z=[];
+    let validCount = 0;
     for (let i=0;i<resolution;i++) {
       const xr=[],yr=[],zr=[];
       const u = -Math.PI + (i/(resolution-1))*2*Math.PI;
       for (let j=0;j<resolution;j++) {
         const v = -Math.PI + (j/(resolution-1))*2*Math.PI;
         const sc = { u,v,...currentVars };
-        xr.push(ex.eval(sc)); yr.push(ey.eval(sc)); zr.push(ez.eval(sc));
+        const xv = ex.eval(sc), yv = ey.eval(sc), zv = ez.eval(sc);
+        xr.push(xv); yr.push(yv); zr.push(zv);
+        if (xv !== null && yv !== null && zv !== null) validCount++;
       }
       x.push(xr); y.push(yr); z.push(zr);
     }
-    return { type:'surface', x,y,z, name:obj.name||'Parametric',
-      colorscale:[[0,hex2rgba(obj.color,0.12)],[1,obj.color]], opacity:obj.opacity, showscale:false };
+    if (validCount === 0) return null;
+    return {
+      type:'surface', x,y,z, name:obj.name||'Parametric',
+      colorscale:[[0,hex2rgba(obj.color,0.12)],[1,obj.color]], opacity:obj.opacity, showscale:false,
+      connectgaps: false,
+    };
   }, [dSet, getExpr]);
 
   const genCurve = useCallback((obj, currentVars) => {
@@ -347,8 +422,8 @@ export default function GraphingCalculator3D() {
       const xv=ex.eval(sc), yv=ey.eval(sc), zv=ez.eval(sc);
       if (xv!==null&&yv!==null&&zv!==null) { x.push(xv);y.push(yv);z.push(zv); }
     }
-    return { type:'scatter3d', mode:'lines', x,y,z, name:obj.name||'Curve',
-      line:{ color:obj.color, width:4 } };
+    if (x.length === 0) return null;
+    return { type:'scatter3d', mode:'lines', x,y,z, name:obj.name||'Curve', line:{ color:obj.color, width:4 } };
   }, [getExpr]);
 
   const genImplicit = useCallback((obj, currentVars) => {
@@ -361,10 +436,12 @@ export default function GraphingCalculator3D() {
       const v=e.eval({x:xv,y:yv,z:zv,...currentVars});
       xs.push(xv);ys.push(yv);zs.push(zv);vs.push(v??0);
     }
-    return { type:'isosurface', x:xs,y:ys,z:zs, value:vs,
+    return {
+      type:'isosurface', x:xs,y:ys,z:zs, value:vs,
       isomin:-0.5,isomax:0.5, surface:{show:true,count:1,fill:0.9},
       colorscale:[[0,hex2rgba(obj.color,0.3)],[1,obj.color]], showscale:false, opacity:obj.opacity,
-      caps:{x:{show:false},y:{show:false},z:{show:false}}, name:obj.name||'Implicit' };
+      caps:{x:{show:false},y:{show:false},z:{show:false}}, name:obj.name||'Implicit',
+    };
   }, [dSet, getExpr]);
 
   const genVector = useCallback((obj, currentVars) => {
@@ -384,8 +461,11 @@ export default function GraphingCalculator3D() {
       const pv=fp.eval(sc),qv=fq.eval(sc),rv=fr.eval(sc);
       if (pv!==null&&qv!==null&&rv!==null) { x.push(xv);y.push(yv);z.push(zv);u.push(pv);v.push(qv);w.push(rv); }
     }
-    return { type:'cone', x,y,z,u,v,w, sizemode:'absolute', sizeref:0.3, anchor:'tail',
-      colorscale:[[0,obj.color],[1,obj.color]], showscale:false, opacity:obj.opacity, name:obj.name||'Vector Field' };
+    if (x.length === 0) return null;
+    return {
+      type:'cone', x,y,z,u,v,w, sizemode:'absolute', sizeref:0.3, anchor:'tail',
+      colorscale:[[0,obj.color],[1,obj.color]], showscale:false, opacity:obj.opacity, name:obj.name||'Vector Field',
+    };
   }, [dSet, getExpr]);
 
   const genComplex = useCallback((obj, currentVars) => {
@@ -393,6 +473,7 @@ export default function GraphingCalculator3D() {
     const e = getExpr(obj.expression,'complex');
     if (e.error) return null;
     const res=Math.min(resolution,48), x=[],y=[],z=[],sc=[];
+    let validCount = 0;
     for (let i=0;i<res;i++) {
       const xr=[],yr=[],zr=[],cr=[];
       const xv=xMin+(i/(res-1))*(xMax-xMin);
@@ -402,29 +483,39 @@ export default function GraphingCalculator3D() {
         let mag=0,phase=0;
         try {
           const r=e.eval(scope);
-          if (typeof r==='object'&&'re'in r) { mag=Math.sqrt(r.re**2+r.im**2); phase=Math.atan2(r.im,r.re); }
-          else if (typeof r==='number') { mag=Math.abs(r); phase=r>=0?0:Math.PI; }
+          if (typeof r==='object'&&r&&'re'in r) {
+            mag=Math.sqrt(r.re**2+(r.im||0)**2);
+            phase=Math.atan2(r.im||0,r.re);
+            validCount++;
+          } else if (typeof r==='number' && isFinite(r)) {
+            mag=Math.abs(r);
+            phase=r>=0?0:Math.PI;
+            validCount++;
+          }
         } catch {}
         xr.push(xv); yr.push(yv); zr.push(Math.min(mag,10)); cr.push((phase+Math.PI)/(2*Math.PI));
       }
       x.push(xr);y.push(yr);z.push(zr);sc.push(cr);
     }
-    return { type:'surface', x,y,z, surfacecolor:sc,
+    if (validCount === 0) return null;
+    return {
+      type:'surface', x,y,z, surfacecolor:sc,
       colorscale:[[0,'#ef4444'],[0.17,'#f59e0b'],[0.33,'#84cc16'],[0.5,'#10b981'],[0.67,'#06b6d4'],[0.83,'#3b82f6'],[1,'#8b5cf6']],
       opacity:obj.opacity, showscale:true, colorbar:{title:'Phase',thickness:10,len:0.4},
-      name:obj.name||'Complex' };
+      name:obj.name||'Complex',
+    };
   }, [dSet, getExpr]);
 
-  /* ── plotData ─────────────────────────────────────────────────── */
-  // CRITICAL FIX: We use liveVarsRef.current HERE, at evaluation time, not in dependencies
-  // But we trigger recompute by using a state variable that changes when vars change
+  /* ── plotData ───────────────────────────────────────────────────
+     Use liveVarsRef.current at evaluation time, trigger via varsTick.
+  ─────────────────────────────────────────────────────────────── */
   const [varsTick, setVarsTick] = useState(0);
 
-  // Increment tick when vars change (for animation)
   useEffect(() => {
     setVarsTick(t => t + 1);
   }, [vars]);
 
+  // FIX 4: Validate plot data before passing to Plotly
   const plotData = useMemo(() => {
     const currentVars = liveVarsRef.current;
     const out = [];
@@ -432,26 +523,41 @@ export default function GraphingCalculator3D() {
     dObj.filter(o=>o.visible).forEach(obj => {
       try {
         let t;
-        if (obj.type==='surface')    t = genSurface(obj, currentVars);
+        if (obj.type==='surface')         t = genSurface(obj, currentVars);
         else if (obj.type==='parametric') t = genParametric(obj, currentVars);
         else if (obj.type==='curve')      t = genCurve(obj, currentVars);
         else if (obj.type==='implicit')   t = genImplicit(obj, currentVars);
         else if (obj.type==='vector')     t = genVector(obj, currentVars);
         else if (obj.type==='complex')    t = genComplex(obj, currentVars);
 
-        if (t && (t.x || t.value)) {
-          // Validate data isn't all null
-          const hasData = t.x && (Array.isArray(t.x[0]) ? t.x.some(r=>r.some(v=>v!==null)) : t.x.length>0);
-          if (hasData) out.push(t);
+        if (!t) return; // Generator already returned null — skip
+
+        // FIX 4: Ensure trace has data before pushing
+        const hasData = (
+          // Surface / parametric / complex: nested arrays
+          (t.x && Array.isArray(t.x[0]) && t.x.some(row => row.some(v => v !== null && v !== undefined))) ||
+          // Curve / scatter3d: flat arrays
+          (t.x && Array.isArray(t.x) && !Array.isArray(t.x[0]) && t.x.length > 0) ||
+          // Isosurface / implicit: value array
+          (t.value && t.value.length > 0)
+        );
+
+        if (hasData) {
+          out.push(t);
+        } else {
+          console.warn('[StudyBuddy] Trace has no renderable data:', obj.expression);
         }
-      } catch (err) { console.warn('mesh err', obj.expression, err); }
+      } catch (err) { console.warn('[StudyBuddy] Mesh generation error:', obj.expression, err); }
     });
 
-    console.log('Generated traces:', out.length, 'for', dObj.filter(o=>o.visible).length, 'visible objects');
+    if (process.env.NODE_ENV === 'development') {
+      console.log('[StudyBuddy] Generated traces:', out.length);
+    }
+
     return out;
   }, [dObj, dSet, varsTick, genSurface, genParametric, genCurve, genImplicit, genVector, genComplex]);
 
-  /* ── layout ──────────────────────────────────────────────────── */
+  /* ── layout ─────────────────────────────────────────────────── */
   const layout = useMemo(() => ({
     paper_bgcolor:'rgba(0,0,0,0)', plot_bgcolor:'rgba(0,0,0,0)',
     font:{ color:'#f8fafc', family:'Nunito, sans-serif', size:12 },
@@ -478,12 +584,22 @@ export default function GraphingCalculator3D() {
     legend:{ x:0.02,y:0.98, bgcolor:'rgba(15,15,35,0.8)', bordercolor:'rgba(139,92,246,0.2)', borderwidth:1, font:{color:'#e2e8f0',size:11} },
   }), [dSet]);
 
-  /* ── CRUD ────────────────────────────────────────────────────── */
+  /* ── CRUD ──────────────────────────────────────────────────── */
   const addObj = useCallback(() => {
     if (!newExpr.trim()) return;
-    const obj = { id:nextId, expression:newExpr.trim(), type:activeTab,
+
+    // Validate using MathExpr parser before committing
+    const test = new MathExpr(newExpr.trim(), activeTab);
+    if (test.error) {
+      alert(`⚠️ Invalid expression: ${test.error}`);
+      return;
+    }
+
+    const obj = {
+      id:nextId, expression:newExpr.trim(), type:activeTab,
       color:PALETTE[(nextId-1)%PALETTE.length], visible:true, opacity:0.85,
-      name:`${activeTab} ${nextId}` };
+      name:`${activeTab} ${nextId}`,
+    };
     const next=[...objects,obj];
     setObjects(next); setNextId(n=>n+1); setNewExpr('');
     pushHist({ objects:next, settings, vars });
@@ -507,7 +623,7 @@ export default function GraphingCalculator3D() {
     pushHist({objects:next,settings,vars});
   }, [objects,selId,settings,vars,pushHist]);
 
-  /* ── math info panel ─────────────────────────────────────────── */
+  /* ── math info panel ────────────────────────────────────────── */
   const computeMath = (obj) => {
     if (obj.type!=='surface') return null;
     const e = new MathExpr(obj.expression,'surface');
@@ -530,7 +646,13 @@ export default function GraphingCalculator3D() {
     const file=e.target.files?.[0]; if(!file) return;
     const r=new FileReader();
     r.onload = ev => {
-      try { const d=JSON.parse(ev.target.result); if(d.objects) setObjects(d.objects); if(d.settings) setSettings(d.settings); if(d.vars) setVars(d.vars); exprCache.current.clear(); } catch {}
+      try {
+        const d=JSON.parse(ev.target.result);
+        if(d.objects) setObjects(d.objects);
+        if(d.settings) setSettings(d.settings);
+        if(d.vars) setVars(d.vars);
+        exprCache.current.clear();
+      } catch {}
     };
     r.readAsText(file);
   };
@@ -635,6 +757,9 @@ export default function GraphingCalculator3D() {
             </div>
           )}
 
+          {/* CAS loader — shows only while Pyodide is downloading */}
+          <CASLoader status={casStatus} progress={casProgress} />
+
           {/* type tabs */}
           <div className="g3d-tabs">
             {TYPES.map(({id,label,Icon})=>(
@@ -646,25 +771,32 @@ export default function GraphingCalculator3D() {
 
           {/* add expression */}
           <div className="g3d-add-row">
-            <textarea className="field-input g3d-expr-ta" rows={2} value={newExpr}
+            <textarea
+              className="field-input g3d-expr-ta" rows={2} value={newExpr}
               onChange={e=>setNewExpr(e.target.value)}
               onKeyDown={e=>{ if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();addObj();} }}
-              placeholder={TYPES.find(t=>t.id===activeTab)?.ph}/>
+              placeholder={TYPES.find(t=>t.id===activeTab)?.ph}
+            />
             <button onClick={addObj} className="btn-primary g3d-add-btn" disabled={!newExpr.trim()}><Plus size={16}/></button>
           </div>
 
           {/* expression list */}
           <div className="g3d-list">
             {tabObjs.length===0 && (
-              <div className="g3d-empty"><p>No {activeTab} plots yet.</p><p style={{fontSize:'0.75rem'}}>Type an expression above ↑</p></div>
+              <div className="g3d-empty">
+                <p>No {activeTab} plots yet.</p>
+                <p style={{fontSize:'0.75rem'}}>Type an expression above ↑</p>
+              </div>
             )}
             {tabObjs.map(obj=>{
               const cached = exprCache.current.get(obj.expression+'|'+obj.type);
               const hasErr = cached?.error;
               return (
-                <div key={obj.id}
+                <div
+                  key={obj.id}
                   className={`g3d-card glass-card-sm${selId===obj.id?' g3d-card--sel':''}${hasErr?' g3d-card--err':''}`}
-                  onClick={()=>setSelId(obj.id===selId?null:obj.id)}>
+                  onClick={()=>setSelId(obj.id===selId?null:obj.id)}
+                >
                   <div className="g3d-card-hd">
                     <label className="g3d-swatch" style={{background:obj.color}}>
                       <input type="color" value={obj.color}
@@ -677,16 +809,23 @@ export default function GraphingCalculator3D() {
                     {obj.type==='surface' && (
                       <button onClick={e=>{e.stopPropagation();setMathPanel({obj});}} className="icon-btn" title="Math analysis" style={{width:26,height:26}}>∂</button>
                     )}
-                    <button onClick={e=>{e.stopPropagation();updateObj(obj.id,{visible:!obj.visible});}}
-                      className={`icon-btn${obj.visible?'':' g3d-hidden'}`} title="Toggle visibility">
+                    <button
+                      onClick={e=>{e.stopPropagation();updateObj(obj.id,{visible:!obj.visible});}}
+                      className={`icon-btn${obj.visible?'':' g3d-hidden'}`} title="Toggle visibility"
+                    >
                       {obj.visible?<Eye size={12}/>:<EyeOff size={12}/>}
                     </button>
                     <button onClick={e=>{e.stopPropagation();deleteObj(obj.id);}}
                       className="icon-btn icon-btn--danger" title="Delete"><Trash2 size={12}/></button>
                   </div>
-                  <textarea className="field-input g3d-expr-edit" rows={2} value={obj.expression}
-                    onChange={e=>{updateObj(obj.id,{expression:e.target.value}); exprCache.current.delete(obj.expression+'|'+obj.type);}}
-                    onClick={e=>e.stopPropagation()}/>
+                  <textarea
+                    className="field-input g3d-expr-edit" rows={2} value={obj.expression}
+                    onChange={e=>{
+                      updateObj(obj.id,{expression:e.target.value});
+                      exprCache.current.delete(obj.expression+'|'+obj.type);
+                    }}
+                    onClick={e=>e.stopPropagation()}
+                  />
                   {(obj.type==='surface'||obj.type==='parametric'||obj.type==='implicit'||obj.type==='complex') && (
                     <div className="g3d-opacity-row">
                       <span className="field-label" style={{margin:0,fontSize:'0.68rem'}}>Opacity</span>
@@ -709,12 +848,18 @@ export default function GraphingCalculator3D() {
                 <div key={name} className="g3d-var">
                   <div className="g3d-var-hd">
                     <span className="g3d-var-name">{name} = {(vars[name]||0).toFixed(2)}</span>
-                    <button onClick={()=>setAnim(a=>({...a,param:name,on:true}))}
+                    <button
+                      onClick={()=>setAnim(a=>({...a,param:name,on:true}))}
                       className={`icon-btn${anim.param===name&&anim.on?' g3d-btn-active':''}`}
-                      style={{width:24,height:24}} title={`Animate ${name}`}><RotateCw size={10}/></button>
+                      style={{width:24,height:24}} title={`Animate ${name}`}
+                    ><RotateCw size={10}/></button>
                   </div>
                   <input type="range" min="-10" max="10" step="0.1" value={vars[name]||0}
-                    onChange={e=>{const v=parseFloat(e.target.value); liveVarsRef.current={...liveVarsRef.current,[name]:v}; setVars(p=>({...p,[name]:v}));}}
+                    onChange={e=>{
+                      const v=parseFloat(e.target.value);
+                      liveVarsRef.current={...liveVarsRef.current,[name]:v};
+                      setVars(p=>({...p,[name]:v}));
+                    }}
                     className="g3d-slider"/>
                 </div>
               ))}
@@ -753,12 +898,18 @@ export default function GraphingCalculator3D() {
           {anim.on && <span className="g3d-anim-dot">● {anim.param}</span>}
         </div>
 
+        {/* FIX 5: Added glScale and plotGlPixelRatio to suppress WebGL warnings */}
         <Plot
           data={plotData}
           layout={layout}
-          config={{ responsive:true, displayModeBar:true,
+          config={{
+            responsive:true,
+            displayModeBar:true,
             modeBarButtonsToRemove:['resetCameraDefault3d','resetCameraLastSave3d','hoverClosest3d'],
-            displaylogo:false }}
+            displaylogo:false,
+            glScale: 1,
+            plotGlPixelRatio: 1,
+          }}
           style={{ width:'100%', height:'100%' }}
           onRelayout={ev=>{ if(ev['scene.camera']) cameraRef.current=ev['scene.camera']; }}
         />

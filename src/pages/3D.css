@@ -1,17 +1,14 @@
-@import url('https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&family=Playfair+Display:ital,wght@0,700;1,600&family=JetBrains+Mono:wght@400;600&display=swap');
-
-/* ─── root layout ─────────────────────────────────────────────── */
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&display=swap');
 
 .g3d-root {
   display: flex;
   height: 100vh;
   overflow: hidden;
-  background: var(--pookie-bg);
+  background: transparent;
   font-family: var(--pookie-font);
   position: relative;
+  color: var(--pookie-text);
 }
-
-/* ─── sidebar ─────────────────────────────────────────────────── */
 
 .g3d-sidebar {
   width: 340px;
@@ -26,24 +23,20 @@
   border-radius: 0;
   border: none;
   border-right: 1px solid var(--pookie-border2);
-  background: rgba(10, 10, 28, 0.98);
+  background: color-mix(in srgb, var(--pookie-bg) 96%, var(--pookie-surface));
   backdrop-filter: blur(32px);
   -webkit-backdrop-filter: blur(32px);
   position: relative;
   z-index: 10;
   flex-shrink: 0;
-  transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1),
-              min-width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: width 0.3s cubic-bezier(0.4,0,0.2,1), min-width 0.3s cubic-bezier(0.4,0,0.2,1);
   scrollbar-width: thin;
-  scrollbar-color: rgba(244, 114, 182, 0.25) transparent;
+  scrollbar-color: color-mix(in srgb, var(--pookie-pink) 30%, transparent) transparent;
 }
 
-.g3d-sidebar::-webkit-scrollbar {
-  width: 4px;
-}
-
+.g3d-sidebar::-webkit-scrollbar { width: 4px; }
 .g3d-sidebar::-webkit-scrollbar-thumb {
-  background: rgba(244, 114, 182, 0.3);
+  background: color-mix(in srgb, var(--pookie-pink) 35%, transparent);
   border-radius: 99px;
 }
 
@@ -53,8 +46,6 @@
   padding: 1rem 0.5rem;
   align-items: center;
 }
-
-/* ─── collapse button ─────────────────────────────────────────── */
 
 .g3d-collapse-btn {
   position: absolute;
@@ -71,17 +62,15 @@
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  box-shadow: 0 2px 12px rgba(244, 114, 182, 0.28);
+  box-shadow: 0 2px 12px color-mix(in srgb, var(--pookie-pink) 28%, transparent);
   transition: box-shadow 0.2s, transform 0.2s, background 0.2s;
 }
 
 .g3d-collapse-btn:hover {
-  box-shadow: 0 4px 20px rgba(244, 114, 182, 0.48);
+  box-shadow: 0 4px 20px color-mix(in srgb, var(--pookie-pink) 45%, transparent);
   transform: scale(1.12);
-  background: rgba(244, 114, 182, 0.08);
+  background: color-mix(in srgb, var(--pookie-pink) 10%, transparent);
 }
-
-/* ─── header ──────────────────────────────────────────────────── */
 
 .g3d-hd {
   display: flex;
@@ -112,12 +101,10 @@
   align-items: center;
 }
 
-/* ─── shared icon-btn ─────────────────────────────────────────── */
-
 .icon-btn {
   width: 30px;
   height: 30px;
-  border-radius: 9px;
+  border-radius: var(--pookie-radius-sm);
   border: 1px solid var(--pookie-border);
   background: var(--pookie-surface);
   color: var(--pookie-muted);
@@ -132,8 +119,8 @@
 .icon-btn:hover {
   color: var(--pookie-pink);
   border-color: var(--pookie-border2);
-  background: rgba(244, 114, 182, 0.1);
-  box-shadow: 0 0 12px rgba(244, 114, 182, 0.18);
+  background: color-mix(in srgb, var(--pookie-pink) 10%, transparent);
+  box-shadow: 0 0 12px color-mix(in srgb, var(--pookie-pink) 20%, transparent);
 }
 
 .icon-btn:disabled {
@@ -144,26 +131,26 @@
 
 .icon-btn--danger:hover {
   color: var(--pookie-rose);
-  border-color: rgba(251, 113, 133, 0.4);
-  background: rgba(251, 113, 133, 0.1);
-  box-shadow: 0 0 12px rgba(251, 113, 133, 0.18);
+  border-color: color-mix(in srgb, var(--pookie-rose) 40%, transparent);
+  background: color-mix(in srgb, var(--pookie-rose) 10%, transparent);
 }
 
 .g3d-btn-active {
-  background: linear-gradient(135deg, rgba(124, 58, 237, 0.35), rgba(236, 72, 153, 0.35)) !important;
+  background: color-mix(in srgb, var(--pookie-pink) 20%, transparent) !important;
   border-color: var(--pookie-pink) !important;
   color: var(--pookie-pink) !important;
-  box-shadow: 0 0 14px rgba(244, 114, 182, 0.28) !important;
+  box-shadow: 0 0 14px color-mix(in srgb, var(--pookie-pink) 25%, transparent) !important;
 }
-
-/* ─── settings/config panel ───────────────────────────────────── */
 
 .g3d-cfg {
   display: flex;
   flex-direction: column;
   gap: 0.65rem;
   padding: 0.9rem;
-  animation: g3d-fade-down 0.22s cubic-bezier(0.4, 0, 0.2, 1);
+  background: var(--pookie-surface2);
+  border: 1px solid var(--pookie-border);
+  border-radius: var(--pookie-radius-sm);
+  animation: g3d-fade-down 0.22s cubic-bezier(0.4,0,0.2,1);
 }
 
 @keyframes g3d-fade-down {
@@ -245,7 +232,7 @@
 .g3d-toggle input[type="checkbox"]:checked {
   background: linear-gradient(135deg, var(--pookie-purple2), var(--pookie-pink2));
   border-color: var(--pookie-pink);
-  box-shadow: 0 0 8px rgba(244, 114, 182, 0.35);
+  box-shadow: 0 0 8px color-mix(in srgb, var(--pookie-pink) 35%, transparent);
 }
 
 .g3d-toggle input[type="checkbox"]:checked::after {
@@ -262,15 +249,13 @@
   text-align: center;
 }
 
-/* ─── type tabs ───────────────────────────────────────────────── */
-
 .g3d-tabs {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
   gap: 0.28rem;
   padding: 0.3rem;
-  background: rgba(168, 85, 247, 0.06);
-  border-radius: 14px;
+  background: color-mix(in srgb, var(--pookie-purple) 8%, transparent);
+  border-radius: var(--pookie-radius-sm);
   border: 1px solid var(--pookie-border);
 }
 
@@ -282,7 +267,7 @@
   gap: 0.2rem;
   padding: 0.5rem 0.35rem;
   min-height: 52px;
-  border-radius: 10px;
+  border-radius: calc(var(--pookie-radius-sm) - 2px);
   border: 1px solid transparent;
   background: transparent;
   color: var(--pookie-muted);
@@ -291,23 +276,21 @@
   font-size: 0.68rem;
   font-weight: 800;
   letter-spacing: 0.03em;
-  transition: all 0.18s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: all 0.18s cubic-bezier(0.4,0,0.2,1);
 }
 
 .g3d-tab:hover {
   color: var(--pookie-pink);
-  background: rgba(244, 114, 182, 0.08);
+  background: color-mix(in srgb, var(--pookie-pink) 8%, transparent);
   border-color: var(--pookie-border);
 }
 
 .g3d-tab--active {
   color: var(--pookie-pink);
-  background: linear-gradient(135deg, rgba(124, 58, 237, 0.28), rgba(236, 72, 153, 0.22));
+  background: color-mix(in srgb, var(--pookie-purple2) 28%, transparent);
   border-color: var(--pookie-border2);
-  box-shadow: 0 2px 12px rgba(244, 114, 182, 0.18);
+  box-shadow: 0 2px 12px color-mix(in srgb, var(--pookie-pink) 18%, transparent);
 }
-
-/* ─── add expression row ──────────────────────────────────────── */
 
 .g3d-add-row {
   display: flex;
@@ -326,13 +309,11 @@
 
 .g3d-add-btn {
   padding: 0.6rem 0.8rem;
-  border-radius: 12px;
+  border-radius: var(--pookie-radius-sm);
   flex-shrink: 0;
   align-self: stretch;
   min-height: 58px;
 }
-
-/* ─── expression cards list ───────────────────────────────────── */
 
 .g3d-list {
   display: flex;
@@ -354,8 +335,11 @@
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
-  animation: g3d-slide-in 0.26s cubic-bezier(0.4, 0, 0.2, 1);
+  animation: g3d-slide-in 0.26s cubic-bezier(0.4,0,0.2,1);
   transition: border-color 0.18s, box-shadow 0.18s, transform 0.15s;
+  background: var(--pookie-surface);
+  border: 1px solid var(--pookie-border);
+  border-radius: var(--pookie-radius-sm);
 }
 
 @keyframes g3d-slide-in {
@@ -371,12 +355,12 @@
 
 .g3d-card--sel {
   border-color: var(--pookie-pink) !important;
-  box-shadow: 0 0 0 2px rgba(244, 114, 182, 0.16), var(--pookie-glow) !important;
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--pookie-pink) 16%, transparent), var(--pookie-glow) !important;
 }
 
 .g3d-card--err {
-  border-color: rgba(251, 113, 133, 0.45) !important;
-  background: rgba(251, 113, 133, 0.05) !important;
+  border-color: color-mix(in srgb, var(--pookie-rose) 45%, transparent) !important;
+  background: color-mix(in srgb, var(--pookie-rose) 5%, transparent) !important;
 }
 
 .g3d-card-hd {
@@ -389,7 +373,7 @@
   width: 22px;
   height: 22px;
   border-radius: 50%;
-  border: 2px solid rgba(255, 255, 255, 0.22);
+  border: 2px solid color-mix(in srgb, var(--pookie-text) 22%, transparent);
   overflow: hidden;
   cursor: pointer;
   display: flex;
@@ -402,7 +386,7 @@
 
 .g3d-swatch:hover {
   transform: scale(1.2);
-  box-shadow: 0 0 10px rgba(244, 114, 182, 0.4);
+  box-shadow: 0 0 10px color-mix(in srgb, var(--pookie-pink) 40%, transparent);
 }
 
 .g3d-swatch input[type="color"] {
@@ -429,8 +413,8 @@
   font-size: 0.7rem;
   font-weight: 900;
   color: var(--pookie-rose);
-  background: rgba(251, 113, 133, 0.15);
-  border: 1px solid rgba(251, 113, 133, 0.3);
+  background: color-mix(in srgb, var(--pookie-rose) 15%, transparent);
+  border: 1px solid color-mix(in srgb, var(--pookie-rose) 30%, transparent);
   border-radius: 50%;
   width: 18px;
   height: 18px;
@@ -440,9 +424,7 @@
   flex-shrink: 0;
 }
 
-.g3d-hidden {
-  opacity: 0.38;
-}
+.g3d-hidden { opacity: 0.38; }
 
 .g3d-expr-edit {
   font-family: 'JetBrains Mono', monospace;
@@ -458,13 +440,11 @@
   gap: 0.6rem;
 }
 
-/* ─── sliders ─────────────────────────────────────────────────── */
-
 .g3d-slider {
   flex: 1;
   height: 5px;
   border-radius: 99px;
-  background: rgba(168, 85, 247, 0.18);
+  background: color-mix(in srgb, var(--pookie-purple) 18%, transparent);
   outline: none;
   -webkit-appearance: none;
   appearance: none;
@@ -477,14 +457,14 @@
   height: 16px;
   border-radius: 50%;
   background: linear-gradient(135deg, var(--pookie-purple2), var(--pookie-pink2));
-  box-shadow: 0 2px 8px rgba(244, 114, 182, 0.45);
+  box-shadow: 0 2px 8px color-mix(in srgb, var(--pookie-pink) 45%, transparent);
   cursor: pointer;
   transition: transform 0.15s, box-shadow 0.15s;
 }
 
 .g3d-slider::-webkit-slider-thumb:hover {
   transform: scale(1.3);
-  box-shadow: 0 0 14px rgba(244, 114, 182, 0.6);
+  box-shadow: 0 0 14px color-mix(in srgb, var(--pookie-pink) 60%, transparent);
 }
 
 .g3d-slider::-moz-range-thumb {
@@ -493,17 +473,18 @@
   border-radius: 50%;
   border: none;
   background: linear-gradient(135deg, var(--pookie-purple2), var(--pookie-pink2));
-  box-shadow: 0 2px 8px rgba(244, 114, 182, 0.45);
+  box-shadow: 0 2px 8px color-mix(in srgb, var(--pookie-pink) 45%, transparent);
   cursor: pointer;
 }
-
-/* ─── variable sliders ────────────────────────────────────────── */
 
 .g3d-vars {
   display: flex;
   flex-direction: column;
   gap: 0.55rem;
   padding: 0.85rem;
+  background: var(--pookie-surface2);
+  border: 1px solid var(--pookie-border);
+  border-radius: var(--pookie-radius-sm);
 }
 
 .g3d-var {
@@ -525,10 +506,11 @@
   font-weight: 600;
 }
 
-/* ─── examples ────────────────────────────────────────────────── */
-
 .g3d-examples {
   padding: 0.85rem;
+  background: var(--pookie-surface2);
+  border: 1px solid var(--pookie-border);
+  border-radius: var(--pookie-radius-sm);
 }
 
 .g3d-ex-list {
@@ -538,12 +520,12 @@
   max-height: 158px;
   overflow-y: auto;
   scrollbar-width: thin;
-  scrollbar-color: rgba(168, 85, 247, 0.2) transparent;
+  scrollbar-color: color-mix(in srgb, var(--pookie-purple) 20%, transparent) transparent;
 }
 
 .g3d-ex-list::-webkit-scrollbar { width: 3px; }
 .g3d-ex-list::-webkit-scrollbar-thumb {
-  background: rgba(168, 85, 247, 0.3);
+  background: color-mix(in srgb, var(--pookie-purple) 30%, transparent);
   border-radius: 99px;
 }
 
@@ -551,7 +533,7 @@
   font-family: 'JetBrains Mono', monospace;
   font-size: 0.7rem;
   padding: 0.38rem 0.7rem;
-  border-radius: 8px;
+  border-radius: calc(var(--pookie-radius-sm) - 2px);
   text-align: left;
   white-space: nowrap;
   overflow: hidden;
@@ -564,8 +546,6 @@
   color: var(--pookie-pink);
 }
 
-/* ─── canvas / main area ──────────────────────────────────────── */
-
 .g3d-canvas {
   flex: 1;
   position: relative;
@@ -573,13 +553,11 @@
   overflow: hidden;
   background: radial-gradient(
     ellipse 65% 55% at 55% 45%,
-    rgba(168, 85, 247, 0.07) 0%,
-    rgba(244, 114, 182, 0.04) 40%,
+    color-mix(in srgb, var(--pookie-purple) 7%, transparent) 0%,
+    color-mix(in srgb, var(--pookie-pink) 4%, transparent) 40%,
     transparent 70%
   );
 }
-
-/* ─── info bar ────────────────────────────────────────────────── */
 
 .g3d-info {
   position: absolute;
@@ -596,7 +574,7 @@
   pointer-events: none;
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
-  background: rgba(15, 15, 35, 0.72);
+  background: color-mix(in srgb, var(--pookie-bg) 72%, transparent);
   border: 1px solid var(--pookie-border);
 }
 
@@ -609,8 +587,6 @@
   0%, 100% { opacity: 1; }
   50%       { opacity: 0.4; }
 }
-
-/* ─── view camera preset buttons ──────────────────────────────── */
 
 .g3d-view-btns {
   position: absolute;
@@ -627,19 +603,17 @@
   font-size: 0.7rem;
   font-weight: 800;
   padding: 0.36rem 0.72rem;
-  border-radius: 9px;
+  border-radius: var(--pookie-radius-sm);
   letter-spacing: 0.04em;
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
 }
 
-/* ─── math analysis overlay ───────────────────────────────────── */
-
 .g3d-overlay {
   position: fixed;
   inset: 0;
   z-index: 100;
-  background: rgba(0, 0, 0, 0.72);
+  background: color-mix(in srgb, var(--pookie-bg) 72%, transparent);
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
   display: flex;
@@ -660,7 +634,11 @@
   display: flex;
   flex-direction: column;
   gap: 0.85rem;
-  animation: g3d-scale-in 0.22s cubic-bezier(0.34, 1.56, 0.64, 1);
+  background: var(--pookie-surface);
+  border: 1px solid var(--pookie-border);
+  border-radius: var(--pookie-radius);
+  box-shadow: var(--pookie-shadow-h);
+  animation: g3d-scale-in 0.22s cubic-bezier(0.34,1.56,0.64,1);
 }
 
 @keyframes g3d-scale-in {
@@ -698,8 +676,8 @@
   font-size: 0.8rem;
   color: var(--pookie-muted);
   padding: 0.45rem 0.65rem;
-  border-radius: 9px;
-  background: var(--pookie-surface);
+  border-radius: var(--pookie-radius-sm);
+  background: var(--pookie-surface2);
   border: 1px solid var(--pookie-border);
 }
 
@@ -715,7 +693,7 @@
   font-weight: 800;
   padding: 0.18rem 0.55rem;
   border-radius: 50px;
-  background: linear-gradient(135deg, rgba(124, 58, 237, 0.25), rgba(236, 72, 153, 0.25));
+  background: color-mix(in srgb, var(--pookie-purple) 22%, transparent);
   border: 1px solid var(--pookie-border2);
   color: var(--pookie-pink);
   letter-spacing: 0.03em;
@@ -728,11 +706,7 @@
   padding: 0.75rem 0;
 }
 
-.g3d-math-note--err {
-  color: var(--pookie-rose);
-}
-
-/* ─── glass card utilities (local, non-global) ────────────────── */
+.g3d-math-note--err { color: var(--pookie-rose); }
 
 .glass-card {
   background: var(--pookie-surface);
@@ -752,8 +726,6 @@
   box-shadow: var(--pookie-shadow);
 }
 
-/* ─── shared btn primitives ───────────────────────────────────── */
-
 .btn-primary {
   display: flex;
   align-items: center;
@@ -768,20 +740,16 @@
   font-size: 0.85rem;
   cursor: pointer;
   transition: opacity 0.18s, box-shadow 0.18s, transform 0.15s;
-  box-shadow: 0 4px 16px rgba(244, 114, 182, 0.32);
+  box-shadow: 0 4px 16px color-mix(in srgb, var(--pookie-purple) 28%, transparent);
 }
 
 .btn-primary:hover:not(:disabled) {
   opacity: 0.9;
-  box-shadow: 0 6px 24px rgba(244, 114, 182, 0.48);
+  box-shadow: 0 6px 24px color-mix(in srgb, var(--pookie-pink) 45%, transparent);
   transform: translateY(-1px);
 }
 
-.btn-primary:disabled {
-  opacity: 0.35;
-  cursor: not-allowed;
-  transform: none;
-}
+.btn-primary:disabled { opacity: 0.35; cursor: not-allowed; transform: none; }
 
 .btn-ghost {
   display: flex;
@@ -801,16 +769,14 @@
 
 .btn-ghost:hover {
   color: var(--pookie-pink);
-  background: rgba(244, 114, 182, 0.08);
+  background: color-mix(in srgb, var(--pookie-pink) 8%, transparent);
   border-color: var(--pookie-border2);
   transform: translateY(-1px);
 }
 
-/* ─── field-input (shared form input) ─────────────────────────── */
-
 .field-input {
   width: 100%;
-  background: rgba(15, 15, 35, 0.7);
+  background: color-mix(in srgb, var(--pookie-bg) 70%, transparent);
   border: 1px solid var(--pookie-border);
   border-radius: var(--pookie-radius-sm);
   color: var(--pookie-text);
@@ -824,14 +790,11 @@
 
 .field-input:focus {
   border-color: var(--pookie-pink);
-  box-shadow: 0 0 0 3px rgba(244, 114, 182, 0.14);
-  background: rgba(15, 15, 35, 0.9);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--pookie-pink) 14%, transparent);
+  background: color-mix(in srgb, var(--pookie-bg) 90%, transparent);
 }
 
-.field-input::placeholder {
-  color: var(--pookie-muted);
-  opacity: 0.6;
-}
+.field-input::placeholder { color: var(--pookie-muted); opacity: 0.6; }
 
 .field-label {
   font-size: 0.72rem;
@@ -843,29 +806,17 @@
   display: block;
 }
 
-/* ─── pookie display title ────────────────────────────────────── */
-
 .pookie-display-title {
   font-family: var(--pookie-display);
   font-weight: 700;
 }
 
-/* ─── responsive ──────────────────────────────────────────────── */
-
 @media (max-width: 1024px) {
-  .g3d-sidebar {
-    width: 300px;
-    min-width: 300px;
-  }
+  .g3d-sidebar { width: 300px; min-width: 300px; }
 }
 
 @media (max-width: 768px) {
-  .g3d-root {
-    flex-direction: column;
-    height: auto;
-    min-height: 100vh;
-  }
-
+  .g3d-root { flex-direction: column; height: auto; min-height: 100vh; }
   .g3d-sidebar {
     width: 100% !important;
     min-width: 100% !important;
@@ -875,119 +826,33 @@
     border-bottom: 1px solid var(--pookie-border2);
     overflow-y: auto;
   }
-
-  .g3d-sidebar--closed {
-    max-height: 52px;
-    overflow: hidden;
-    padding: 0.75rem 1rem;
-  }
-
-  .g3d-collapse-btn {
-    position: static;
-    align-self: flex-end;
-    right: auto;
-    top: auto;
-    margin-bottom: 0.25rem;
-  }
-
-  .g3d-canvas {
-    height: 48vh;
-    min-height: 360px;
-  }
-
-  .g3d-tabs {
-    grid-template-columns: repeat(3, 1fr);
-  }
-
-  .g3d-view-btns {
-    bottom: 0.5rem;
-    right: 0.5rem;
-    gap: 0.28rem;
-  }
-
-  .g3d-view-btn {
-    font-size: 0.66rem;
-    padding: 0.3rem 0.52rem;
-  }
-
-  .g3d-info {
-    font-size: 0.66rem;
-    gap: 0.6rem;
-    padding: 0.35rem 0.72rem;
-  }
+  .g3d-sidebar--closed { max-height: 52px; overflow: hidden; padding: 0.75rem 1rem; }
+  .g3d-collapse-btn { position: static; align-self: flex-end; right: auto; top: auto; margin-bottom: 0.25rem; }
+  .g3d-canvas { height: 48vh; min-height: 360px; }
+  .g3d-tabs { grid-template-columns: repeat(3, 1fr); }
+  .g3d-view-btns { bottom: 0.5rem; right: 0.5rem; gap: 0.28rem; }
+  .g3d-view-btn { font-size: 0.66rem; padding: 0.3rem 0.52rem; }
+  .g3d-info { font-size: 0.66rem; gap: 0.6rem; padding: 0.35rem 0.72rem; }
 }
 
 @media (max-width: 480px) {
-  .g3d-sidebar {
-    padding: 0.75rem 0.75rem 1rem;
-    max-height: 50vh;
-  }
-
-  .g3d-canvas {
-    height: 50vh;
-    min-height: 300px;
-  }
-
-  .g3d-tabs {
-    grid-template-columns: repeat(2, 1fr);
-  }
-
-  .g3d-tab {
-    min-height: 46px;
-    font-size: 0.65rem;
-  }
-
-  .g3d-expr-ta,
-  .g3d-expr-edit {
-    font-size: 0.72rem;
-  }
-
-  .g3d-hd-actions {
-    gap: 0.22rem;
-  }
-
-  .g3d-title {
-    font-size: 1.1rem;
-  }
+  .g3d-sidebar { padding: 0.75rem 0.75rem 1rem; max-height: 50vh; }
+  .g3d-canvas { height: 50vh; min-height: 300px; }
+  .g3d-tabs { grid-template-columns: repeat(2, 1fr); }
+  .g3d-tab { min-height: 46px; font-size: 0.65rem; }
+  .g3d-expr-ta, .g3d-expr-edit { font-size: 0.72rem; }
+  .g3d-hd-actions { gap: 0.22rem; }
+  .g3d-title { font-size: 1.1rem; }
 }
 
 @media (hover: none) and (pointer: coarse) {
-  .g3d-slider::-webkit-slider-thumb {
-    width: 22px;
-    height: 22px;
-  }
-
-  .g3d-expr-ta,
-  .g3d-expr-edit {
-    font-size: 0.86rem;
-    min-height: 52px;
-  }
-
-  .icon-btn {
-    width: 34px;
-    height: 34px;
-  }
+  .g3d-slider::-webkit-slider-thumb { width: 22px; height: 22px; }
+  .g3d-expr-ta, .g3d-expr-edit { font-size: 0.86rem; min-height: 52px; }
+  .icon-btn { width: 34px; height: 34px; }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .g3d-card,
-  .g3d-cfg,
-  .g3d-math-panel,
-  .g3d-overlay {
-    animation: none;
-  }
-
-  .g3d-anim-dot {
-    animation: none;
-  }
-
-  .g3d-collapse-btn,
-  .g3d-swatch,
-  .icon-btn,
-  .btn-primary,
-  .btn-ghost,
-  .g3d-tab,
-  .g3d-ex-btn {
-    transition: none;
-  }
+  .g3d-card, .g3d-cfg, .g3d-math-panel, .g3d-overlay { animation: none; }
+  .g3d-anim-dot { animation: none; }
+  .g3d-collapse-btn, .g3d-swatch, .icon-btn, .btn-primary, .btn-ghost, .g3d-tab, .g3d-ex-btn { transition: none; }
 }

@@ -7,11 +7,15 @@
 html { scroll-behavior: smooth; }
 
 /* ─────────────────────────────────────────────────────────────────
-   DESIGN TOKENS
-   All pages that use the pookie theme read from here.
-   Do NOT redeclare :root in any page CSS file.
+   DESIGN TOKENS  
+   ─ Pookie defaults live here as fallback values.
+   ─ ThemeContext overwrites --pookie-* + --theme-* + --type-* on
+     <html> at runtime; components should read --theme-* (semantic)
+     or --pookie-* (legacy) — both are always in sync.
+   ─ DO NOT redeclare :root in any page CSS file.
 ───────────────────────────────────────────────────────────────── */
 :root {
+  /* ── Raw palette (overwritten per-theme) ── */
   --pookie-bg:        #0f0f23;
   --pookie-surface:   rgba(168,85,247,0.07);
   --pookie-surface2:  rgba(168,85,247,0.13);
@@ -31,71 +35,117 @@ html { scroll-behavior: smooth; }
   --pookie-glow:      0 0 24px rgba(244,114,182,0.25);
   --pookie-font:      'Nunito', sans-serif;
   --pookie-display:   'Playfair Display', serif;
+
+  /* ── Semantic alias layer — components use these ── */
+  --bg-base:              var(--pookie-bg);
+  --bg-surface:           var(--pookie-surface);
+  --bg-surface-elevated:  var(--pookie-surface2);
+  --text-primary:         var(--pookie-text);
+  --text-secondary:       var(--pookie-muted);
+  --text-accent:          var(--pookie-pink);
+  --accent-primary:       var(--pookie-purple);
+  --accent-secondary:     var(--pookie-pink);
+  --accent-danger:        var(--pookie-rose);
+  --border-subtle:        var(--pookie-border);
+  --border-strong:        var(--pookie-border2);
+  --shadow-card:          var(--pookie-shadow);
+  --shadow-elevated:      var(--pookie-shadow-h);
+  --glow-accent:          var(--pookie-glow);
+  --font-body:            var(--pookie-font);
+  --font-display:         var(--pookie-display);
+  --font-mono:            'JetBrains Mono', monospace;
+  --radius-sm:            var(--pookie-radius-sm);
+  --radius-md:            var(--pookie-radius);
+
+  /* ── Typography scale tokens (overwritten per-theme) ── */
+  --type-scale:           1;
+  --type-line-height:     1.6;
+  --type-heading-weight:  700;
+  --type-body-weight:     400;
+  --type-letter-spacing:  0em;
 }
 
 /* ─────────────────────────────────────────────────────────────────
    BASE ELEMENTS
 ───────────────────────────────────────────────────────────────── */
 body {
-  background:  var(--pookie-bg);
-  color:       var(--pookie-text);
-  font-family: var(--pookie-font);
-  -webkit-font-smoothing: antialiased;
+  background:      var(--bg-base);
+  color:           var(--text-primary);
+  font-family:     var(--font-body);
+  font-size:       calc(1rem * var(--type-scale, 1));
+  line-height:     var(--type-line-height, 1.6);
+  letter-spacing:  var(--type-letter-spacing, 0em);
+  font-weight:     var(--type-body-weight, 400);
+  -webkit-font-smoothing:  antialiased;
   -moz-osx-font-smoothing: grayscale;
   overflow-x: hidden;
+  transition:
+    background-color 0.55s cubic-bezier(0.4, 0, 0.2, 1),
+    color            0.45s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+h1, h2, h3, h4, h5, h6 {
+  font-weight: var(--type-heading-weight, 700);
 }
 
 button {
-  font-family: var(--pookie-font);
+  font-family: var(--font-body);
   -webkit-tap-highlight-color: transparent;
   user-select: none;
   cursor: pointer;
 }
 
-input, textarea, select { font-family: var(--pookie-font); }
+input, textarea, select { font-family: var(--font-body); }
 
 a {
-  color: var(--pookie-purple);
+  color: var(--accent-primary);
   text-decoration: none;
   transition: color 0.2s;
 }
-a:hover { color: var(--pookie-pink); }
+a:hover { color: var(--text-accent); }
 
-::selection { background: rgba(168,85,247,0.3); color: #fff; }
+::selection {
+  background: color-mix(in srgb, var(--accent-primary) 35%, transparent);
+  color: #fff;
+}
 
 /* ─────────────────────────────────────────────────────────────────
-   SCROLLBARS
+   SCROLLBARS  (theme-overrides in ThemeOverlays.css take precedence)
 ───────────────────────────────────────────────────────────────── */
 * {
   scrollbar-width: thin;
-  scrollbar-color: rgba(168,85,247,0.3) transparent;
+  scrollbar-color: color-mix(in srgb, var(--accent-primary) 35%, transparent) transparent;
 }
 *::-webkit-scrollbar         { width: 5px; height: 5px; }
 *::-webkit-scrollbar-track   { background: transparent; }
-*::-webkit-scrollbar-thumb   { background: rgba(168,85,247,0.3); border-radius: 99px; }
-*::-webkit-scrollbar-thumb:hover { background: rgba(168,85,247,0.5); }
+*::-webkit-scrollbar-thumb   {
+  background: color-mix(in srgb, var(--accent-primary) 35%, transparent);
+  border-radius: 99px;
+}
+*::-webkit-scrollbar-thumb:hover {
+  background: color-mix(in srgb, var(--accent-primary) 55%, transparent);
+}
 
 /* ─────────────────────────────────────────────────────────────────
-   FOCUS
+   FOCUS  (theme-overrides in ThemeOverlays.css take precedence)
 ───────────────────────────────────────────────────────────────── */
 button:focus-visible,
 input:focus-visible,
 textarea:focus-visible,
 select:focus-visible,
 a:focus-visible {
-  outline: 2px solid var(--pookie-purple);
+  outline: 2px solid var(--accent-primary);
   outline-offset: 2px;
-  border-radius: var(--pookie-radius-sm);
+  border-radius: var(--radius-sm);
 }
 
 /* ─────────────────────────────────────────────────────────────────
    PAGE SHELL
-   Usage: add className="pookie-page-shell" to the root div of any
-   pookie-themed page. Handles bg, ambient gradient, z-stacking.
+   Usage: className="pookie-page-shell" on the root div of any page.
 ───────────────────────────────────────────────────────────────── */
 .pookie-page-shell {
   min-height: 100vh;
-  background: var(--pookie-bg);
+  background: var(--bg-base);
   position: relative;
   overflow-x: hidden;
 }
@@ -104,8 +154,8 @@ a:focus-visible {
   position: fixed;
   inset: 0;
   background:
-    radial-gradient(ellipse 60% 40% at 15% 10%, rgba(244,114,182,0.10) 0%, transparent 65%),
-    radial-gradient(ellipse 50% 35% at 88% 85%, rgba(168,85,247,0.12) 0%, transparent 60%);
+    radial-gradient(ellipse 60% 40% at 15% 10%, color-mix(in srgb, var(--text-accent) 10%, transparent) 0%, transparent 65%),
+    radial-gradient(ellipse 50% 35% at 88% 85%, color-mix(in srgb, var(--accent-primary) 12%, transparent) 0%, transparent 60%);
   pointer-events: none;
   z-index: 0;
 }
@@ -113,53 +163,86 @@ a:focus-visible {
 
 /* ─────────────────────────────────────────────────────────────────
    GLASS CARDS
-   .glass-card      — standard 20px radius
-   .glass-card-sm   — compact 12px radius
+   .glass-card      — standard radius
+   .glass-card-sm   — compact radius
+   Themes override background, blur, border, shadow in ThemeOverlays.
 ───────────────────────────────────────────────────────────────── */
 .glass-card {
-  background: var(--pookie-surface);
-  border: 1px solid var(--pookie-border);
-  border-radius: var(--pookie-radius);
-  backdrop-filter: blur(22px);
+  background:        var(--bg-surface);
+  border:            1px solid var(--border-subtle);
+  border-radius:     var(--radius-md);
+  backdrop-filter:   blur(22px);
   -webkit-backdrop-filter: blur(22px);
-  box-shadow: var(--pookie-shadow);
+  box-shadow:        var(--shadow-card);
+  position: relative;
+  z-index: 1;
+  /* Establish stacking context — prevents background layers bleeding in */
+  isolation: isolate;
+  transition:
+    background    0.4s ease,
+    border-color  0.4s ease,
+    box-shadow    0.3s ease;
 }
 .glass-card-sm {
-  background: var(--pookie-surface);
-  border: 1px solid var(--pookie-border);
-  border-radius: var(--pookie-radius-sm);
-  backdrop-filter: blur(16px);
+  background:        var(--bg-surface);
+  border:            1px solid var(--border-subtle);
+  border-radius:     var(--radius-sm);
+  backdrop-filter:   blur(16px);
   -webkit-backdrop-filter: blur(16px);
-  box-shadow: var(--pookie-shadow);
+  box-shadow:        var(--shadow-card);
+  position: relative;
+  z-index: 1;
+  isolation: isolate;
+  transition:
+    background    0.4s ease,
+    border-color  0.4s ease,
+    box-shadow    0.3s ease;
+}
+
+/* ─────────────────────────────────────────────────────────────────
+   THEME TRANSITION FLASH
+   ThemeContext adds / removes sb-theme-transitioning on <body>.
+   The flash overlay masks DOM manipulation during rapid switches.
+───────────────────────────────────────────────────────────────── */
+.theme-transition-flash {
+  position: fixed;
+  inset: 0;
+  background: var(--bg-base);
+  opacity: 0;
+  pointer-events: none;
+  z-index: 99990;
+  transition: opacity 0.28s ease;
+}
+body.sb-theme-transitioning .theme-transition-flash {
+  opacity: 0.35;
 }
 
 /* ─────────────────────────────────────────────────────────────────
    TYPOGRAPHY UTILITIES
 ───────────────────────────────────────────────────────────────── */
 .gradient-text {
-  background: linear-gradient(135deg, var(--pookie-pink), var(--pookie-purple));
+  background: linear-gradient(135deg, var(--text-accent), var(--accent-primary));
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
 }
 .gradient-text-rev {
-  background: linear-gradient(135deg, var(--pookie-purple), var(--pookie-pink));
+  background: linear-gradient(135deg, var(--accent-primary), var(--text-accent));
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
 }
 
 .pookie-display-title {
-  font-family: 'Dancing Script', cursive;
+  font-family: var(--font-display);
   font-weight: 700;
-  background: linear-gradient(135deg, var(--pookie-pink), var(--pookie-purple));
+  background: linear-gradient(135deg, var(--text-accent), var(--accent-primary));
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
   line-height: 1.2;
   letter-spacing: -0.01em;
 }
-
 
 /* ─────────────────────────────────────────────────────────────────
    BUTTONS
@@ -178,16 +261,16 @@ a:focus-visible {
   padding: 0.7rem 1.5rem;
   font-size: 0.88rem;
   font-weight: 800;
-  font-family: var(--pookie-font);
+  font-family: var(--font-body);
   cursor: pointer;
-  box-shadow: 0 4px 16px rgba(168,85,247,0.28);
+  box-shadow: 0 4px 16px color-mix(in srgb, var(--accent-primary) 28%, transparent);
   transition: box-shadow 0.2s, transform 0.15s, opacity 0.2s;
   white-space: nowrap;
   flex-shrink: 0;
   text-decoration: none;
 }
 .btn-primary:hover {
-  box-shadow: 0 6px 24px rgba(244,114,182,0.40);
+  box-shadow: 0 6px 24px color-mix(in srgb, var(--text-accent) 40%, transparent);
   -webkit-text-fill-color: #fff;
   color: #fff;
   transform: translateY(-1px);
@@ -199,21 +282,21 @@ a:focus-visible {
   align-items: center;
   gap: 0.4rem;
   background: none;
-  border: 1px solid var(--pookie-border2);
+  border: 1px solid var(--border-strong);
   border-radius: 50px;
   padding: 0.65rem 1.25rem;
-  color: var(--pookie-muted);
+  color: var(--text-secondary);
   font-size: 0.85rem;
   font-weight: 700;
-  font-family: var(--pookie-font);
+  font-family: var(--font-body);
   cursor: pointer;
   transition: all 0.18s;
   white-space: nowrap;
 }
 .btn-ghost:hover {
-  border-color: var(--pookie-pink);
-  color: var(--pookie-text);
-  background: rgba(244,114,182,0.06);
+  border-color: var(--text-accent);
+  color: var(--text-primary);
+  background: color-mix(in srgb, var(--text-accent) 6%, transparent);
 }
 
 .btn-danger {
@@ -227,7 +310,7 @@ a:focus-visible {
   color: #fb7185;
   font-size: 0.82rem;
   font-weight: 800;
-  font-family: var(--pookie-font);
+  font-family: var(--font-body);
   cursor: pointer;
   transition: all 0.18s;
 }
@@ -238,55 +321,55 @@ a:focus-visible {
 
 /* ─────────────────────────────────────────────────────────────────
    ICON BUTTONS
-   .icon-btn          — neutral 32x32 square icon button
-   .icon-btn--danger  — hover turns rose (add alongside .icon-btn)
+   .icon-btn          — neutral 32×32 icon button
+   .icon-btn--danger  — hover turns rose
    .close-btn         — same size, rose on hover
 ───────────────────────────────────────────────────────────────── */
 .icon-btn {
   width: 32px;
   height: 32px;
   border-radius: 9px;
-  background: var(--pookie-surface2);
-  border: 1px solid var(--pookie-border);
-  color: var(--pookie-muted);
+  background: var(--bg-surface-elevated);
+  border: 1px solid var(--border-subtle);
+  color: var(--text-secondary);
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
   transition: all 0.18s;
-  font-family: var(--pookie-font);
+  font-family: var(--font-body);
   flex-shrink: 0;
 }
 .icon-btn:hover {
-  color: var(--pookie-text);
-  border-color: var(--pookie-border2);
-  background: rgba(244,114,182,0.1);
+  color: var(--text-primary);
+  border-color: var(--border-strong);
+  background: color-mix(in srgb, var(--text-accent) 10%, transparent);
 }
 .icon-btn--danger:hover {
-  color: var(--pookie-rose);
-  background: rgba(251,113,133,0.12);
-  border-color: rgba(251,113,133,0.38);
+  color: var(--accent-danger);
+  background: color-mix(in srgb, var(--accent-danger) 12%, transparent);
+  border-color: color-mix(in srgb, var(--accent-danger) 38%, transparent);
 }
 
 .close-btn {
   width: 32px;
   height: 32px;
   border-radius: 9px;
-  background: var(--pookie-surface2);
-  border: 1px solid var(--pookie-border);
-  color: var(--pookie-muted);
+  background: var(--bg-surface-elevated);
+  border: 1px solid var(--border-subtle);
+  color: var(--text-secondary);
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
   flex-shrink: 0;
   transition: all 0.18s;
-  font-family: var(--pookie-font);
+  font-family: var(--font-body);
 }
 .close-btn:hover {
-  color: var(--pookie-rose);
-  border-color: rgba(251,113,133,0.45);
-  background: rgba(251,113,133,0.1);
+  color: var(--accent-danger);
+  border-color: color-mix(in srgb, var(--accent-danger) 45%, transparent);
+  background: color-mix(in srgb, var(--accent-danger) 10%, transparent);
 }
 
 /* ─────────────────────────────────────────────────────────────────
@@ -300,18 +383,18 @@ a:focus-visible {
   font-weight: 800;
   text-transform: uppercase;
   letter-spacing: 0.08em;
-  color: var(--pookie-muted);
+  color: var(--text-secondary);
   margin-bottom: 0.4rem;
 }
 
 .field-input {
   width: 100%;
-  background: rgba(168,85,247,0.06);
-  border: 1px solid var(--pookie-border);
-  border-radius: var(--pookie-radius-sm);
+  background: color-mix(in srgb, var(--accent-primary) 6%, transparent);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
   padding: 0.65rem 1rem;
-  color: var(--pookie-text);
-  font-family: var(--pookie-font);
+  color: var(--text-primary);
+  font-family: var(--font-body);
   font-size: 0.9rem;
   font-weight: 600;
   outline: none;
@@ -319,25 +402,25 @@ a:focus-visible {
   box-sizing: border-box;
 }
 .field-input:focus {
-  border-color: var(--pookie-purple);
-  box-shadow: 0 0 0 3px rgba(168,85,247,0.14);
+  border-color: var(--accent-primary);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent-primary) 14%, transparent);
 }
-.field-input::placeholder { color: var(--pookie-muted); }
+.field-input::placeholder { color: var(--text-secondary); }
 .field-input[type="date"]::-webkit-calendar-picker-indicator {
   filter: invert(0.6) sepia(1) saturate(3) hue-rotate(220deg);
 }
 
 /* ─────────────────────────────────────────────────────────────────
    SELECT
-   .pookie-select — pill-shaped dropdown matching the design system
+   .pookie-select — pill-shaped dropdown
 ───────────────────────────────────────────────────────────────── */
 .pookie-select {
-  background: var(--pookie-surface);
-  border: 1px solid var(--pookie-border);
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
   border-radius: 50px;
   padding: 0.58rem 2.2rem 0.58rem 1rem;
-  color: var(--pookie-text);
-  font-family: var(--pookie-font);
+  color: var(--text-primary);
+  font-family: var(--font-body);
   font-size: 0.82rem;
   font-weight: 700;
   outline: none;
@@ -350,16 +433,13 @@ a:focus-visible {
   background-position: right 0.75rem center;
 }
 .pookie-select:focus {
-  border-color: var(--pookie-purple);
-  box-shadow: 0 0 0 3px rgba(168,85,247,0.14);
+  border-color: var(--accent-primary);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent-primary) 14%, transparent);
 }
-.pookie-select option { background: #1a1a35; color: var(--pookie-text); }
+.pookie-select option { background: #1a1a35; color: var(--text-primary); }
 
 /* ─────────────────────────────────────────────────────────────────
    SEARCH BAR
-   Wrap an <input className="search-input"> inside
-   <div className="search-wrap">, then add an icon span with
-   .search-wrap__icon and optionally a .search-clear button.
 ───────────────────────────────────────────────────────────────── */
 .search-wrap { position: relative; }
 
@@ -368,19 +448,19 @@ a:focus-visible {
   left: 0.85rem;
   top: 50%;
   transform: translateY(-50%);
-  color: var(--pookie-muted);
+  color: var(--text-secondary);
   pointer-events: none;
   font-size: 0.85rem;
 }
 
 .search-input {
   width: 100%;
-  background: var(--pookie-surface);
-  border: 1px solid var(--pookie-border);
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
   border-radius: 50px;
   padding: 0.6rem 2.4rem 0.6rem 2.2rem;
-  color: var(--pookie-text);
-  font-family: var(--pookie-font);
+  color: var(--text-primary);
+  font-family: var(--font-body);
   font-size: 0.86rem;
   font-weight: 600;
   outline: none;
@@ -388,10 +468,10 @@ a:focus-visible {
   box-sizing: border-box;
 }
 .search-input:focus {
-  border-color: var(--pookie-purple);
-  box-shadow: 0 0 0 3px rgba(168,85,247,0.14);
+  border-color: var(--accent-primary);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent-primary) 14%, transparent);
 }
-.search-input::placeholder { color: var(--pookie-muted); }
+.search-input::placeholder { color: var(--text-secondary); }
 
 .search-clear {
   position: absolute;
@@ -400,22 +480,17 @@ a:focus-visible {
   transform: translateY(-50%);
   background: none;
   border: none;
-  color: var(--pookie-muted);
+  color: var(--text-secondary);
   cursor: pointer;
   padding: 0.2rem;
   display: flex;
   align-items: center;
   transition: color 0.15s;
 }
-.search-clear:hover { color: var(--pookie-text); }
+.search-clear:hover { color: var(--text-primary); }
 
 /* ─────────────────────────────────────────────────────────────────
    OVERLAY + MODAL
-   .pookie-overlay  — full-screen dark backdrop
-   .pookie-modal    — centred card inside overlay
-   .modal-title     — gradient heading inside modal
-   .modal-sub       — muted subtitle inside modal
-   .modal-actions   — right-aligned button row at modal footer
 ───────────────────────────────────────────────────────────────── */
 .pookie-overlay {
   position: fixed;
@@ -432,13 +507,13 @@ a:focus-visible {
 }
 
 .pookie-modal {
-  background: var(--pookie-bg);
-  border: 1px solid var(--pookie-border2);
-  border-radius: var(--pookie-radius);
+  background: var(--bg-base);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-md);
   padding: 1.75rem;
   max-width: 520px;
   width: 100%;
-  box-shadow: var(--pookie-shadow-h), 0 0 60px rgba(244,114,182,0.15);
+  box-shadow: var(--shadow-elevated), 0 0 60px color-mix(in srgb, var(--text-accent) 15%, transparent);
   display: flex;
   flex-direction: column;
   gap: 1.25rem;
@@ -449,9 +524,9 @@ a:focus-visible {
 .pookie-modal::-webkit-scrollbar { display: none; }
 
 .modal-title {
-  font-family: 'Dancing Script', cursive;
+  font-family: var(--font-display);
   font-weight: 700;
-  background: linear-gradient(135deg, var(--pookie-pink), var(--pookie-purple));
+  background: linear-gradient(135deg, var(--text-accent), var(--accent-primary));
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
@@ -460,7 +535,7 @@ a:focus-visible {
 
 .modal-sub {
   font-size: 0.84rem;
-  color: var(--pookie-muted);
+  color: var(--text-secondary);
   font-weight: 600;
   margin: 0;
 }
@@ -470,20 +545,17 @@ a:focus-visible {
   gap: 0.6rem;
   justify-content: flex-end;
   padding-top: 0.5rem;
-  border-top: 1px solid var(--pookie-border);
+  border-top: 1px solid var(--border-subtle);
 }
 
 /* ─────────────────────────────────────────────────────────────────
    TABS
-   .pookie-tabs      — pill-shaped tab row container
-   .pookie-tab       — individual tab button
-   .pookie-tab.active — selected state
 ───────────────────────────────────────────────────────────────── */
 .pookie-tabs {
   display: flex;
   gap: 0.4rem;
-  background: var(--pookie-surface);
-  border: 1px solid var(--pookie-border);
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
   border-radius: 50px;
   padding: 0.3rem;
   backdrop-filter: blur(16px);
@@ -499,10 +571,10 @@ a:focus-visible {
   border-radius: 50px;
   border: none;
   background: none;
-  color: var(--pookie-muted);
+  color: var(--text-secondary);
   font-size: 0.84rem;
   font-weight: 700;
-  font-family: var(--pookie-font);
+  font-family: var(--font-body);
   cursor: pointer;
   transition: all 0.22s;
   white-space: nowrap;
@@ -510,30 +582,27 @@ a:focus-visible {
 .pookie-tab.active {
   background: linear-gradient(135deg, var(--pookie-purple2), var(--pookie-pink2));
   color: #fff;
-  box-shadow: 0 2px 12px rgba(168,85,247,0.35);
+  box-shadow: 0 2px 12px color-mix(in srgb, var(--accent-primary) 35%, transparent);
 }
 
 /* ─────────────────────────────────────────────────────────────────
    STAT CARDS
-   .pookie-stat-card   — centred metric tile
-   .pookie-stat-val    — big number inside stat card
-   .pookie-stat-label  — uppercase label below number
 ───────────────────────────────────────────────────────────────── */
 .pookie-stat-card {
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 0.22rem;
-  background: var(--pookie-surface);
-  border: 1px solid var(--pookie-border);
-  border-radius: var(--pookie-radius-sm);
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
   padding: 0.95rem 0.6rem;
   backdrop-filter: blur(16px);
   text-align: center;
   cursor: default;
   transition: border-color 0.22s, box-shadow 0.22s;
 }
-.pookie-stat-card:hover { box-shadow: var(--pookie-glow); }
+.pookie-stat-card:hover { box-shadow: var(--glow-accent); }
 
 .pookie-stat-val   { font-size: 1.5rem; font-weight: 900; line-height: 1; }
 .pookie-stat-label {
@@ -541,13 +610,11 @@ a:focus-visible {
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.08em;
-  color: var(--pookie-muted);
+  color: var(--text-secondary);
 }
 
 /* ─────────────────────────────────────────────────────────────────
    BADGE
-   .pookie-badge — tiny pill label; set colour via inline style or
-                   a modifier class in the consuming component
 ───────────────────────────────────────────────────────────────── */
 .pookie-badge {
   display: inline-flex;
@@ -563,7 +630,6 @@ a:focus-visible {
 
 /* ─────────────────────────────────────────────────────────────────
    EMPTY STATE
-   .pookie-empty — centred placeholder when a list is empty
 ───────────────────────────────────────────────────────────────── */
 .pookie-empty {
   display: flex;
@@ -572,15 +638,15 @@ a:focus-visible {
   gap: 0.85rem;
   padding: 3.5rem 2.5rem;
   text-align: center;
-  background: var(--pookie-surface);
-  border: 1px solid var(--pookie-border);
-  border-radius: var(--pookie-radius);
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
   backdrop-filter: blur(22px);
 }
 .pookie-empty h3 {
-  font-family: 'Dancing Script', cursive;
+  font-family: var(--font-display);
   font-weight: 700;
-  background: linear-gradient(135deg, var(--pookie-pink), var(--pookie-purple));
+  background: linear-gradient(135deg, var(--text-accent), var(--accent-primary));
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
@@ -588,7 +654,7 @@ a:focus-visible {
   margin: 0;
 }
 .pookie-empty p {
-  color: var(--pookie-muted);
+  color: var(--text-secondary);
   margin: 0;
   font-size: 0.9rem;
   font-weight: 600;
@@ -598,15 +664,15 @@ a:focus-visible {
 
 /* ─────────────────────────────────────────────────────────────────
    SKELETON LOADER
-   .pookie-skeleton — set a height in the page CSS, e.g. height:220px
+   Uses semantic tokens — updates automatically with each theme.
 ───────────────────────────────────────────────────────────────── */
 .pookie-skeleton {
-  border-radius: var(--pookie-radius);
+  border-radius: var(--radius-md);
   background: linear-gradient(
     90deg,
-    var(--pookie-surface)  25%,
-    var(--pookie-surface2) 50%,
-    var(--pookie-surface)  75%
+    var(--bg-surface)          25%,
+    var(--bg-surface-elevated) 50%,
+    var(--bg-surface)          75%
   );
   background-size: 200% 100%;
   animation: pookie-shimmer 1.4s infinite linear;
@@ -618,7 +684,6 @@ a:focus-visible {
 
 /* ─────────────────────────────────────────────────────────────────
    CONFETTI
-   JS renders pieces into .pookie-confetti at the top of <body>
 ───────────────────────────────────────────────────────────────── */
 .pookie-confetti {
   position: fixed;
@@ -638,9 +703,6 @@ a:focus-visible {
 
 /* ─────────────────────────────────────────────────────────────────
    ANIMATION HELPERS
-   .pookie-spin    — continuous rotation
-   .pookie-float   — gentle up/down bob
-   .pookie-fade-in — entrance from below
 ───────────────────────────────────────────────────────────────── */
 .pookie-spin    { animation: _spin     1s linear      infinite; }
 .pookie-float   { animation: _float    3s ease-in-out infinite; }
@@ -658,8 +720,6 @@ a:focus-visible {
 
 /* ─────────────────────────────────────────────────────────────────
    FULL-PAGE STATES
-   .pookie-loading    — spinner screen while auth resolves
-   .pookie-auth-gate  — locked card for unauthenticated users
 ───────────────────────────────────────────────────────────────── */
 .pookie-loading {
   min-height: 100vh;
@@ -668,9 +728,9 @@ a:focus-visible {
   align-items: center;
   justify-content: center;
   gap: 1.1rem;
-  background: var(--pookie-bg);
-  color: var(--pookie-muted);
-  font-family: var(--pookie-font);
+  background: var(--bg-base);
+  color: var(--text-secondary);
+  font-family: var(--font-body);
   font-size: 1rem;
   font-weight: 600;
 }
@@ -683,17 +743,17 @@ a:focus-visible {
   flex-direction: column;
   align-items: center;
   gap: 1.2rem;
-  background: var(--pookie-surface);
-  border: 1px solid var(--pookie-border);
-  border-radius: var(--pookie-radius);
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
   padding: 3.5rem 2.5rem;
   backdrop-filter: blur(24px);
-  box-shadow: var(--pookie-shadow);
+  box-shadow: var(--shadow-card);
 }
 .pookie-auth-gate h2 {
-  font-family: 'Dancing Script', cursive;
+  font-family: var(--font-display);
   font-weight: 700;
-  background: linear-gradient(135deg, var(--pookie-pink), var(--pookie-purple));
+  background: linear-gradient(135deg, var(--text-accent), var(--accent-primary));
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
@@ -701,7 +761,7 @@ a:focus-visible {
   margin: 0;
 }
 .pookie-auth-gate p {
-  color: var(--pookie-muted);
+  color: var(--text-secondary);
   font-size: 0.93rem;
   font-weight: 600;
   margin: 0;
@@ -711,7 +771,6 @@ a:focus-visible {
 
 /* ─────────────────────────────────────────────────────────────────
    REDUCED MOTION
-   Single global declaration — do NOT repeat in any page CSS file.
 ───────────────────────────────────────────────────────────────── */
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
@@ -721,7 +780,9 @@ a:focus-visible {
   }
 }
 
-/* Mobile optimization for Dancing Script headlines */
+/* ─────────────────────────────────────────────────────────────────
+   RESPONSIVE TWEAKS
+───────────────────────────────────────────────────────────────── */
 @media (max-width: 640px) {
   .pookie-display-title,
   .modal-title,
@@ -731,7 +792,6 @@ a:focus-visible {
   }
 }
 
-/* Subtle text shadow for better readability on gradients */
 .pookie-display-title,
 .modal-title,
 .pookie-empty h3,

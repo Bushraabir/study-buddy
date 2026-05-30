@@ -1,0 +1,152 @@
+/* ============================================================
+   CAS.css — MathInsights badges + CASLoader progress bar
+   ·  Uses ONLY semantic tokens from Styles.css (:root)
+   ·  color-mix() for theme-automatic badge tints
+   ·  NO hardcoded pookie-specific colors
+   ·  NO redeclaration of glass-card / btn-primary / field-input
+   ============================================================ */
+
+
+/* ─── MathInsights badge strip ────────────────────────────────────────────── */
+
+.mi-wrap {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 5px;
+  margin-top: 6px;
+}
+
+/* Base badge */
+.mi-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 2px 8px;
+  border-radius: 50px;
+  font-size: 0.66rem;
+  font-weight: 800;
+  line-height: 1.5;
+  letter-spacing: 0.03em;
+  white-space: nowrap;
+  border: 1px solid transparent;
+  transition: opacity 0.2s;
+}
+
+/* Modifier: neutral/subtle — uses the active theme's accent tint */
+.mi-badge.mi-subtle {
+  background: color-mix(in srgb, var(--accent-primary) 10%, transparent);
+  color:       var(--text-secondary);
+  border-color: var(--border-subtle);
+}
+
+/* Modifier: info (symmetry, period) — green-teal, theme-stable */
+.mi-badge.mi-info {
+  background:   color-mix(in srgb, #10b981 12%, transparent);
+  color:        #6ee7b7;
+  border-color: color-mix(in srgb, #10b981 28%, transparent);
+}
+
+/* Modifier: danger (vertical asymptotes) — rose-red, theme-stable */
+.mi-badge.mi-danger {
+  background:   color-mix(in srgb, var(--accent-danger) 12%, transparent);
+  color:        color-mix(in srgb, var(--accent-danger) 90%, #fff);
+  border-color: color-mix(in srgb, var(--accent-danger) 28%, transparent);
+}
+
+/* Modifier: warning (horizontal asymptotes) — amber, theme-stable */
+.mi-badge.mi-warning {
+  background:   color-mix(in srgb, #f59e0b 12%, transparent);
+  color:        #fcd34d;
+  border-color: color-mix(in srgb, #f59e0b 28%, transparent);
+}
+
+/* Auto-fix button */
+.mi-fix-btn {
+  margin-left: auto;
+  padding: 2px 10px;
+  background: linear-gradient(135deg, var(--pookie-purple2, #7c3aed), var(--pookie-purple, #a855f7));
+  color: #fff;
+  border: none;
+  border-radius: 50px;
+  font-size: 0.66rem;
+  font-weight: 800;
+  font-family: var(--font-body);
+  cursor: pointer;
+  transition: opacity 0.18s, transform 0.15s;
+}
+.mi-fix-btn:hover {
+  opacity: 0.85;
+  transform: translateY(-1px);
+}
+
+
+/* ─── CASLoader pill ───────────────────────────────────────────────────────── */
+
+.cas-loader {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 12px;
+  border-radius: var(--radius-sm, 12px);
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  font-size: 0.72rem;
+  color: var(--text-secondary);
+  margin-bottom: 8px;
+  transition:
+    background    0.4s ease,
+    border-color  0.4s ease;
+}
+
+.cas-loader__icon {
+  font-size: 0.9rem;
+  color: var(--accent-primary);
+  animation: _spin 1.2s linear infinite;
+  flex-shrink: 0;
+  line-height: 1;
+}
+
+/* _spin is declared in Styles.css; redefine locally as a safety net */
+@keyframes _spin {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+
+.cas-loader__text {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  line-height: 1.3;
+}
+
+.cas-loader__text span:first-child {
+  color: var(--text-primary);
+  font-weight: 700;
+  font-size: 0.72rem;
+}
+
+.cas-loader__sub {
+  color: var(--text-secondary);
+  font-size: 0.62rem;
+  font-weight: 600;
+}
+
+.cas-loader__bar {
+  margin-left: auto;
+  width: 60px;
+  height: 4px;
+  border-radius: 99px;
+  background: color-mix(in srgb, var(--accent-primary) 15%, transparent);
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.cas-loader__fill {
+  height: 100%;
+  border-radius: 99px;
+  background: linear-gradient(90deg, var(--pookie-purple2, #7c3aed), var(--pookie-pink, #f472b6));
+  transition: width 0.4s ease;
+}

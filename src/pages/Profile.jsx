@@ -1,13 +1,9 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import {
-  doc, onSnapshot, updateDoc, deleteDoc, serverTimestamp,
+  doc, onSnapshot,
 } from "firebase/firestore";
-import { auth, db, storage } from "../components/firebase";
-import {
-  onAuthStateChanged, updateProfile, deleteUser,
-  reauthenticateWithCredential, EmailAuthProvider,
-} from "firebase/auth";
-import { ref, uploadBytes, getDownloadURL, deleteObject } from "firebase/storage";
+import { auth, db } from "../components/firebase";
+import { onAuthStateChanged } from "firebase/auth";
 import toast from "react-hot-toast";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -125,27 +121,6 @@ function getHeatmapData(dailyStats) {
   return data;
 }
 
-async function compressImage(file, maxW = 800, quality = 0.85) {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      const img = new Image();
-      img.onload = () => {
-        const canvas = document.createElement("canvas");
-        const scale = Math.min(1, maxW / img.width);
-        canvas.width = img.width * scale;
-        canvas.height = img.height * scale;
-        canvas.getContext("2d").drawImage(img, 0, 0, canvas.width, canvas.height);
-        canvas.toBlob((blob) => resolve(blob), "image/jpeg", quality);
-      };
-      img.onerror = reject;
-      img.src = e.target.result;
-    };
-    reader.onerror = reject;
-    reader.readAsDataURL(file);
-  });
-}
-
 // ─── Design Tokens ────────────────────────────────────────────────────────────
 const PALETTE = ["#d4609a", "#8b6fd4", "#3eb57d", "#c87020", "#06b6d4", "#c0365e"];
 const CHART_COLORS = { primary: "#d4609a", secondary: "#8b6fd4", accent: "#3eb57d", warn: "#c87020", cyan: "#06b6d4" };
@@ -235,7 +210,7 @@ function CustomTooltip({ active, payload, label, unit = "h" }) {
   );
 }
 
-// ─── Study Rhythm Chart (NEW) ─────────────────────────────────────────────────
+// ─── Study Rhythm Chart ───────────────────────────────────────────────────────
 function StudyRhythmChart({ dailyStats }) {
   const rhythmData = useMemo(() => {
     const hours = Array(24).fill(0).map((_, h) => ({ hour: h, sessions: 0, avgDuration: 0, label: h % 6 === 0 ? `${h}:00` : "" }));
@@ -290,7 +265,7 @@ function StudyRhythmChart({ dailyStats }) {
   );
 }
 
-// ─── Mastery Timeline Sparkline (NEW) ─────────────────────────────────────────
+// ─── Mastery Timeline Sparkline ───────────────────────────────────────────────
 function MasteryTimeline({ subjects }) {
   if (!subjects?.length) return <div className="empty-state">No subjects tracked yet.</div>;
   return (
@@ -321,14 +296,14 @@ function MasteryTimeline({ subjects }) {
   );
 }
 
-// ─── Achievement Badges (NEW) ─────────────────────────────────────────────────
+// ─── Achievement Badges ───────────────────────────────────────────────────────
 const ACHIEVEMENTS = [
-  { id: "first_day", icon: "🌱", label: "First Step", req: (streak) => streak >= 1 },
-  { id: "week_warrior", icon: "💪", label: "Week Warrior", req: (streak) => streak >= 7 },
-  { id: "fortnight", icon: "🔥", label: "Fortnight", req: (streak) => streak >= 14 },
-  { id: "month_legend", icon: "👑", label: "Month Legend", req: (streak) => streak >= 30 },
-  { id: "deep_diver", icon: "🤿", label: "Deep Diver", req: (_, avg) => avg >= 4 },
-  { id: "polymath", icon: "🦉", label: "Polymath", req: (_, __, fields) => fields >= 5 },
+  { id: "first_day",    icon: "🌱", label: "First Step",    req: (streak) => streak >= 1 },
+  { id: "week_warrior", icon: "💪", label: "Week Warrior",  req: (streak) => streak >= 7 },
+  { id: "fortnight",    icon: "🔥", label: "Fortnight",     req: (streak) => streak >= 14 },
+  { id: "month_legend", icon: "👑", label: "Month Legend",  req: (streak) => streak >= 30 },
+  { id: "deep_diver",   icon: "🤿", label: "Deep Diver",    req: (_, avg) => avg >= 4 },
+  { id: "polymath",     icon: "🦉", label: "Polymath",      req: (_, __, fields) => fields >= 5 },
 ];
 
 function AchievementBadges({ streak, avgDailyHours, fieldCount }) {
@@ -362,7 +337,7 @@ function AchievementBadges({ streak, avgDailyHours, fieldCount }) {
   );
 }
 
-// ─── Study Garden SVG (NEW) ───────────────────────────────────────────────────
+// ─── Study Garden SVG ─────────────────────────────────────────────────────────
 function StudyGardenSVG({ streak }) {
   const plantCount = Math.min(5, Math.floor(streak / 7) + 1);
   const plants = Array.from({ length: plantCount }, (_, i) => {
@@ -385,24 +360,16 @@ function StudyGardenSVG({ streak }) {
             <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
           </filter>
         </defs>
-
-        {/* Sky gradient */}
         <rect width="400" height="200" fill="rgba(13,11,20,0)" />
-
-        {/* Soil base */}
         <ellipse cx="200" cy="192" rx="185" ry="18" fill="url(#soilGrad2)" />
-
         {plants.map((p, i) => (
           <g key={i} transform={`translate(${p.x}, 185)`}>
-            {/* Stem */}
             <motion.line
               x1="0" y1="0" x2="0" y2={-55 * p.growth}
               stroke={p.color} strokeWidth="3" strokeLinecap="round"
               initial={{ scaleY: 0 }} animate={{ scaleY: 1 }}
               style={{ transformOrigin: "bottom" }}
               transition={{ duration: 1.2, delay: i * 0.2 }} />
-
-            {/* Leaves */}
             {p.growth > 0.35 && (
               <motion.g initial={{ scale: 0, opacity: 0 }} animate={{ scale: 1, opacity: 1 }}
                 transition={{ delay: 0.4 + i * 0.15 }}>
@@ -412,8 +379,6 @@ function StudyGardenSVG({ streak }) {
                   fill={p.color} opacity="0.75" transform={`rotate(28)`} />
               </motion.g>
             )}
-
-            {/* Bloom */}
             {p.bloom > 0 && (
               <motion.g initial={{ scale: 0 }} animate={{ scale: p.bloom }}
                 style={{ transformOrigin: `0px ${-55 * p.growth}px` }}
@@ -431,8 +396,6 @@ function StudyGardenSVG({ streak }) {
             )}
           </g>
         ))}
-
-        {/* Sparkles */}
         {[0,1,2,3,4].map((i) => (
           <motion.circle key={`sp-${i}`}
             cx={40 + i * 70} cy={60 + (i % 3) * 30} r="1.8"
@@ -440,8 +403,6 @@ function StudyGardenSVG({ streak }) {
             animate={{ y: [0, -8, 0], opacity: [0.3, 0.9, 0.3] }}
             transition={{ duration: 2 + i * 0.4, repeat: Infinity, delay: i * 0.3 }} />
         ))}
-
-        {/* Streak label */}
         <text x="200" y="18" textAnchor="middle" fill="#b8aed4" fontSize="10" fontFamily="DM Mono, monospace" fontWeight="600">
           🔥 {streak}-day streak
         </text>
@@ -450,7 +411,7 @@ function StudyGardenSVG({ streak }) {
   );
 }
 
-// ─── Mountain Progress SVG (NEW) ─────────────────────────────────────────────
+// ─── Mountain Progress SVG ────────────────────────────────────────────────────
 function MountainProgressSVG({ totalTopics, completedTopics, streak }) {
   const progress = Math.min(100, (completedTopics / Math.max(1, totalTopics)) * 100);
   const peakReached = progress >= 100;
@@ -475,32 +436,21 @@ function MountainProgressSVG({ totalTopics, completedTopics, streak }) {
             <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
           </filter>
         </defs>
-
         <rect width="400" height="260" fill="url(#mtnSky)" rx="12" />
-
-        {/* Stars */}
         {[20,80,140,200,260,320,380,50,170,290].map((cx, i) => (
           <motion.circle key={i} cx={cx} cy={10 + (i % 5) * 22} r="1"
             fill="white" opacity="0.6"
             animate={{ opacity: [0.3, 1, 0.3] }}
             transition={{ duration: 2 + (i % 4) * 0.5, repeat: Infinity, delay: i * 0.15 }} />
         ))}
-
-        {/* Mountain */}
         <path d="M0 260 L120 120 L180 165 L210 80 L240 165 L320 120 L400 260 Z"
           fill="url(#mtnBody)" opacity="0.92" />
-
-        {/* Snow cap */}
         <path d="M195 100 L210 80 L225 100 Z" fill="white" opacity="0.9" />
-
-        {/* Progress path */}
         <motion.path
           d="M60 240 C100 200, 150 170, 210 80"
           fill="none" stroke="rgba(168,85,247,0.5)" strokeWidth="2.5" strokeDasharray="7 4"
           initial={{ pathLength: 0 }} animate={{ pathLength: progress / 100 }}
           transition={{ duration: 1.8, ease: "easeOut" }} />
-
-        {/* Milestones */}
         {[25, 50, 75, 100].map((m, i) => {
           const reached = progress >= m;
           const mx = 60 + (m / 100) * 150;
@@ -518,8 +468,6 @@ function MountainProgressSVG({ totalTopics, completedTopics, streak }) {
             </motion.g>
           );
         })}
-
-        {/* Climber */}
         <motion.g initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.5 }}>
           <motion.circle cx={climberX} cy={climberY} r="10"
             fill="#f472b6" stroke="white" strokeWidth="2"
@@ -530,8 +478,6 @@ function MountainProgressSVG({ totalTopics, completedTopics, streak }) {
             {Math.round(progress)}%
           </text>
         </motion.g>
-
-        {/* Peak celebration */}
         {peakReached && (
           <motion.g filter="url(#peakGlowMtn)">
             <motion.circle cx="210" cy="80" r="18" fill="none" stroke="#fbbf24" strokeWidth="2"
@@ -540,8 +486,6 @@ function MountainProgressSVG({ totalTopics, completedTopics, streak }) {
             <text x="210" y="85" textAnchor="middle" fill="#fbbf24" fontSize="14">🏆</text>
           </motion.g>
         )}
-
-        {/* Stats */}
         <text x="12" y="248" fill="rgba(224,231,255,0.8)" fontSize="9.5" fontFamily="DM Mono, monospace" fontWeight="600">
           {completedTopics}/{totalTopics} topics  ·  🔥 {streak}d
         </text>
@@ -584,11 +528,11 @@ function StudyActivitySection({ dailyStats, liveSessionSeconds }) {
   }, [dailyStats]);
 
   const tabs = [
-    { id: "area", label: "30-Day", icon: "📈" },
-    { id: "bar", label: "Weekly", icon: "📊" },
+    { id: "area",    label: "30-Day",  icon: "📈" },
+    { id: "bar",     label: "Weekly",  icon: "📊" },
     { id: "weekday", label: "Weekday", icon: "📅" },
     { id: "monthly", label: "Monthly", icon: "🗓️" },
-    { id: "rhythm", label: "Rhythm", icon: "🎵" },
+    { id: "rhythm",  label: "Rhythm",  icon: "🎵" },
   ];
 
   return (
@@ -854,7 +798,7 @@ function ActivityHeatmap({ data }) {
     if (seconds === 0) return "rgba(255,255,255,0.04)";
     const i = seconds / max;
     if (i < 0.25) return "rgba(212,96,154,0.22)";
-    if (i < 0.5) return "rgba(212,96,154,0.45)";
+    if (i < 0.5)  return "rgba(212,96,154,0.45)";
     if (i < 0.75) return "rgba(212,96,154,0.72)";
     return "#d4609a";
   }, [max]);
@@ -864,7 +808,7 @@ function ActivityHeatmap({ data }) {
     let week = [];
     data.forEach((d) => { week.push(d); if (week.length === 7) { weeksArr.push(week); week = []; } });
     if (week.length) weeksArr.push(week);
-    const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+    const months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
     const labels = [];
     let lastMonth = -1;
     weeksArr.forEach((w, wi) => {
@@ -1005,7 +949,7 @@ function ProfileInsightCards({ userData, streak, avgDailyHours, focusQuality }) 
         if (avg > bestDowAvg) { bestDowAvg = avg; bestDow = dow; }
       }
     });
-    const dayNames = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+    const dayNames = ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];
     return {
       mostProductiveDayShort: bestDow >= 0 ? dayNames[bestDow].slice(0, 3) : null,
       mostProductiveDay: bestDow >= 0 ? dayNames[bestDow] : null,
@@ -1015,10 +959,10 @@ function ProfileInsightCards({ userData, streak, avgDailyHours, focusQuality }) 
   }, [userData]);
 
   const cards = [
-    { icon: "📅", label: "Best Day", value: insights.mostProductiveDayShort || "—", sub: insights.mostProductiveDay ? `${insights.mostProductiveDayAvg.toFixed(1)}h avg` : "Need more data" },
-    { icon: "📚", label: "Fields Tracked", value: insights.fieldCount, sub: "active subjects" },
-    { icon: "🎯", label: "Focus Quality", value: `${focusQuality}%`, sub: "composite score" },
-    { icon: "⚡", label: "Daily Avg", value: `${avgDailyHours.toFixed(1)}h`, sub: "on active days" },
+    { icon: "📅", label: "Best Day",      value: insights.mostProductiveDayShort || "—", sub: insights.mostProductiveDay ? `${insights.mostProductiveDayAvg.toFixed(1)}h avg` : "Need more data" },
+    { icon: "📚", label: "Fields Tracked", value: insights.fieldCount,                    sub: "active subjects" },
+    { icon: "🎯", label: "Focus Quality",  value: `${focusQuality}%`,                     sub: "composite score" },
+    { icon: "⚡", label: "Daily Avg",      value: `${avgDailyHours.toFixed(1)}h`,          sub: "on active days" },
   ];
 
   return (
@@ -1037,30 +981,39 @@ function ProfileInsightCards({ userData, streak, avgDailyHours, focusQuality }) 
   );
 }
 
+// ─── Settings Link Banner ─────────────────────────────────────────────────────
+function SettingsBanner({ onNavigate }) {
+  return (
+    <motion.div className="settings-banner" {...fadeUp}>
+      <div className="settings-banner-inner">
+        <div className="settings-banner-left">
+          <span className="settings-banner-icon">⚙️</span>
+          <div>
+            <div className="settings-banner-title">Customize your experience</div>
+            <div className="settings-banner-sub">Change your profile picture, name, theme, and navigation from Settings</div>
+          </div>
+        </div>
+        <button className="settings-banner-btn" onClick={onNavigate}>
+          Go to Settings →
+        </button>
+      </div>
+    </motion.div>
+  );
+}
+
 // ─── Main Profile Component ───────────────────────────────────────────────────
 function Profile() {
   const [user, setUser] = useState(null);
   const [userData, setUserData] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [editing, setEditing] = useState(false);
-  const [displayName, setDisplayName] = useState("");
-  const [origName, setOrigName] = useState("");
-  const [showDelete, setShowDelete] = useState(false);
-  const [delPass, setDelPass] = useState("");
-  const [delConfirm, setDelConfirm] = useState("");
-  const [isDeleting, setIsDeleting] = useState(false);
-  const [showAvatarMenu, setShowAvatarMenu] = useState(false);
-  const [uploadingPic, setUploadingPic] = useState(false);
-  const [profilePicUrl, setProfilePicUrl] = useState(null);
   const [liveSessionSeconds, setLiveSessionSeconds] = useState(0);
   const [liveField, setLiveField] = useState(null);
   const [fieldsView, setFieldsView] = useState("bars");
   const [activeVisualTab, setActiveVisualTab] = useState("garden");
 
   const unsubRef = useRef(null);
-  const fileInputRef = useRef(null);
-  const avatarMenuRef = useRef(null);
 
+  // Poll live session state from global timer
   useEffect(() => {
     const interval = setInterval(() => {
       const state = window.studyBuddyTimerState;
@@ -1070,14 +1023,6 @@ function Profile() {
       } else { setLiveSessionSeconds(0); setLiveField(null); }
     }, 1000);
     return () => clearInterval(interval);
-  }, []);
-
-  useEffect(() => {
-    const handleClick = (e) => {
-      if (avatarMenuRef.current && !avatarMenuRef.current.contains(e.target)) setShowAvatarMenu(false);
-    };
-    document.addEventListener("mousedown", handleClick);
-    return () => document.removeEventListener("mousedown", handleClick);
   }, []);
 
   const setupListener = useCallback((uid) => {
@@ -1091,81 +1036,19 @@ function Profile() {
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, (u) => {
       if (u) {
-        setUser(u); setDisplayName(u.displayName || ""); setOrigName(u.displayName || "");
-        setProfilePicUrl(u.photoURL || null);
+        setUser(u);
         unsubRef.current = setupListener(u.uid);
       } else {
-        setUser(null); setUserData(null); setProfilePicUrl(null); setLoading(false);
+        setUser(null); setUserData(null); setLoading(false);
         unsubRef.current?.(); unsubRef.current = null;
       }
     });
     return () => { unsub(); unsubRef.current?.(); };
   }, [setupListener]);
 
-  const handleSave = useCallback(async () => {
-    if (!displayName.trim()) return toast.error("Name cannot be empty");
-    try {
-      await updateProfile(user, { displayName: displayName.trim() });
-      await updateDoc(doc(db, "users", user.uid), { name: displayName.trim(), updatedAt: serverTimestamp() });
-      setOrigName(displayName.trim()); setEditing(false);
-      toast.success("Profile updated! ✨");
-    } catch { toast.error("Failed to update profile"); }
-  }, [user, displayName]);
-
-  const handleCancelEdit = useCallback(() => { setDisplayName(origName); setEditing(false); }, [origName]);
-
-  const handlePicUpload = useCallback(async (e) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    if (!file.type.match(/^image\/(jpeg|jpg|png|webp)$/)) return toast.error("Only JPG, PNG or WebP images");
-    if (file.size > 8 * 1024 * 1024) return toast.error("Image must be under 8MB");
-    setUploadingPic(true); setShowAvatarMenu(false);
-    try {
-      const compressed = await compressImage(file, 800, 0.85);
-      const storageRef = ref(storage, `profilePics/${user.uid}`);
-      await uploadBytes(storageRef, compressed || file, { contentType: "image/jpeg" });
-      const url = await getDownloadURL(storageRef);
-      await updateProfile(user, { photoURL: url });
-      await updateDoc(doc(db, "users", user.uid), { photoURL: url, updatedAt: serverTimestamp() });
-      setProfilePicUrl(url);
-      toast.success("Profile picture updated! 🌸");
-    } catch (err) {
-      if (err.code === "storage/unauthorized") toast.error("Upload denied — check Firebase Storage rules.");
-      else toast.error(err.message || "Upload failed");
-    } finally { setUploadingPic(false); if (fileInputRef.current) fileInputRef.current.value = ""; }
-  }, [user]);
-
-  const handleRemovePic = useCallback(async () => {
-    setShowAvatarMenu(false);
-    if (!profilePicUrl) return;
-    setUploadingPic(true);
-    try {
-      try { await deleteObject(ref(storage, `profilePics/${user.uid}`)); } catch { /* ignore */ }
-      await updateProfile(user, { photoURL: null });
-      await updateDoc(doc(db, "users", user.uid), { photoURL: null, updatedAt: serverTimestamp() });
-      setProfilePicUrl(null);
-      toast.success("Profile picture removed");
-    } catch { toast.error("Failed to remove picture"); }
-    finally { setUploadingPic(false); }
-  }, [user, profilePicUrl]);
-
-  const handleDelete = useCallback(async () => {
-    if (delConfirm !== "DELETE" || !delPass) return toast.error("Enter password and type DELETE");
-    setIsDeleting(true);
-    try {
-      const cred = EmailAuthProvider.credential(user.email, delPass);
-      await reauthenticateWithCredential(user, cred);
-      await deleteDoc(doc(db, "users", user.uid));
-      await deleteUser(user);
-      toast.success("Account deleted");
-    } catch (e) {
-      if (e.code === "auth/wrong-password") toast.error("Wrong password");
-      else toast.error(e.message);
-    } finally { setIsDeleting(false); }
-  }, [user, delPass, delConfirm]);
-
   // Derived data
   const streak = useMemo(() => calcStreak(userData?.dailyStats), [userData?.dailyStats]);
+
   const heatmapData = useMemo(() => {
     const data = getHeatmapData(userData?.dailyStats);
     const todayKey = localYMD();
@@ -1174,9 +1057,9 @@ function Profile() {
 
   const baseTimeStats = useMemo(() => deriveTimeStats(userData?.dailyStats), [userData?.dailyStats]);
   const timeStats = useMemo(() => ({
-    today: baseTimeStats.today + liveSessionSeconds,
-    week: baseTimeStats.week + liveSessionSeconds,
-    month: baseTimeStats.month + liveSessionSeconds,
+    today:   baseTimeStats.today   + liveSessionSeconds,
+    week:    baseTimeStats.week    + liveSessionSeconds,
+    month:   baseTimeStats.month   + liveSessionSeconds,
     allTime: baseTimeStats.allTime + liveSessionSeconds,
   }), [baseTimeStats, liveSessionSeconds]);
 
@@ -1229,7 +1112,7 @@ function Profile() {
   }, [userData?.dailyStats]);
 
   const miniBarData = useMemo(() => {
-    const days = ["M", "T", "W", "T", "F", "S", "S"];
+    const days = ["M","T","W","T","F","S","S"];
     return last7Totals.map((h, i) => ({ day: days[i], h }));
   }, [last7Totals]);
 
@@ -1237,6 +1120,12 @@ function Profile() {
   const totalTopics = useMemo(() => (userData?.subjects || []).reduce((a, s) => a + (s.topics?.length || 0), 0), [userData]);
   const completedTopics = useMemo(() => (userData?.subjects || []).reduce((a, s) => a + (s.topics?.filter(t => t.confidence >= 7)?.length || 0), 0), [userData]);
 
+  // Navigate to settings (adjust path to match your router setup)
+  const goToSettings = useCallback(() => {
+    window.location.href = "/settings";
+  }, []);
+
+  // ── Loading ────────────────────────────────────────────────────────────────
   if (loading) {
     return (
       <div className="profile-page">
@@ -1247,6 +1136,7 @@ function Profile() {
     );
   }
 
+  // ── Not logged in ──────────────────────────────────────────────────────────
   if (!user) {
     return (
       <div className="profile-page">
@@ -1260,109 +1150,80 @@ function Profile() {
   }
 
   const isLive = liveSessionSeconds > 0;
-  const initials = (displayName || user.email || "U").charAt(0).toUpperCase();
+  const displayName = user.displayName || "Anonymous";
+  const profilePicUrl = user.photoURL || null;
+  const initials = displayName.charAt(0).toUpperCase();
 
   return (
     <div className="profile-page">
 
       <Helmet>
-        <title>{`${displayName || 'Your'} Profile | StudyBuddy`}</title>
-        <meta name="description" content={`View ${displayName || 'your'} study stats, streaks, achievements, and productivity score on StudyBuddy.`} />
-        
-        <meta property="og:title" content={`${displayName || 'Your'} Study Profile | StudyBuddy`} />
+        <title>{`${displayName}'s Profile | StudyBuddy`}</title>
+        <meta name="description" content={`View ${displayName}'s study stats, streaks, achievements, and productivity score on StudyBuddy.`} />
+        <meta property="og:title" content={`${displayName}'s Study Profile | StudyBuddy`} />
         <meta property="og:description" content="Track focus streaks, study hours, field breakdowns, and task completion." />
         <meta property="og:type" content="profile" />
         <meta property="og:url" content="https://study-buddy-seven-blush.vercel.app/profile" />
         <meta property="og:image" content="https://study-buddy-seven-blush.vercel.app/og-image.png" />
-        
         <meta name="twitter:card" content="summary_large_image" />
         <meta name="twitter:image" content="https://study-buddy-seven-blush.vercel.app/og-image.png" />
-        
         <link rel="canonical" href="https://study-buddy-seven-blush.vercel.app/profile" />
       </Helmet>
 
-      
       <div className="bg-orb bg-orb-1" />
       <div className="bg-orb bg-orb-2" />
       <div className="bg-orb bg-orb-3" />
       <div className="particle-layer" aria-hidden="true" />
 
-      <input ref={fileInputRef} type="file" accept="image/jpeg,image/jpg,image/png,image/webp"
-        style={{ display: "none" }} onChange={handlePicUpload} />
-
       <div className="profile-container">
 
-        {/* ── Hero Card ──────────────────────────────────────────────────── */}
+        {/* ── Settings Banner ──────────────────────────────────────────────── */}
+        <SettingsBanner onNavigate={goToSettings} />
+
+        {/* ── Hero Card (READ-ONLY) ──────────────────────────────────────────── */}
         <motion.div className="glass-card profile-hero" {...fadeUp}>
           <div className="hero-bg-pattern" />
           <div className="hero-inner">
-            {/* Avatar */}
-            <div className="avatar-zone" ref={avatarMenuRef}>
+
+            {/* Avatar — display only, click goes to Settings */}
+            <div className="avatar-zone">
               <div className="avatar-glow" />
               <div className="avatar-wrapper">
-                <div className={`avatar${uploadingPic ? " uploading" : ""}`}
-                  onClick={() => setShowAvatarMenu((v) => !v)}>
+                <div className="avatar avatar-readonly" onClick={goToSettings} title="Change photo in Settings">
                   {profilePicUrl
-                    ? <img src={profilePicUrl} alt="Profile" onError={(e) => { e.currentTarget.style.display = "none"; setProfilePicUrl(null); }} />
+                    ? <img src={profilePicUrl} alt="Profile" onError={(e) => { e.currentTarget.style.display = "none"; }} />
                     : <span>{initials}</span>}
-                  <div className="avatar-overlay">{uploadingPic ? "⏳" : "📷"}</div>
+                  <div className="avatar-overlay avatar-overlay-settings">⚙️</div>
                 </div>
                 <div className={`avatar-status${isLive ? " studying" : ""}`} />
               </div>
-              <AnimatePresence>
-                {showAvatarMenu && (
-                  <motion.div className="avatar-menu"
-                    initial={{ opacity: 0, scale: 0.9, y: -6 }} animate={{ opacity: 1, scale: 1, y: 0 }}
-                    exit={{ opacity: 0, scale: 0.9, y: -6 }}
-                    transition={{ type: "spring", stiffness: 340, damping: 24 }}>
-                    <button className="avatar-menu-btn" onClick={() => { setShowAvatarMenu(false); fileInputRef.current?.click(); }}>
-                      📷 {profilePicUrl ? "Change photo" : "Upload photo"}
-                    </button>
-                    {profilePicUrl && <button className="avatar-menu-btn danger" onClick={handleRemovePic}>🗑️ Remove photo</button>}
-                    <button className="avatar-menu-btn" onClick={() => setShowAvatarMenu(false)}>✕ Cancel</button>
-                  </motion.div>
-                )}
-              </AnimatePresence>
             </div>
 
-            {/* Info */}
+            {/* Info — read-only display */}
             <div className="hero-info">
-              {editing ? (
-                <div className="edit-mode">
-                  <input className="edit-name-input" value={displayName}
-                    onChange={(e) => setDisplayName(e.target.value)}
-                    onKeyDown={(e) => { if (e.key === "Enter") handleSave(); if (e.key === "Escape") handleCancelEdit(); }}
-                    autoFocus placeholder="Your display name" />
-                  <div className="edit-actions">
-                    <button className="btn-save" onClick={handleSave}>✓ Save</button>
-                    <button className="btn-cancel" onClick={handleCancelEdit}>✕ Cancel</button>
-                  </div>
-                </div>
-              ) : (
-                <>
-                  <div className="hero-name-row">
-                    <h1 className="hero-name">{displayName || "Anonymous"}</h1>
-                    <button className="edit-btn" onClick={() => setEditing(true)} aria-label="Edit display name">✏️</button>
-                  </div>
-                  <p className="hero-email">{user.email}</p>
-                  <div className="hero-chips">
-                    {userData?.createdAt && <span className="chip">📅 Joined {formatDate(userData.createdAt)}</span>}
-                    <span className="chip">📚 {userData?.studyFields?.length || 0} fields</span>
-                    {isLive && <span className="chip chip-live">🟢 {liveField}</span>}
-                  </div>
-                </>
-              )}
+              <div className="hero-name-row">
+                <h1 className="hero-name">{displayName}</h1>
+                <button className="edit-btn" onClick={goToSettings} title="Edit profile in Settings" aria-label="Go to settings to edit profile">
+                  ✏️
+                </button>
+              </div>
+              <p className="hero-email">{user.email}</p>
+              <div className="hero-chips">
+                {userData?.createdAt && <span className="chip">📅 Joined {formatDate(userData.createdAt)}</span>}
+                <span className="chip">📚 {userData?.studyFields?.length || 0} fields</span>
+                {isLive && <span className="chip chip-live">🟢 {liveField}</span>}
+              </div>
             </div>
 
-            {/* Right */}
+            {/* Right side */}
             <div className="hero-right">
               <StudyPersonality streak={streak} avgDailyHours={avgDailyHours}
                 fieldCount={userData?.studyFields?.length || 0} completionRate={completionRate} />
               <div className="hero-metrics">
                 {[
-                  { icon: "🔥", val: streak, lbl: "Day Streak", raw: false },
-                  { icon: "⏱️", val: formatHours(timeStats.allTime), lbl: "All-Time", raw: true },
-                  { icon: "✅", val: completionRate, lbl: "Tasks Done", suffix: "%", raw: false },
+                  { icon: "🔥", val: streak,                    lbl: "Day Streak", raw: false },
+                  { icon: "⏱️", val: formatHours(timeStats.allTime), lbl: "All-Time",  raw: true },
+                  { icon: "✅", val: completionRate,            lbl: "Tasks Done", suffix: "%", raw: false },
                 ].map(({ icon, val, lbl, raw, suffix }) => (
                   <div key={lbl} className="metric-pill">
                     <span className="metric-icon">{icon}</span>
@@ -1377,7 +1238,7 @@ function Profile() {
           </div>
         </motion.div>
 
-        {/* ── Productivity Score + Time Stats ────────────────────────────── */}
+        {/* ── Productivity Score + Time Stats ─────────────────────────────── */}
         <div className="two-col-grid">
           <motion.div className="glass-card section-card score-card" {...fadeUp} transition={{ delay: 0.07 }}>
             <div className="section-title"><span>🏆</span> Productivity Score {isLive && <span className="live-badge">LIVE</span>}</div>
@@ -1388,10 +1249,10 @@ function Profile() {
             <div className="section-title"><span>⏰</span> Study Time {isLive && <span className="live-badge">LIVE</span>}</div>
             <div className="time-pills">
               {[
-                { label: "Today", val: timeStats.today, icon: "🌅", color: "#d4609a" },
-                { label: "This Week", val: timeStats.week, icon: "📆", color: "#8b6fd4", showTrend: true },
-                { label: "This Month", val: timeStats.month, icon: "🗓️", color: "#3eb57d" },
-                { label: "All Time", val: timeStats.allTime, icon: "🏅", color: "#c87020" },
+                { label: "Today",      val: timeStats.today,   icon: "🌅", color: "#d4609a" },
+                { label: "This Week",  val: timeStats.week,    icon: "📆", color: "#8b6fd4", showTrend: true },
+                { label: "This Month", val: timeStats.month,   icon: "🗓️", color: "#3eb57d" },
+                { label: "All Time",   val: timeStats.allTime, icon: "🏅", color: "#c87020" },
               ].map(({ label, val, icon, color, showTrend }) => (
                 <div key={label} className="time-pill">
                   <div className="time-pill-icon" style={{ color }}>{icon}</div>
@@ -1414,19 +1275,19 @@ function Profile() {
           </motion.div>
         </div>
 
-        {/* ── Insights ──────────────────────────────────────────────────── */}
+        {/* ── Insights ────────────────────────────────────────────────────── */}
         <motion.div className="glass-card section-card" {...fadeUp} transition={{ delay: 0.12 }}>
           <div className="section-title"><span>💡</span> Study Insights</div>
           <ProfileInsightCards userData={userData} streak={streak} avgDailyHours={avgDailyHours} focusQuality={focusQuality} />
         </motion.div>
 
-        {/* ── Achievements (NEW) ─────────────────────────────────────────── */}
+        {/* ── Achievements ─────────────────────────────────────────────────── */}
         <motion.div className="glass-card section-card" {...fadeUp} transition={{ delay: 0.135 }}>
           <div className="section-title"><span>🏅</span> Achievements</div>
           <AchievementBadges streak={streak} avgDailyHours={avgDailyHours} fieldCount={userData?.studyFields?.length || 0} />
         </motion.div>
 
-        {/* ── Visual Progress (Garden / Mountain / Mastery) NEW ─────────── */}
+        {/* ── Visual Progress ───────────────────────────────────────────────── */}
         <motion.div className="glass-card section-card" {...fadeUp} transition={{ delay: 0.145 }}>
           <div className="section-header">
             <div className="section-title"><span>🌸</span> Visual Progress</div>
@@ -1437,7 +1298,6 @@ function Profile() {
               ))}
             </div>
           </div>
-
           <AnimatePresence mode="wait">
             {activeVisualTab === "garden" && (
               <motion.div key="garden" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
@@ -1460,7 +1320,7 @@ function Profile() {
           </AnimatePresence>
         </motion.div>
 
-        {/* ── Study Activity ─────────────────────────────────────────────── */}
+        {/* ── Study Activity ──────────────────────────────────────────────── */}
         <motion.div className="glass-card section-card" {...fadeUp} transition={{ delay: 0.16 }}>
           <div className="section-title">
             <span>📊</span> Study Activity {isLive && <span className="live-badge">LIVE</span>}
@@ -1468,13 +1328,13 @@ function Profile() {
           <StudyActivitySection dailyStats={userData?.dailyStats} liveSessionSeconds={liveSessionSeconds} />
         </motion.div>
 
-        {/* ── Year Heatmap ───────────────────────────────────────────────── */}
+        {/* ── Year Heatmap ─────────────────────────────────────────────────── */}
         <motion.div className="glass-card section-card" {...fadeUp} transition={{ delay: 0.18 }}>
           <div className="section-title"><span>🗓️</span> Year Activity Heatmap</div>
           <ActivityHeatmap data={heatmapData} />
         </motion.div>
 
-        {/* ── Fields Breakdown ───────────────────────────────────────────── */}
+        {/* ── Fields Breakdown ─────────────────────────────────────────────── */}
         {fieldStats.length > 0 && (
           <motion.div className="glass-card section-card" {...fadeUp} transition={{ delay: 0.20 }}>
             <div className="section-header">
@@ -1487,7 +1347,6 @@ function Profile() {
                 ))}
               </div>
             </div>
-
             <AnimatePresence mode="wait">
               {fieldsView === "bars" && (
                 <motion.div key="bars" className="fields-bars-layout" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
@@ -1534,15 +1393,15 @@ function Profile() {
           </motion.div>
         )}
 
-        {/* ── Task Performance ───────────────────────────────────────────── */}
+        {/* ── Task Performance ─────────────────────────────────────────────── */}
         <motion.div className="glass-card section-card" {...fadeUp} transition={{ delay: 0.23 }}>
           <div className="section-title"><span>🎯</span> Task Performance</div>
           <div className="task-viz">
             <div className="task-radials">
               {[
                 { val: taskStats.completed, max: taskStats.total || 1, color: "#3eb57d", label: <AnimatedNumber value={taskStats.completed} />, sub: "Done" },
-                { val: taskStats.pending, max: taskStats.total || 1, color: "#c87020", label: <AnimatedNumber value={taskStats.pending} />, sub: "Pending" },
-                { val: completionRate, max: 100, color: "#d4609a", label: <><AnimatedNumber value={completionRate} />%</>, sub: "Rate" },
+                { val: taskStats.pending,   max: taskStats.total || 1, color: "#c87020", label: <AnimatedNumber value={taskStats.pending} />,   sub: "Pending" },
+                { val: completionRate,      max: 100,                  color: "#d4609a", label: <><AnimatedNumber value={completionRate} />%</>, sub: "Rate" },
               ].map(({ val, max, color, label, sub }) => (
                 <div key={sub} className="task-radial-item">
                   <RadialProgress value={val} max={max} size={110} stroke={10} color={color} label={label} sublabel={sub} />
@@ -1563,56 +1422,23 @@ function Profile() {
           </div>
         </motion.div>
 
-        {/* ── Danger Zone ────────────────────────────────────────────────── */}
-        <motion.div className="glass-card danger-section" {...fadeUp} transition={{ delay: 0.28 }}>
-          <div className="section-title"><span>⚙️</span> Account Management</div>
-          <div className="danger-box">
-            <div className="danger-title">⚠️ Danger Zone</div>
-            <p className="danger-desc">Permanently deletes your account and all study data. Cannot be undone.</p>
-            <button className="btn-danger" onClick={() => setShowDelete(true)}>Delete My Account</button>
+        {/* ── Settings CTA (bottom) ────────────────────────────────────────── */}
+        <motion.div className="glass-card settings-cta-card" {...fadeUp} transition={{ delay: 0.26 }}>
+          <div className="settings-cta-inner">
+            <div className="settings-cta-left">
+              <span className="settings-cta-icon">⚙️</span>
+              <div>
+                <div className="settings-cta-title">Account & Preferences</div>
+                <div className="settings-cta-sub">Edit your name, photo, theme, navigation visibility, and manage your account from the Settings page.</div>
+              </div>
+            </div>
+            <button className="settings-cta-btn" onClick={goToSettings}>
+              Open Settings
+            </button>
           </div>
         </motion.div>
-      </div>
 
-      {/* ── Delete Modal ──────────────────────────────────────────────────── */}
-      <AnimatePresence>
-        {showDelete && (
-          <motion.div className="modal-backdrop" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-            onClick={() => !isDeleting && setShowDelete(false)}>
-            <motion.div className="modal-box"
-              initial={{ opacity: 0, scale: 0.88, y: 30 }} animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.88, y: 30 }}
-              transition={{ type: "spring", stiffness: 280, damping: 22 }}
-              onClick={(e) => e.stopPropagation()}>
-              <div className="modal-head">
-                <h3>⚠️ Delete Account</h3>
-                <button className="modal-close" onClick={() => setShowDelete(false)} disabled={isDeleting}>✕</button>
-              </div>
-              <div className="modal-body">
-                <p className="modal-warn">This will permanently delete your account and ALL data. Cannot be undone.</p>
-                <div className="modal-field">
-                  <label className="modal-label">Current password</label>
-                  <input type="password" className="modal-input" value={delPass}
-                    onChange={(e) => setDelPass(e.target.value)} placeholder="Enter your password"
-                    disabled={isDeleting} autoComplete="current-password" />
-                </div>
-                <div className="modal-field">
-                  <label className="modal-label">Type DELETE to confirm</label>
-                  <input type="text" className="modal-input" value={delConfirm}
-                    onChange={(e) => setDelConfirm(e.target.value)} placeholder="DELETE" disabled={isDeleting} />
-                </div>
-              </div>
-              <div className="modal-footer">
-                <button className="btn-modal-cancel" onClick={() => setShowDelete(false)} disabled={isDeleting}>Cancel</button>
-                <button className="btn-modal-delete" onClick={handleDelete}
-                  disabled={isDeleting || delConfirm !== "DELETE" || !delPass}>
-                  {isDeleting ? "Deleting…" : "Delete Account"}
-                </button>
-              </div>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+      </div>
     </div>
   );
 }

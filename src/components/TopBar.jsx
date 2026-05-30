@@ -1,144 +1,147 @@
-import React, { useState, useEffect, useCallback, useRef } from "react";
+// src/components/TopBar.jsx  v4.1
+// ─── StudyBuddy TopBar ────────────────────────────────────────────────────────
+// Features:
+//  • Desktop: sticky glass bar with dropdown groups + settings/profile/logout
+//  • Mobile: slide-in drawer with accordion groups
+//  • Page-visibility: filters nav items per user's Settings preferences
+//  • Settings link always present when logged in (gear icon)
+//  • Timer-aware navigation (warns before leaving an active session)
+//  • Reads pageVisibility from Firestore in real-time via onSnapshot
+//  • v4.1: Theme context integration for correct theme-aware bar class
+// ─────────────────────────────────────────────────────────────────────────────
+
+import React, { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import {
-  FaBars, FaTimes, FaGraduationCap, FaBook, FaStickyNote,
+  FaBars, FaTimes, FaBook, FaStickyNote,
   FaChartLine, FaCube, FaUser, FaSignInAlt, FaSignOutAlt,
-  FaFire, FaBrain, FaLeaf, FaChevronDown, FaFlask,
-  FaMap, FaBoxOpen, FaLayerGroup, FaBookOpen,
+  FaBrain, FaChevronDown, FaBoxOpen, FaCog,
 } from "react-icons/fa";
 import {
-  LuDumbbell, LuFlame, LuTarget, LuZap, LuMapPin,
-  LuShuffle, LuLibrary, LuClock, LuShield,
+  LuDumbbell, LuFlame, LuMapPin, LuLibrary, LuClock,
 } from "react-icons/lu";
 import { motion, AnimatePresence } from "framer-motion";
-import { auth } from "./firebase";
+import { auth, db } from "./firebase";
 import { signOut, onAuthStateChanged } from "firebase/auth";
+import { doc, onSnapshot } from "firebase/firestore";
 import toast from "react-hot-toast";
+import { NAV_PAGES } from "../pages/Settings";
 import "./TopBar.css";
 
-/* ─── Nav structure ──────────────────────────────────────────────────────── */
+// ─── Static nav structure ─────────────────────────────────────────────────────
 const NAV_GROUPS = [
   {
     label: "Study Tools",
     items: [
-      { path: "/session",    label: "Study Session",  icon: LuClock,      authRequired: true,  desc: "Focus timer & Pomodoro" },
-      { path: "/flash-cards",label: "Flashcards",     icon: FaBook,       authRequired: false, desc: "Interactive learning cards" },
-      { path: "/notes",      label: "Notes",          icon: FaStickyNote, authRequired: false, desc: "Rich digital notebook" },
+      { path: "/session",     label: "Study Session",  icon: LuClock,     visId: "session",     authRequired: true,  desc: "Focus timer & Pomodoro" },
+      { path: "/flash-cards", label: "Flashcards",     icon: FaBook,      visId: "flashcards",  authRequired: false, desc: "Interactive learning cards" },
+      { path: "/notes",       label: "Notes",          icon: FaStickyNote,visId: "notes",       authRequired: false, desc: "Rich digital notebook" },
     ],
   },
   {
     label: "Math & Graphs",
     items: [
-      { path: "/plot-graph", label: "Sketch Curves",  icon: FaChartLine,  authRequired: false, desc: "2D math visualization" },
-      { path: "/3d-graph",   label: "3D Graphs",      icon: FaCube,       authRequired: false, desc: "3D mathematical surfaces" },
+      { path: "/plot-graph",  label: "Sketch Curves",  icon: FaChartLine, visId: "plotgraph",   authRequired: false, desc: "2D math visualization" },
+      { path: "/3d-graph",    label: "3D Graphs",      icon: FaCube,      visId: "3dgraph",     authRequired: false, desc: "3D mathematical surfaces" },
     ],
   },
   {
     label: "Challenges",
     items: [
-      { path: "/75hard",          label: "75 Hard",         icon: LuDumbbell,  authRequired: true,  desc: "75-day mental toughness"},
-     { path: "/habit-stacking",  label: "Habit Stacking",  icon: LuFlame,     authRequired: true,  desc: "Link habits for momentum" },
-   ],
+      { path: "/75hard",         label: "75 Hard",        icon: LuDumbbell, visId: "75hard",   authRequired: true, desc: "75-day mental toughness" },
+      { path: "/habit-stacking", label: "Habit Stacking", icon: LuFlame,    visId: "habits",   authRequired: true, desc: "Link habits for momentum" },
+    ],
   },
   {
     label: "Analytics",
     items: [
-      { path: "/mastery",      label: "Mastery Tracker",  icon: FaBrain,    authRequired: true, desc: "Subject confidence heatmap" },
-      { path: "/environment",  label: "Environment",      icon: LuMapPin,   authRequired: true, desc: "Focus location insights" },
-   ],
+      { path: "/mastery",     label: "Mastery Tracker", icon: FaBrain,   visId: "mastery",     authRequired: true, desc: "Subject confidence heatmap" },
+      { path: "/environment", label: "Environment",     icon: LuMapPin,  visId: "environment", authRequired: true, desc: "Focus location insights" },
+    ],
   },
   {
     label: "Library",
     items: [
-      { path: "/time-capsule",  label: "Time Capsule",  icon: FaBoxOpen,   authRequired: true,  desc: "Letters to future self" },
-      { path: "/resources",     label: "Resources",     icon: LuLibrary,   authRequired: true,  desc: "Curated study materials" },
+      { path: "/time-capsule", label: "Time Capsule", icon: FaBoxOpen,  visId: "timecapsule", authRequired: true, desc: "Letters to future self" },
+      { path: "/resources",    label: "Resources",    icon: LuLibrary,  visId: "resources",   authRequired: true, desc: "Curated study materials" },
     ],
   },
 ];
 
-/* flat list for mobile */
-const ALL_ITEMS = NAV_GROUPS.flatMap((g) => g.items);
-
-
-/* ─── Animation variants ─────────────────────────────────────────────────── */
-const backdropVariants = {
+// ─── Animation variants ───────────────────────────────────────────────────────
+const backdropV = {
   hidden:  { opacity: 0 },
-  visible: { opacity: 1 },
-  exit:    { opacity: 0 },
+  visible: { opacity: 1, transition: { duration: 0.22 } },
+  exit:    { opacity: 0, transition: { duration: 0.18 } },
 };
-const drawerVariants = {
+const drawerV = {
   hidden:  { x: "100%", opacity: 0 },
-  visible: { x: 0, opacity: 1, transition: { type: "spring", stiffness: 320, damping: 32 } },
+  visible: { x: 0, opacity: 1, transition: { type: "spring", stiffness: 300, damping: 30 } },
   exit:    { x: "100%", opacity: 0, transition: { duration: 0.22, ease: [0.4, 0, 1, 1] } },
 };
-const dropdownVariants = {
-  hidden:  { opacity: 0, y: -6, scale: 0.97 },
-  visible: { opacity: 1, y: 0,  scale: 1,   transition: { duration: 0.18, ease: "easeOut" } },
-  exit:    { opacity: 0, y: -6, scale: 0.97, transition: { duration: 0.13 } },
-};
-const navItemVariants = {
-  hidden:  { x: 40, opacity: 0 },
-  visible: (i) => ({ x: 0, opacity: 1, transition: { delay: i * 0.045, duration: 0.26 } }),
+const dropdownV = {
+  hidden:  { opacity: 0, y: -8, scale: 0.96 },
+  visible: { opacity: 1, y: 0,  scale: 1,   transition: { duration: 0.17, ease: "easeOut" } },
+  exit:    { opacity: 0, y: -6, scale: 0.96, transition: { duration: 0.13 } },
 };
 
-/* ─── Dropdown menu ──────────────────────────────────────────────────────── */
+// ─── Dropdown (desktop) ───────────────────────────────────────────────────────
 function DropdownMenu({ group, user, onNav, activePathname }) {
   const [open, setOpen] = useState(false);
   const ref = useRef(null);
 
   useEffect(() => {
-    const handler = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
-    document.addEventListener("mousedown", handler);
-    return () => document.removeEventListener("mousedown", handler);
+    const h = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
+    document.addEventListener("mousedown", h);
+    return () => document.removeEventListener("mousedown", h);
   }, []);
 
-  const visibleItems = group.items.filter((i) => !i.authRequired || user);
-  if (visibleItems.length === 0) return null;
+  useEffect(() => setOpen(false), [activePathname]);
 
-  const isGroupActive = visibleItems.some((i) => i.path === activePathname);
+  if (group.items.length === 0) return null;
+  const isGroupActive = group.items.some((i) => i.path === activePathname);
 
   return (
-    <div className="sb-dropdown-wrap" ref={ref}>
+    <div className="sb-dd-wrap" ref={ref}>
       <button
-        className={`sb-dropdown-trigger${isGroupActive ? " active" : ""}`}
+        className={`sb-dd-trigger${isGroupActive ? " active" : ""}${open ? " open" : ""}`}
         onClick={() => setOpen((v) => !v)}
         aria-haspopup="true"
         aria-expanded={open}
       >
-        <span>{group.label}</span>
+        <span className="sb-dd-label">{group.label}</span>
         <FaChevronDown
-          size={10}
-          style={{ transition: "transform 0.2s", transform: open ? "rotate(180deg)" : "rotate(0deg)" }}
+          size={9}
+          className="sb-dd-chevron"
+          style={{ transform: open ? "rotate(180deg)" : "rotate(0deg)" }}
         />
       </button>
 
       <AnimatePresence>
         {open && (
           <motion.div
-            className="sb-dropdown-panel"
-            variants={dropdownVariants}
-            initial="hidden"
-            animate="visible"
-            exit="exit"
+            className="sb-dd-panel"
+            variants={dropdownV}
+            initial="hidden" animate="visible" exit="exit"
             role="menu"
           >
-            <div className="sb-dropdown-label">{group.label}</div>
-            {visibleItems.map((item) => {
+            <div className="sb-dd-panel-label">{group.label}</div>
+            {group.items.map((item) => {
               const Icon = item.icon;
               const isActive = activePathname === item.path;
               return (
                 <button
                   key={item.path}
-                  className={`sb-dropdown-item${isActive ? " active" : ""}`}
+                  className={`sb-dd-item${isActive ? " active" : ""}`}
                   onClick={() => { onNav(item.path); setOpen(false); }}
                   role="menuitem"
                 >
-                  <span className="sb-drop-icon"><Icon size={15} /></span>
-                  <span className="sb-drop-text">
-                    <span className="sb-drop-label">{item.label}</span>
-                    <span className="sb-drop-desc">{item.desc}</span>
+                  <span className="sb-dd-item-icon"><Icon size={14} /></span>
+                  <span className="sb-dd-item-text">
+                    <span className="sb-dd-item-label">{item.label}</span>
+                    <span className="sb-dd-item-desc">{item.desc}</span>
                   </span>
-                  {item.badge && <span className="sb-badge">{item.badge}</span>}
+                  {isActive && <span className="sb-dd-active-dot" />}
                 </button>
               );
             })}
@@ -149,27 +152,27 @@ function DropdownMenu({ group, user, onNav, activePathname }) {
   );
 }
 
-/* ─── Mobile accordion group ─────────────────────────────────────────────── */
+// ─── Mobile accordion group ───────────────────────────────────────────────────
 function MobileGroup({ group, user, onNav, activePathname, defaultOpen }) {
   const [open, setOpen] = useState(defaultOpen);
-  const visibleItems = group.items.filter((i) => !i.authRequired || user);
-  if (visibleItems.length === 0) return null;
+
+  useEffect(() => { setOpen(defaultOpen); }, [defaultOpen]);
+
+  if (group.items.length === 0) return null;
+  const isGroupActive = group.items.some((i) => i.path === activePathname);
 
   return (
-    <div className="sb-mob-group">
+    <div className={`sb-mob-group${isGroupActive ? " sb-mob-group--active" : ""}`}>
       <button
-        className="sb-mob-group-header"
+        className={`sb-mob-group-header${isGroupActive ? " active" : ""}`}
         onClick={() => setOpen((v) => !v)}
         aria-expanded={open}
       >
         <span className="sb-mob-group-label">{group.label}</span>
         <FaChevronDown
-          size={11}
-          style={{
-            transition: "transform 0.22s",
-            transform: open ? "rotate(180deg)" : "rotate(0deg)",
-            color: "var(--pookie-muted)",
-          }}
+          size={10}
+          className="sb-mob-chevron"
+          style={{ transform: open ? "rotate(180deg)" : "rotate(0deg)" }}
         />
       </button>
 
@@ -177,35 +180,37 @@ function MobileGroup({ group, user, onNav, activePathname, defaultOpen }) {
         {open && (
           <motion.div
             initial={{ height: 0, opacity: 0 }}
-            animate={{ height: "auto", opacity: 1 }}
-            exit={{ height: 0, opacity: 0 }}
-            transition={{ duration: 0.22, ease: "easeInOut" }}
+            animate={{ height: "auto", opacity: 1, transition: { duration: 0.22, ease: "easeOut" } }}
+            exit={{    height: 0,    opacity: 0, transition: { duration: 0.18, ease: "easeIn"  } }}
             style={{ overflow: "hidden" }}
           >
-            {visibleItems.map((item, i) => {
-              const Icon = item.icon;
-              const isActive = activePathname === item.path;
-              return (
-                <motion.div
-                  key={item.path}
-                  custom={i}
-                  variants={navItemVariants}
-                  initial="hidden"
-                  animate="visible"
-                  className={`sb-mob-item${isActive ? " active" : ""}`}
-                >
-                  <button className="sb-mob-link" onClick={() => onNav(item.path)}>
-                    <span className="sb-mob-icon"><Icon size={17} /></span>
-                    <span className="sb-mob-text">
-                      <span className="sb-mob-title">{item.label}</span>
-                      <span className="sb-mob-desc">{item.desc}</span>
+            <div className="sb-mob-items">
+              {group.items.map((item, i) => {
+                const Icon = item.icon;
+                const isActive = activePathname === item.path;
+                return (
+                  <motion.button
+                    key={item.path}
+                    className={`sb-mob-item${isActive ? " active" : ""}`}
+                    onClick={() => onNav(item.path)}
+                    initial={{ opacity: 0, x: 16 }}
+                    animate={{ opacity: 1, x: 0, transition: { delay: i * 0.04, duration: 0.22 } }}
+                  >
+                    <span className={`sb-mob-item-icon${isActive ? " active" : ""}`}>
+                      <Icon size={16} />
                     </span>
-                    {item.badge && <span className="sb-badge">{item.badge}</span>}
-                    <span className="sb-mob-arrow">›</span>
-                  </button>
-                </motion.div>
-              );
-            })}
+                    <span className="sb-mob-item-text">
+                      <span className="sb-mob-item-label">{item.label}</span>
+                      <span className="sb-mob-item-desc">{item.desc}</span>
+                    </span>
+                    {isActive
+                      ? <span className="sb-mob-active-pill">current</span>
+                      : <span className="sb-mob-arrow">›</span>
+                    }
+                  </motion.button>
+                );
+              })}
+            </div>
           </motion.div>
         )}
       </AnimatePresence>
@@ -213,45 +218,72 @@ function MobileGroup({ group, user, onNav, activePathname, defaultOpen }) {
   );
 }
 
-/* ─── Main TopBar ────────────────────────────────────────────────────────── */
+// ─── Main TopBar ──────────────────────────────────────────────────────────────
 export default function TopBar() {
-  const [drawerOpen, setDrawerOpen]   = useState(false);
-  const [user, setUser]               = useState(null);
-  const [isScrolled, setIsScrolled]   = useState(false);
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  const [user,       setUser]       = useState(null);
+  const [isScrolled, setIsScrolled] = useState(false);
+  const [pageVis,    setPageVis]    = useState({});
 
-  const navigate  = useNavigate();
-  const location  = useLocation();
+  const navigate = useNavigate();
+  const location = useLocation();
+  const visUnsubRef = useRef(null);
 
-  /* Auth */
+  // ── Auth listener ─────────────────────────────────────────────────────────
   useEffect(() => {
-    const unsub = onAuthStateChanged(auth, setUser);
-    return unsub;
+    const unsub = onAuthStateChanged(auth, (u) => {
+      setUser(u);
+
+      if (visUnsubRef.current) {
+        visUnsubRef.current();
+        visUnsubRef.current = null;
+      }
+
+      if (u) {
+        visUnsubRef.current = onSnapshot(
+          doc(db, "users", u.uid),
+          (snap) => {
+            if (snap.exists()) {
+              setPageVis(snap.data().pageVisibility || {});
+            }
+          },
+          () => {}
+        );
+      } else {
+        setPageVis({});
+      }
+    });
+
+    return () => {
+      unsub();
+      if (visUnsubRef.current) visUnsubRef.current();
+    };
   }, []);
 
-  /* Scroll */
+  // ── Scroll detection ──────────────────────────────────────────────────────
   useEffect(() => {
-    const onScroll = () => setIsScrolled(window.scrollY > 20);
-    window.addEventListener("scroll", onScroll, { passive: true });
-    return () => window.removeEventListener("scroll", onScroll);
+    const h = () => setIsScrolled(window.scrollY > 18);
+    window.addEventListener("scroll", h, { passive: true });
+    return () => window.removeEventListener("scroll", h);
   }, []);
 
-  /* Body lock */
+  // ── Body scroll lock ──────────────────────────────────────────────────────
   useEffect(() => {
     document.body.style.overflow = drawerOpen ? "hidden" : "";
     return () => { document.body.style.overflow = ""; };
   }, [drawerOpen]);
 
-  /* Escape */
+  // ── Keyboard: Escape closes drawer ────────────────────────────────────────
   useEffect(() => {
-    const onKey = (e) => { if (e.key === "Escape") setDrawerOpen(false); };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
+    const h = (e) => { if (e.key === "Escape") setDrawerOpen(false); };
+    window.addEventListener("keydown", h);
+    return () => window.removeEventListener("keydown", h);
   }, []);
 
-  /* Close drawer on route change */
+  // ── Close drawer on route change ──────────────────────────────────────────
   useEffect(() => { setDrawerOpen(false); }, [location.pathname]);
 
-  /* Timer-aware navigation */
+  // ── Timer-aware nav guard ─────────────────────────────────────────────────
   const checkTimer = useCallback((cb) => {
     if (window.studyBuddyTimerState?.isRunning) {
       return window.studyBuddyTimerState.showWarning(cb);
@@ -279,52 +311,54 @@ export default function TopBar() {
     if (!checkTimer(doLogout)) doLogout();
   }, [navigate, checkTimer]);
 
+  // ── Filtered nav groups (visibility + auth) ───────────────────────────────
+  const filteredGroups = useMemo(() => {
+    return NAV_GROUPS.map((group) => ({
+      ...group,
+      items: group.items.filter((item) => {
+        if (item.authRequired && !user) return false;
+        if (user && pageVis[item.visId] === false) return false;
+        return true;
+      }),
+    })).filter((g) => g.items.length > 0);
+  }, [user, pageVis]);
 
-
-  /* Active group index (for default-open accordion) */
-  const activeGroupIndex = NAV_GROUPS.findIndex((g) =>
-    g.items.some((i) => i.path === location.pathname)
+  const activeGroupIndex = useMemo(
+    () => filteredGroups.findIndex((g) => g.items.some((i) => i.path === location.pathname)),
+    [filteredGroups, location.pathname]
   );
 
+  // ── Render ────────────────────────────────────────────────────────────────
   return (
     <>
-      {/* ── Sticky bar ─────────────────────────────────────────────────── */}
+      {/* ── Sticky bar ──────────────────────────────────────────────────── */}
       <motion.header
         className={`sb-bar${isScrolled ? " sb-bar--scrolled" : ""}`}
-        initial={{ y: -80, opacity: 0 }}
-        animate={{ y: 0, opacity: 1 }}
-        transition={{ duration: 0.5, ease: [0.4, 0, 0.2, 1] }}
+        initial={{ y: -72, opacity: 0 }}
+        animate={{ y: 0,   opacity: 1 }}
+        transition={{ duration: 0.48, ease: [0.22, 1, 0.36, 1] }}
       >
-        <div className="sb-container">
+        <div className="sb-inner">
 
           {/* Logo */}
-          <div
+          <button
             className="sb-logo"
             onClick={() => handleNav("/")}
-            role="link"
-            tabIndex={0}
-            onKeyDown={(e) => e.key === "Enter" && handleNav("/")}
-            aria-label="StudyBuddy Home"
+            aria-label="StudyBuddy — go home"
           >
-            <span className="sb-logo-icon">
-              <img src="/favicon.png" alt="StudyBuddy" style={{ width: "1.7rem", height: "1.7rem", objectFit: "contain" }} />
+            <span className="sb-logo-img">
+              <img src="/favicon.png" alt="" aria-hidden="true" />
             </span>
             <span className="sb-logo-text">
               Study<span className="sb-logo-accent">Buddy</span>
             </span>
-          </div>
+          </button>
 
-          {/* Desktop nav: pinned pills + dropdowns */}
+          {/* Desktop nav */}
           <nav className="sb-desktop-nav" aria-label="Primary navigation">
-            
-       
-
-            {/* Divider */}
             <div className="sb-nav-divider" aria-hidden="true" />
-
-            {/* Dropdown groups */}
             <div className="sb-dropdowns">
-              {NAV_GROUPS.map((group) => (
+              {filteredGroups.map((group) => (
                 <DropdownMenu
                   key={group.label}
                   group={group}
@@ -336,69 +370,82 @@ export default function TopBar() {
             </div>
           </nav>
 
-          {/* Desktop actions */}
+          {/* Desktop right-side actions */}
           <div className="sb-actions">
             {user ? (
               <>
+                {/* Settings gear */}
                 <button
-                  className="sb-profile-btn"
+                  className={`sb-icon-btn${location.pathname === "/settings" ? " active" : ""}`}
+                  onClick={() => handleNav("/settings")}
+                  title="Settings"
+                  aria-label="Settings"
+                >
+                  <FaCog size={14} />
+                </button>
+
+                {/* Profile avatar */}
+                <button
+                  className={`sb-avatar-btn${location.pathname === "/profile" ? " active" : ""}`}
                   onClick={() => handleNav("/profile")}
                   title="Your profile"
                   aria-label="Profile"
                 >
-                  <FaUser size={14} />
+                  {user.photoURL
+                    ? <img src={user.photoURL} alt="Profile" className="sb-avatar-img" />
+                    : <span className="sb-avatar-initial">
+                        {(user.displayName || user.email || "U").charAt(0).toUpperCase()}
+                      </span>
+                  }
+                  <span className="sb-avatar-online" />
                 </button>
+
+                {/* Logout */}
                 <button className="sb-btn sb-btn--logout" onClick={handleLogout}>
-                  <FaSignOutAlt size={13} />
+                  <FaSignOutAlt size={12} />
                   <span>Logout</span>
                 </button>
               </>
             ) : (
               <button className="sb-btn sb-btn--login" onClick={() => handleNav("/login")}>
-                <FaSignInAlt size={13} />
+                <FaSignInAlt size={12} />
                 <span>Login</span>
               </button>
             )}
           </div>
 
           {/* Mobile hamburger */}
-          <div className="sb-toggle">
-            <button
-              className="sb-hamburger"
-              onClick={() => setDrawerOpen((v) => !v)}
-              aria-label={drawerOpen ? "Close menu" : "Open menu"}
-            >
-              <AnimatePresence mode="wait" initial={false}>
-                <motion.span
-                  key={drawerOpen ? "x" : "bars"}
-                  initial={{ rotate: -90, opacity: 0 }}
-                  animate={{ rotate: 0,   opacity: 1 }}
-                  exit={{   rotate:  90, opacity: 0 }}
-                  transition={{ duration: 0.16 }}
-                  style={{ display: "flex" }}
-                >
-                  {drawerOpen ? <FaTimes size={18} /> : <FaBars size={18} />}
-                </motion.span>
-              </AnimatePresence>
-            </button>
-          </div>
+          <button
+            className={`sb-hamburger${drawerOpen ? " open" : ""}`}
+            onClick={() => setDrawerOpen((v) => !v)}
+            aria-label={drawerOpen ? "Close menu" : "Open menu"}
+            aria-expanded={drawerOpen}
+          >
+            <span className="sb-hamburger-bar" />
+            <span className="sb-hamburger-bar" />
+            <span className="sb-hamburger-bar" />
+          </button>
+
         </div>
       </motion.header>
 
-      {/* ── Mobile drawer ──────────────────────────────────────────────── */}
+      {/* ── Mobile drawer ────────────────────────────────────────────────── */}
       <AnimatePresence>
         {drawerOpen && (
           <>
+            {/* Backdrop */}
             <motion.div
               className="sb-backdrop"
-              variants={backdropVariants}
+              variants={backdropV}
               initial="hidden" animate="visible" exit="exit"
               onClick={() => setDrawerOpen(false)}
+              aria-hidden="true"
             />
 
+            {/* Drawer panel */}
             <motion.nav
               className="sb-drawer"
-              variants={drawerVariants}
+              variants={drawerV}
               initial="hidden" animate="visible" exit="exit"
               aria-label="Mobile navigation"
               role="dialog"
@@ -406,8 +453,8 @@ export default function TopBar() {
             >
               {/* Drawer header */}
               <div className="sb-drawer-header">
-                <div className="sb-drawer-logo">
-                  <img src="/favicon.png" alt="StudyBuddy" style={{ width: "22px", height: "22px", objectFit: "contain" }} />
+                <div className="sb-drawer-logo-wrap">
+                  <img src="/favicon.png" alt="StudyBuddy" className="sb-drawer-favicon" />
                   <span className="sb-drawer-logo-text">StudyBuddy</span>
                 </div>
                 <button
@@ -415,28 +462,38 @@ export default function TopBar() {
                   onClick={() => setDrawerOpen(false)}
                   aria-label="Close menu"
                 >
-                  <FaTimes size={15} />
+                  <FaTimes size={14} />
                 </button>
               </div>
 
-              {/* User badge if logged in */}
+              {/* User card */}
               {user && (
                 <div className="sb-drawer-user">
-                  <div className="sb-drawer-avatar">
-                    {user.email?.[0]?.toUpperCase() || "U"}
+                  <div className="sb-drawer-user-avatar">
+                    {user.photoURL
+                      ? <img src={user.photoURL} alt="Profile" />
+                      : <span>{(user.displayName || user.email || "U").charAt(0).toUpperCase()}</span>
+                    }
+                    <span className="sb-drawer-user-online" />
                   </div>
                   <div className="sb-drawer-user-info">
-                    <span className="sb-drawer-user-name">
-                      {user.displayName || "Study pookie"}
-                    </span>
+                    <span className="sb-drawer-user-name">{user.displayName || "Study pookie"}</span>
                     <span className="sb-drawer-user-email">{user.email}</span>
                   </div>
+                  <button
+                    className="sb-drawer-settings-btn"
+                    onClick={() => handleNav("/settings")}
+                    aria-label="Settings"
+                    title="Settings"
+                  >
+                    <FaCog size={13} />
+                  </button>
                 </div>
               )}
 
-              {/* Accordion groups */}
+              {/* Nav groups */}
               <div className="sb-drawer-body">
-                {NAV_GROUPS.map((group, i) => (
+                {filteredGroups.map((group, i) => (
                   <MobileGroup
                     key={group.label}
                     group={group}
@@ -446,21 +503,38 @@ export default function TopBar() {
                     defaultOpen={i === activeGroupIndex || i === 0}
                   />
                 ))}
+
+                {/* Profile & Settings links in drawer */}
+                {user && (
+                  <div className="sb-drawer-quick-links">
+                    <button
+                      className={`sb-drawer-quick-link${location.pathname === "/profile" ? " active" : ""}`}
+                      onClick={() => handleNav("/profile")}
+                    >
+                      <FaUser size={13} />
+                      <span>My Profile</span>
+                    </button>
+                    <button
+                      className={`sb-drawer-quick-link${location.pathname === "/settings" ? " active" : ""}`}
+                      onClick={() => handleNav("/settings")}
+                    >
+                      <FaCog size={13} />
+                      <span>Settings</span>
+                    </button>
+                  </div>
+                )}
               </div>
 
-              {/* Drawer footer actions */}
+              {/* Footer */}
               <div className="sb-drawer-footer">
                 {user ? (
-                  <button className="sb-mob-btn sb-mob-btn--logout" onClick={handleLogout}>
-                    <FaSignOutAlt size={14} />
-                    <span>Logout</span>
+                  <button className="sb-drawer-logout" onClick={handleLogout}>
+                    <FaSignOutAlt size={13} />
+                    <span>Log out</span>
                   </button>
                 ) : (
-                  <button
-                    className="sb-mob-btn sb-mob-btn--login"
-                    onClick={() => handleNav("/login")}
-                  >
-                    <FaSignInAlt size={14} />
+                  <button className="sb-drawer-login" onClick={() => handleNav("/login")}>
+                    <FaSignInAlt size={13} />
                     <span>Login to StudyBuddy</span>
                   </button>
                 )}
@@ -472,4 +546,3 @@ export default function TopBar() {
     </>
   );
 }
-

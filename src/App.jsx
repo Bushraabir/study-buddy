@@ -5,7 +5,9 @@ import { Toaster } from 'react-hot-toast';
 import { onAuthStateChanged, isSignInWithEmailLink } from 'firebase/auth';
 import { auth } from './components/firebase';
 import TopBar from './components/TopBar';
-
+import { ThemeProvider } from './context/ThemeContext';
+import { doc, getDoc }   from 'firebase/firestore';
+import { db }            from './components/firebase';
 
 
 // eager — always needed on first load
@@ -20,6 +22,7 @@ import PlotGraph   from './pages/PlotGraph';
 import Graph3D     from './pages/3D';
 import StartSession from './pages/Session';
 import Profile     from './pages/Profile';
+import Settings from './pages/Settings';
 
 // lazy — phase 2
 const Challenge75Hard      = lazy(() => import('./pages/Challenge75Hard'));
@@ -58,13 +61,25 @@ function Protected({ user, children }) {
 export default function App() {
   const [user, setUser]     = useState(null);
   const [ready, setReady]   = useState(false);
+  const [userTheme, setUserTheme] = useState('pookie');
+  const [userId,    setUserId]    = useState(null);
 
-  useEffect(() => {
-    return onAuthStateChanged(auth, (u) => {
-      setUser(u);
-      setReady(true);
-    });
-  }, []);
+
+useEffect(() => {
+  return onAuthStateChanged(auth, async (u) => {
+    setUser(u);
+    if (u) {
+      setUserId(u.uid);
+      try {
+        const snap = await getDoc(doc(db, 'users', u.uid));
+        if (snap.exists()) setUserTheme(snap.data().theme || 'pookie');
+      } catch { /* silent — default theme applies */ }
+    } else {
+      setUserId(null);
+    }
+    setReady(true);
+  });
+}, []);
 
   if (!ready) return <PageLoader />;
 
@@ -73,6 +88,7 @@ export default function App() {
   const isReset     = params.get('mode') === 'resetPassword' && params.get('oobCode');
 
   return (
+    <ThemeProvider initialThemeId={userTheme} userId={userId}>
     <Router>
       <TopBar user={user} />
       <Helmet>
@@ -101,6 +117,7 @@ export default function App() {
 
           {/* core protected — eager */}
           <Route path="/profile"     element={<ProtectedRoute user={user}><Profile /></ProtectedRoute>} />
+          <Route path="/settings" element={<ProtectedRoute user={user}><Settings /></ProtectedRoute>} />
           <Route path="/session"     element={<ProtectedRoute user={user}><StartSession /></ProtectedRoute>} />
           <Route path="/flash-cards" element={<ProtectedRoute user={user}><FlashCards /></ProtectedRoute>} />
           <Route path="/notes"       element={<ProtectedRoute user={user}><Notes /></ProtectedRoute>} />
@@ -141,5 +158,6 @@ export default function App() {
         }}
       />
     </Router>
+    </ThemeProvider>
   );
 }

@@ -1,0 +1,3716 @@
+/* src/components/graphing/CAS.css
+ *
+ * Styles for MathInsights badges and CASLoader progress bar.
+ *
+ * ⚠  Uses ONLY design tokens from style.css (:root).
+ *    Does NOT redeclare --pookie-* variables, glass-card, btn-primary,
+ *    field-input, icon-btn, or any other global primitive.
+ */
+
+/* ─── MathInsights badge strip ────────────────────────────────────────────── */
+
+.mi-wrap {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 5px;
+  margin-top: 6px;
+}
+
+/* Base badge */
+.mi-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 2px 8px;
+  border-radius: 50px;
+  font-size: 0.66rem;
+  font-weight: 800;
+  line-height: 1.5;
+  letter-spacing: 0.03em;
+  white-space: nowrap;
+  border: 1px solid transparent;
+  transition: opacity 0.2s;
+}
+
+/* Modifier: neutral/subtle */
+.mi-badge.mi-subtle {
+  background: rgba(168, 85, 247, 0.1);
+  color: var(--pookie-muted);
+  border-color: var(--pookie-border);
+}
+
+/* Modifier: info (symmetry, period) */
+.mi-badge.mi-info {
+  background: rgba(16, 185, 129, 0.1);
+  color: #6ee7b7;
+  border-color: rgba(16, 185, 129, 0.25);
+}
+
+/* Modifier: danger (vertical asymptotes) */
+.mi-badge.mi-danger {
+  background: rgba(239, 68, 68, 0.1);
+  color: #fca5a5;
+  border-color: rgba(239, 68, 68, 0.25);
+}
+
+/* Modifier: warning (horizontal asymptotes) */
+.mi-badge.mi-warning {
+  background: rgba(245, 158, 11, 0.1);
+  color: #fcd34d;
+  border-color: rgba(245, 158, 11, 0.25);
+}
+
+/* Auto-fix button — minimal, sits inline with badges */
+.mi-fix-btn {
+  margin-left: auto;
+  padding: 2px 10px;
+  background: linear-gradient(135deg, var(--pookie-purple2), var(--pookie-purple));
+  color: #fff;
+  border: none;
+  border-radius: 50px;
+  font-size: 0.66rem;
+  font-weight: 800;
+  font-family: var(--pookie-font);
+  cursor: pointer;
+  transition: opacity 0.18s, transform 0.15s;
+}
+.mi-fix-btn:hover {
+  opacity: 0.85;
+  transform: translateY(-1px);
+}
+
+/* ─── CASLoader pill ───────────────────────────────────────────────────────── */
+
+.cas-loader {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 12px;
+  border-radius: var(--pookie-radius-sm);
+  background: var(--pookie-surface);
+  border: 1px solid var(--pookie-border);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  font-size: 0.72rem;
+  color: var(--pookie-muted);
+  margin-bottom: 8px;
+}
+
+.cas-loader__icon {
+  font-size: 0.9rem;
+  color: var(--pookie-purple);
+  animation: _spin 1.2s linear infinite;
+  flex-shrink: 0;
+  line-height: 1;
+}
+
+/* Keyframe — define locally in case global style.css doesn't export it */
+@keyframes _spin {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+
+.cas-loader__text {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  line-height: 1.3;
+}
+
+.cas-loader__text span:first-child {
+  color: var(--pookie-text);
+  font-weight: 700;
+  font-size: 0.72rem;
+}
+
+.cas-loader__sub {
+  color: var(--pookie-muted);
+  font-size: 0.62rem;
+  font-weight: 600;
+}
+
+.cas-loader__bar {
+  margin-left: auto;
+  width: 60px;
+  height: 4px;
+  border-radius: 99px;
+  background: rgba(168, 85, 247, 0.15);
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.cas-loader__fill {
+  height: 100%;
+  border-radius: 99px;
+  background: linear-gradient(90deg, var(--pookie-purple2), var(--pookie-pink));
+  transition: width 0.4s ease;
+}
+
+
+
+
+
+// src/components/graphing/CASLoader.jsx
+import React from 'react';
+
+export default function CASLoader({ status, progress }) {
+  if (status === 'ready' || status === 'error' || status === 'idle') return null;
+
+  return (
+    <div className="cas-loader" role="status" aria-live="polite">
+      <span className="cas-loader__icon">⟳</span>
+      <div className="cas-loader__text">
+        <span>Loading math engine</span>
+        <span className="cas-loader__sub">asymptotes &amp; critical points</span>
+      </div>
+      <div className="cas-loader__bar">
+        <div
+          className="cas-loader__fill"
+          style={{ width: `${progress ?? 40}%` }}
+        />
+      </div>
+    </div>
+  );
+}
+
+
+
+
+
+
+// src/components/graphing/MathInsights.jsx
+import React from 'react';
+
+export default function MathInsights({ meta, loading, upgraded, onApplyFix }) {
+  if (!meta && !loading) return null;
+
+  const {
+    symmetry,
+    verticalAsymptotes = [],
+    horizontalAsymptotes = [],
+    criticalPoints = [],
+    domain,
+    period,
+    _source,
+  } = meta ?? {};
+
+  const hasInsights =
+    (symmetry && symmetry !== 'none') ||
+    verticalAsymptotes.length > 0 ||
+    horizontalAsymptotes.length > 0 ||
+    criticalPoints.length > 0 ||
+    period;
+
+  if (!hasInsights && !loading) return null;
+
+  return (
+    <div className="mi-wrap">
+      {/* Source indicator */}
+      <span
+        className="mi-badge mi-subtle"
+        title={_source === 'sympy' ? 'Full SymPy analysis' : 'Numeric estimate (SymPy loading…)'}
+      >
+        {_source === 'sympy' ? '∑ SymPy' : loading ? '⟳ Numeric' : '⟨⟩ Numeric'}
+      </span>
+
+      {symmetry !== 'none' && symmetry && (
+        <span
+          className="mi-badge mi-info"
+          title={`f(-x) = ${symmetry === 'even' ? 'f(x)' : '-f(x)'}`}
+        >
+          {symmetry === 'even' ? '⇔ even' : '↺ odd'}
+        </span>
+      )}
+
+      {period && (
+        <span className="mi-badge mi-info">
+          ∿ T={period.toFixed(2)}
+        </span>
+      )}
+
+      {verticalAsymptotes.length > 0 && (
+        <span
+          className="mi-badge mi-danger"
+          title={`x = ${verticalAsymptotes.join(', ')}`}
+        >
+          ↕ {verticalAsymptotes.length} vert. asym.
+        </span>
+      )}
+
+      {horizontalAsymptotes.length > 0 && (
+        <span
+          className="mi-badge mi-warning"
+          title={`y = ${horizontalAsymptotes.map(h => h.y).join(', ')}`}
+        >
+          ↔ y={horizontalAsymptotes[0].y}
+        </span>
+      )}
+
+      {criticalPoints.length > 0 && (
+        <span className="mi-badge mi-subtle">
+          ◇ {criticalPoints.length} crit.
+        </span>
+      )}
+
+      {domain && domain !== 'Reals' && domain !== 'S.Reals' && (
+        <span className="mi-badge mi-subtle" title={domain}>
+          𝔻 restricted
+        </span>
+      )}
+
+      {verticalAsymptotes.length > 0 && onApplyFix && (
+        <button className="mi-fix-btn" onClick={() => onApplyFix(meta)}>
+          Auto-fix
+        </button>
+      )}
+    </div>
+  );
+}
+
+
+
+
+// src/hooks/useCAS.js
+// Two hooks:
+//
+//   useCAS()              — global CAS status + analyze fn.
+//                           Call once at the page level; preloads the worker.
+//
+//   useEquationCAS(expr, type, variable)
+//                         — reactive: re-runs analysis when expr changes.
+//                           Follows the "fast-first" strategy:
+//                           1. Returns numeric meta immediately.
+//                           2. Upgrades to full SymPy meta when Pyodide finishes.
+
+import { useState, useEffect, useCallback, useRef } from 'react';
+import { cas, onCASStatus } from '../services/casManager';
+import * as math from 'mathjs';
+
+// ─── useCAS ─────────────────────────────────────────────────────────────────
+export function useCAS() {
+  const [status, setStatus] = useState(cas.status);
+  const [progress, setProgress] = useState(0);
+
+  useEffect(() => {
+    // Preload immediately — worker starts downloading in background
+    cas.preload();
+
+    const unsub = onCASStatus((s, pct) => {
+      setStatus(s);
+      if (pct !== undefined) setProgress(pct);
+    });
+    return unsub;
+  }, []);
+
+  const analyze = useCallback(
+    (expr, mode, variable) => cas.analyze(expr, mode, variable),
+    []
+  );
+
+  return { status, progress, analyze, isReady: status === 'ready' };
+}
+
+// ─── Fast numeric fallback ───────────────────────────────────────────────────
+// Runs synchronously in JS so the graph is useful before Pyodide loads.
+function numericFallback(expr, type) {
+  if (type !== 'explicit' && type !== 'complex') return null;
+
+  const cleanExpr = expr.replace(/^\s*[yz]\s*=\s*/i, '').trim();
+
+  try {
+    const compiled = math.compile(cleanExpr);
+    const safeEval = (xv) => {
+      try {
+        const v = compiled.evaluate({ x: xv });
+        return typeof v === 'number' && isFinite(v) ? v : null;
+      } catch {
+        if (process.env.NODE_ENV === 'development') {
+          // suppress noise
+        }
+        return null;
+      }
+    };
+
+    // ── Detect rough vertical asymptotes (sign-flip + large jump) ──
+    const xs = Array.from({ length: 400 }, (_, i) => -10 + i * 0.05);
+    const verticalAsymptotes = [];
+    let prevY = safeEval(xs[0]);
+
+    for (let i = 1; i < xs.length; i++) {
+      const y = safeEval(xs[i]);
+      if (prevY !== null && y !== null) {
+        const jump = Math.abs(y - prevY);
+        if (jump > 80 && Math.sign(y) !== Math.sign(prevY)) {
+          verticalAsymptotes.push(+((xs[i - 1] + xs[i]) / 2).toFixed(3));
+        }
+      }
+      prevY = y;
+    }
+
+    // ── Y-intercept ──
+    let yIntercept = null;
+    try { yIntercept = safeEval(0); } catch {}
+
+    // ── Quick symmetry check ──
+    let symmetry = 'none';
+    try {
+      const samples = [-3, -2, -1, 1, 2, 3];
+      const even = samples.every(v => {
+        const a = safeEval(v), b = safeEval(-v);
+        return a !== null && b !== null && Math.abs(a - b) < 1e-6;
+      });
+      const odd = samples.every(v => {
+        const a = safeEval(v), b = safeEval(-v);
+        return a !== null && b !== null && Math.abs(a + b) < 1e-6;
+      });
+      symmetry = even ? 'even' : odd ? 'odd' : 'none';
+    } catch {}
+
+    // ── Critical points (sign change in numerical derivative) ──
+    const criticalPoints = [];
+    let prevD = null;
+    for (let i = 0; i < xs.length - 1; i++) {
+      const y1 = safeEval(xs[i]);
+      const y2 = safeEval(xs[i + 1]);
+      if (y1 !== null && y2 !== null) {
+        const d = (y2 - y1) / 0.05;
+        if (prevD !== null && Math.sign(d) !== Math.sign(prevD)) {
+          const xc = xs[i];
+          const yc = safeEval(xc);
+          if (yc !== null && Math.abs(yc) < 50) {
+            criticalPoints.push({ x: +xc.toFixed(3), y: +yc.toFixed(3) });
+          }
+        }
+        prevD = d;
+      }
+    }
+
+    return {
+      _source: 'numeric',
+      verticalAsymptotes,
+      horizontalAsymptotes: [],
+      criticalPoints: criticalPoints.slice(0, 10),
+      symmetry,
+      intercepts: { y: yIntercept, x: [] },
+      domain: 'Reals',
+      period: null,
+      simplified: null,
+      derivative: null,
+    };
+  } catch (err) {
+    if (process.env.NODE_ENV === 'development') console.warn('[StudyBuddy] Non-blocking math error:', err);
+    return null;
+  }
+}
+
+// ─── useEquationCAS ──────────────────────────────────────────────────────────
+export function useEquationCAS(expression, type, variable = 'x') {
+  const { analyze, isReady } = useCAS();
+
+  // meta always has a value: starts as numeric fallback, upgrades to SymPy
+  const [meta, setMeta] = useState(() => numericFallback(expression, type));
+  const [loading, setLoading] = useState(false);
+  const [upgraded, setUpgraded] = useState(false); // true once SymPy result is in
+
+  const exprRef = useRef(expression);
+
+  // Re-run numeric fallback synchronously when expression changes
+  useEffect(() => {
+    exprRef.current = expression;
+    setMeta(numericFallback(expression, type));
+    setUpgraded(false);
+  }, [expression, type]);
+
+  // When Pyodide becomes ready (or expression changes after it's ready),
+  // fire the full SymPy analysis and update the meta in-place
+  useEffect(() => {
+    if (!isReady || !expression) return;
+    const mode = type === 'surface' || type === 'implicit' ? 'analyze3D' : 'analyze2D';
+
+    let cancelled = false;
+    setLoading(true);
+
+    analyze(expression, mode, variable)
+      .then(result => {
+        if (cancelled || exprRef.current !== expression) return;
+        if (result && !result.error) {
+          setMeta({ ...result, _source: 'sympy' });
+          setUpgraded(true);
+        }
+      })
+      .catch((err) => {
+        if (process.env.NODE_ENV === 'development') console.warn('[StudyBuddy] Silent catch:', err);
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+
+    return () => { cancelled = true; };
+  }, [expression, type, isReady, analyze, variable]);
+
+  return { meta, loading, upgraded };
+}
+
+
+
+
+
+
+
+
+import React, {
+  useState, useEffect, useCallback, useRef, useMemo, useDeferredValue,
+} from 'react';
+import { Helmet } from 'react-helmet-async';
+import Plot from 'react-plotly.js';
+import * as math from 'mathjs';
+import {
+  Trash2, Plus, Eye, EyeOff, Settings2, RotateCcw, Box, Play, Pause,
+  RotateCw, Move, Layers, Download, Upload, Undo2, Redo2,
+  ChevronLeft, ChevronRight, FlaskConical, Waves, Wind, Check, X,
+} from 'lucide-react';
+import './3D.css';
+import { useCAS } from '../hooks/useCAS';
+import CASLoader from '../components/graphing/CASLoader';
+import '../components/graphing/CAS.css';
+
+/* ─── constants ─────────────────────────────────────────────────── */
+const KNOWN_SYMS = new Set([
+  'x','y','z','t','u','v','e','pi','i','E','PI',
+  'sin','cos','tan','asin','acos','atan','atan2',
+  'sinh','cosh','tanh','asinh','acosh','atanh',
+  'log','ln','log10','log2','sqrt','abs','ceil',
+  'floor','round','sign','exp','pow','mod','max','min',
+  'gamma','factorial',
+]);
+
+const PALETTE = [
+  '#FF6B6B','#4ECDC4','#45B7D1','#96CEB4','#FFEAA7',
+  '#DDA0DD','#98D8C8','#F7DC6F','#BB8FCE','#85C1E9',
+  '#F8C471','#82E0AA',
+];
+
+const MAX_HISTORY = 40;
+
+const hex2rgba = (hex, a) => {
+  const r = parseInt(hex.slice(1,3),16);
+  const g = parseInt(hex.slice(3,5),16);
+  const b = parseInt(hex.slice(5,7),16);
+  return `rgba(${r},${g},${b},${a})`;
+};
+
+/* ─── MathExpression class ──────────────────────────────────────── */
+class MathExpr {
+  constructor(raw, type = 'surface') {
+    this.raw   = raw;
+    this.type  = type;
+    this.error = null;
+    this._compiled = null;
+    this._dX = null;
+    this._dY = null;
+
+    try {
+      let src = raw;
+      if (type === 'surface') src = raw.replace(/^\s*z\s*=\s*/i, '').trim();
+      this._node = math.parse(src);
+      this._compiled = this._node.compile();
+      if (type === 'surface') {
+        try { this._dX = math.derivative(this._node, 'x'); } catch {}
+        try { this._dY = math.derivative(this._node, 'y'); } catch {}
+      }
+    } catch (e) {
+      this.error = e.message;
+    }
+  }
+
+  eval(scope) {
+    if (!this._compiled) return null;
+    try {
+      const v = this._compiled.evaluate(scope);
+      if (typeof v === 'number' && isFinite(v)) return v;
+      // Accept complex numbers — needed for Complex graph type
+      if (v && typeof v === 'object' && 're' in v && 'im' in v) return v;
+      return null;
+    } catch (err) {
+      if (process.env.NODE_ENV === 'development') console.warn('[StudyBuddy] Non-blocking math error:', err);
+      return null;
+    }
+  }
+
+  dX(scope) {
+    if (!this._dX) return null;
+    try {
+      const v = this._dX.compile().evaluate(scope);
+      return typeof v === 'number' && isFinite(v) ? v : null;
+    } catch (err) {
+      if (process.env.NODE_ENV === 'development') console.warn('[StudyBuddy] Non-blocking math error:', err);
+      return null;
+    }
+  }
+
+  dY(scope) {
+    if (!this._dY) return null;
+    try {
+      const v = this._dY.compile().evaluate(scope);
+      return typeof v === 'number' && isFinite(v) ? v : null;
+    } catch (err) {
+      if (process.env.NODE_ENV === 'development') console.warn('[StudyBuddy] Non-blocking math error:', err);
+      return null;
+    }
+  }
+
+  vars() {
+    if (!this._node) return [];
+    const out = new Set();
+    this._node.traverse(n => {
+      if (n.isSymbolNode && !KNOWN_SYMS.has(n.name)) out.add(n.name);
+    });
+    return [...out];
+  }
+}
+
+/* ─── Gaussian curvature (numerical) ───────────────────────────── */
+const gaussK = (exprRaw, x, y, vars, h = 1e-4) => {
+  try {
+    const src = exprRaw.replace(/^\s*z\s*=\s*/i,'').trim();
+    const f = (dx,dy) => {
+      try {
+        const v = math.evaluate(src, { x: x+dx, y: y+dy, ...vars });
+        return typeof v === 'number' && isFinite(v) ? v : 0;
+      } catch { return 0; }
+    };
+    const f0  = f(0,0);
+    const fx  = (f(h,0)-f(-h,0))/(2*h);
+    const fy  = (f(0,h)-f(0,-h))/(2*h);
+    const fxx = (f(h,0) - 2*f0 + f(-h,0))/(h*h);
+    const fyy = (f(0,h) - 2*f0 + f(0,-h))/(h*h);
+    const fxy = (f(h,h)-f(h,-h)-f(-h,h)+f(-h,-h))/(4*h*h);
+    const D   = (1+fx*fx+fy*fy)**2;
+    return D > 1e-12 ? (fxx*fyy - fxy*fxy)/D : 0;
+  } catch { return 0; }
+};
+
+/* ─── SURFACE TYPE DEFINITIONS ──────────────────────────────────── */
+const TYPES = [
+  { id:'surface',    label:'Surface',   Icon:Layers,       ph:'sin(x)*cos(y)' },
+  { id:'parametric', label:'Parametric',Icon:Box,          ph:'x=cos(u)*cos(v), y=cos(u)*sin(v), z=sin(u)' },
+  { id:'curve',      label:'Curve',     Icon:Move,         ph:'x=cos(t), y=sin(t), z=t/5' },
+  { id:'implicit',   label:'Implicit',  Icon:FlaskConical, ph:'x^2+y^2+z^2-4' },
+  { id:'vector',     label:'Vector',    Icon:Wind,         ph:'P=y, Q=-x, R=0' },
+  { id:'complex',    label:'Complex',   Icon:Waves,        ph:'z^2' },
+];
+
+const EXAMPLES = {
+  surface:    ['sin(x)*cos(y)','x^2+y^2','cos(sqrt(x^2+y^2))','exp(-(x^2+y^2))','sin(x^2+y^2)/(x^2+y^2+0.1)','x*y'],
+  parametric: ['x=cos(u)*cos(v), y=cos(u)*sin(v), z=sin(u)','x=(2+cos(u))*cos(v), y=(2+cos(u))*sin(v), z=sin(u)','x=u*cos(v), y=u*sin(v), z=u'],
+  curve:      ['x=cos(t), y=sin(t), z=t/5','x=sin(t), y=cos(t), z=sin(2*t)','x=exp(-t/10)*cos(t), y=exp(-t/10)*sin(t), z=t/5'],
+  implicit:   ['x^2+y^2+z^2-4','x^2+y^2-z^2-1','sin(x)+cos(y)+sin(z)','(x^2+y^2+z^2+2)^2-16*(x^2+y^2)'],
+  vector:     ['P=y, Q=-x, R=0','P=x, Q=y, R=z','P=sin(y), Q=cos(x), R=0'],
+  complex:    ['z^2','z^3-1','sin(z)','exp(z)','1/z'],
+};
+
+const DEFAULT_SETTINGS = {
+  xMin:-5,xMax:5, yMin:-5,yMax:5, zMin:-5,zMax:5,
+  resolution:40, showGrid:true, showAxes:true,
+  curvature:false, adaptiveMesh:true,
+};
+
+/* ─── Component ─────────────────────────────────────────────────── */
+export default function GraphingCalculator3D() {
+
+  /* state */
+  const [objects, setObjects] = useState(() => {
+    try {
+      const s = localStorage.getItem('sb-3d');
+      if (s) { const p = JSON.parse(s); if (p.objects?.length) return p.objects; }
+    } catch {}
+    return [{ id:1, expression:'sin(x)*cos(y)', type:'surface', color:'#f472b6', visible:true, opacity:0.85, name:'Sine Wave' }];
+  });
+  const [nextId, setNextId]      = useState(2);
+  const [activeTab, setTab]      = useState('surface');
+  const [newExpr, setNewExpr]    = useState('');
+  const [settings, setSettings]  = useState(DEFAULT_SETTINGS);
+  const [vars, setVars]          = useState({});
+  const [anim, setAnim]          = useState({ on:false, param:'t', speed:1 });
+  const [sidebar, setSidebar]    = useState(true);
+  const [showCfg, setShowCfg]    = useState(false);
+  const [selId, setSelId]        = useState(null);
+  const [mathPanel, setMathPanel]= useState(null);
+  const [copied, setCopied]      = useState(false);
+  const [history, setHistory]    = useState([]);
+  const [hIdx, setHIdx]          = useState(-1);
+
+  /* refs */
+  const liveVarsRef  = useRef({});
+  const { status: casStatus, progress: casProgress } = useCAS();
+  const cameraRef    = useRef({ eye:{ x:1.5, y:1.5, z:1.5 } });
+  const exprCache    = useRef(new Map());
+  const animRef      = useRef();
+  const frameRef     = useRef(0);
+
+  /* deferred */
+  const dObj = useDeferredValue(objects);
+  const dSet = useDeferredValue(settings);
+
+  /* ── history ───────────────────────────────────────────────────── */
+  const pushHist = useCallback(snap => {
+    setHistory(h => [...h.slice(0, hIdx+1), JSON.parse(JSON.stringify(snap))].slice(-MAX_HISTORY));
+    setHIdx(i => Math.min(i+1, MAX_HISTORY-1));
+  }, [hIdx]);
+
+  const undo = useCallback(() => {
+    if (hIdx <= 0) return;
+    const s = history[hIdx-1];
+    setObjects(s.objects); setSettings(s.settings); setVars(s.vars);
+    setHIdx(i=>i-1); exprCache.current.clear();
+  }, [history, hIdx]);
+
+  const redo = useCallback(() => {
+    if (hIdx >= history.length-1) return;
+    const s = history[hIdx+1];
+    setObjects(s.objects); setSettings(s.settings); setVars(s.vars);
+    setHIdx(i=>i+1); exprCache.current.clear();
+  }, [history, hIdx]);
+
+  /* ── persist ───────────────────────────────────────────────────── */
+  useEffect(() => {
+    const t = setTimeout(() => {
+      try { localStorage.setItem('sb-3d', JSON.stringify({ objects, settings, vars })); } catch {}
+    }, 600);
+    return () => clearTimeout(t);
+  }, [objects, settings, vars]);
+
+  /* ── sync liveVarsRef ──────────────────────────────────────────── */
+  useEffect(() => { liveVarsRef.current = vars; }, [vars]);
+
+  /* ── extract variable names from expressions ───────────────────── */
+  useEffect(() => {
+    const extra = {};
+    objects.forEach(obj => {
+      let e = exprCache.current.get(obj.expression+'|'+obj.type);
+      if (!e) { e = new MathExpr(obj.expression, obj.type); exprCache.current.set(obj.expression+'|'+obj.type, e); }
+      e.vars().forEach(n => { if (!(n in vars) && !(n in extra)) extra[n] = 0; });
+    });
+    if (Object.keys(extra).length) {
+      setVars(v => { const nv = {...v, ...extra}; liveVarsRef.current = nv; return nv; });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [objects]);
+
+  /* ── animation loop ────────────────────────────────────────────── */
+  useEffect(() => {
+    if (!anim.on) { cancelAnimationFrame(animRef.current); return; }
+    const tick = () => {
+      liveVarsRef.current = { ...liveVarsRef.current, [anim.param]: (liveVarsRef.current[anim.param]||0) + 0.03*anim.speed };
+      if (++frameRef.current % 2 === 0) setVars({...liveVarsRef.current});
+      animRef.current = requestAnimationFrame(tick);
+    };
+    animRef.current = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(animRef.current);
+  }, [anim.on, anim.param, anim.speed]);
+
+  /* ── keyboard shortcuts ────────────────────────────────────────── */
+  useEffect(() => {
+    const h = e => {
+      if (e.target.tagName==='INPUT'||e.target.tagName==='TEXTAREA') return;
+      if ((e.ctrlKey||e.metaKey)&&e.key==='z') { e.preventDefault(); undo(); }
+      if ((e.ctrlKey||e.metaKey)&&e.key==='y') { e.preventDefault(); redo(); }
+      if (e.key===' ') { e.preventDefault(); setAnim(a=>({...a,on:!a.on})); }
+      if (e.key==='g') setSettings(s=>({...s,showGrid:!s.showGrid}));
+      if (e.key==='c') setSettings(s=>({...s,curvature:!s.curvature}));
+    };
+    window.addEventListener('keydown',h);
+    return ()=>window.removeEventListener('keydown',h);
+  }, [undo, redo]);
+
+  /* ── mesh generators ────────────────────────────────────────────
+     Each generator takes `currentVars` as parameter (not via ref closure)
+     making them pure with stable references.
+  ───────────────────────────────────────────────────────────────── */
+
+  const getExpr = useCallback((raw, type) => {
+    const key = raw+'|'+type;
+    if (!exprCache.current.has(key)) exprCache.current.set(key, new MathExpr(raw, type));
+    return exprCache.current.get(key);
+  }, []);
+
+  const genSurface = useCallback((obj, currentVars) => {
+    const { xMin,xMax,yMin,yMax,resolution,curvature } = dSet;
+    const e = getExpr(obj.expression, 'surface');
+    if (e.error) { console.warn('Surface expr error:', e.error); return null; }
+
+    const res = resolution;
+    const x=[],y=[],z=[],sc=[];
+
+    for (let i=0;i<res;i++) {
+      const xr=[],yr=[],zr=[],cr=[];
+      const xv = xMin + (i/(res-1))*(xMax-xMin);
+      for (let j=0;j<res;j++) {
+        const yv = yMin + (j/(res-1))*(yMax-yMin);
+        const zv = e.eval({ x:xv, y:yv, ...currentVars });
+        xr.push(xv); yr.push(yv); zr.push(zv);
+        if (curvature) cr.push(gaussK(obj.expression, xv, yv, currentVars));
+      }
+      x.push(xr); y.push(yr); z.push(zr); if (curvature) sc.push(cr);
+    }
+
+    const trace = {
+      type:'surface', x,y,z, name:obj.name||obj.expression, opacity:obj.opacity, showscale:false,
+      hovertemplate:`<b>%{fullData.name}</b><br>X:%{x:.3f} Y:%{y:.3f} Z:%{z:.3f}<extra></extra>`,
+    };
+
+    if (curvature && sc.length) {
+      trace.surfacecolor = sc;
+      trace.colorscale = [[0,'#3b82f6'],[0.5,'#10b981'],[1,'#ef4444']];
+      trace.showscale = true;
+      trace.colorbar = { title:'K', thickness:10, len:0.4, tickfont:{size:10,color:'#94a3b8'} };
+    } else {
+      trace.colorscale = [[0,hex2rgba(obj.color,0.12)],[1,obj.color]];
+    }
+    return trace;
+  }, [dSet, getExpr]);
+
+  const genParametric = useCallback((obj, currentVars) => {
+    const { resolution } = dSet;
+    const parts = {};
+    obj.expression.split(',').forEach(p => {
+      const m = p.trim().match(/^([xyz])\s*=\s*(.+)$/i);
+      if (m) parts[m[1].toLowerCase()] = m[2].trim();
+    });
+    const ex = getExpr(parts.x||'u','parametric');
+    const ey = getExpr(parts.y||'v','parametric');
+    const ez = getExpr(parts.z||'0','parametric');
+    if (ex.error||ey.error||ez.error) return null;
+    const x=[],y=[],z=[];
+    for (let i=0;i<resolution;i++) {
+      const xr=[],yr=[],zr=[];
+      const u = -Math.PI + (i/(resolution-1))*2*Math.PI;
+      for (let j=0;j<resolution;j++) {
+        const v = -Math.PI + (j/(resolution-1))*2*Math.PI;
+        const sc = { u,v,...currentVars };
+        xr.push(ex.eval(sc)); yr.push(ey.eval(sc)); zr.push(ez.eval(sc));
+      }
+      x.push(xr); y.push(yr); z.push(zr);
+    }
+    return {
+      type:'surface', x,y,z, name:obj.name||'Parametric',
+      colorscale:[[0,hex2rgba(obj.color,0.12)],[1,obj.color]], opacity:obj.opacity, showscale:false,
+    };
+  }, [dSet, getExpr]);
+
+  const genCurve = useCallback((obj, currentVars) => {
+    const parts = {};
+    obj.expression.split(',').forEach(p => {
+      const m = p.trim().match(/^([xyz])\s*=\s*(.+)$/i);
+      if (m) parts[m[1].toLowerCase()] = m[2].trim();
+    });
+    const ex=getExpr(parts.x||'t','curve'), ey=getExpr(parts.y||'0','curve'), ez=getExpr(parts.z||'0','curve');
+    if (ex.error||ey.error||ez.error) return null;
+    const x=[],y=[],z=[];
+    for (let i=0;i<800;i++) {
+      const t = -10 + (i/799)*20;
+      const sc = { t,...currentVars };
+      const xv=ex.eval(sc), yv=ey.eval(sc), zv=ez.eval(sc);
+      if (xv!==null&&yv!==null&&zv!==null) { x.push(xv);y.push(yv);z.push(zv); }
+    }
+    return { type:'scatter3d', mode:'lines', x,y,z, name:obj.name||'Curve', line:{ color:obj.color, width:4 } };
+  }, [getExpr]);
+
+  const genImplicit = useCallback((obj, currentVars) => {
+    const { xMin,xMax,yMin,yMax,zMin,zMax } = dSet;
+    const e = getExpr(obj.expression,'implicit');
+    if (e.error) return null;
+    const res=22, xs=[],ys=[],zs=[],vs=[];
+    for (let i=0;i<res;i++) for (let j=0;j<res;j++) for (let k=0;k<res;k++) {
+      const xv=xMin+(i/(res-1))*(xMax-xMin), yv=yMin+(j/(res-1))*(yMax-yMin), zv=zMin+(k/(res-1))*(zMax-zMin);
+      const v=e.eval({x:xv,y:yv,z:zv,...currentVars});
+      xs.push(xv);ys.push(yv);zs.push(zv);vs.push(v??0);
+    }
+    return {
+      type:'isosurface', x:xs,y:ys,z:zs, value:vs,
+      isomin:-0.5,isomax:0.5, surface:{show:true,count:1,fill:0.9},
+      colorscale:[[0,hex2rgba(obj.color,0.3)],[1,obj.color]], showscale:false, opacity:obj.opacity,
+      caps:{x:{show:false},y:{show:false},z:{show:false}}, name:obj.name||'Implicit',
+    };
+  }, [dSet, getExpr]);
+
+  const genVector = useCallback((obj, currentVars) => {
+    const { xMin,xMax,yMin,yMax,zMin,zMax } = dSet;
+    const parts = {};
+    obj.expression.split(',').forEach(p => {
+      const m = p.trim().match(/^([PQR])\s*=\s*(.+)$/i);
+      if (m) parts[m[1].toUpperCase()] = m[2].trim();
+    });
+    const fp=getExpr(parts.P||'0','vector'), fq=getExpr(parts.Q||'0','vector'), fr=getExpr(parts.R||'0','vector');
+    if (fp.error||fq.error||fr.error) return null;
+    const x=[],y=[],z=[],u=[],v=[],w=[];
+    const res=8;
+    for (let i=0;i<res;i++) for (let j=0;j<res;j++) for (let k=0;k<res;k++) {
+      const xv=xMin+(i/(res-1))*(xMax-xMin), yv=yMin+(j/(res-1))*(yMax-yMin), zv=zMin+(k/(res-1))*(zMax-zMin);
+      const sc={x:xv,y:yv,z:zv,...currentVars};
+      const pv=fp.eval(sc),qv=fq.eval(sc),rv=fr.eval(sc);
+      if (pv!==null&&qv!==null&&rv!==null) { x.push(xv);y.push(yv);z.push(zv);u.push(pv);v.push(qv);w.push(rv); }
+    }
+    return {
+      type:'cone', x,y,z,u,v,w, sizemode:'absolute', sizeref:0.3, anchor:'tail',
+      colorscale:[[0,obj.color],[1,obj.color]], showscale:false, opacity:obj.opacity, name:obj.name||'Vector Field',
+    };
+  }, [dSet, getExpr]);
+
+  const genComplex = useCallback((obj, currentVars) => {
+    const { xMin,xMax,yMin,yMax,resolution } = dSet;
+    const e = getExpr(obj.expression,'complex');
+    if (e.error) return null;
+    const res=Math.min(resolution,48), x=[],y=[],z=[],sc=[];
+    for (let i=0;i<res;i++) {
+      const xr=[],yr=[],zr=[],cr=[];
+      const xv=xMin+(i/(res-1))*(xMax-xMin);
+      for (let j=0;j<res;j++) {
+        const yv=yMin+(j/(res-1))*(yMax-yMin);
+        const scope={x:xv,y:yv,z:math.complex(xv,yv),...currentVars};
+        let mag=0,phase=0;
+        try {
+          const r=e.eval(scope);
+          if (typeof r==='object'&&'re'in r) { mag=Math.sqrt(r.re**2+r.im**2); phase=Math.atan2(r.im,r.re); }
+          else if (typeof r==='number') { mag=Math.abs(r); phase=r>=0?0:Math.PI; }
+        } catch {}
+        xr.push(xv); yr.push(yv); zr.push(Math.min(mag,10)); cr.push((phase+Math.PI)/(2*Math.PI));
+      }
+      x.push(xr);y.push(yr);z.push(zr);sc.push(cr);
+    }
+    return {
+      type:'surface', x,y,z, surfacecolor:sc,
+      colorscale:[[0,'#ef4444'],[0.17,'#f59e0b'],[0.33,'#84cc16'],[0.5,'#10b981'],[0.67,'#06b6d4'],[0.83,'#3b82f6'],[1,'#8b5cf6']],
+      opacity:obj.opacity, showscale:true, colorbar:{title:'Phase',thickness:10,len:0.4},
+      name:obj.name||'Complex',
+    };
+  }, [dSet, getExpr]);
+
+  /* ── plotData ───────────────────────────────────────────────────
+     Use liveVarsRef.current at evaluation time, trigger via varsTick.
+  ─────────────────────────────────────────────────────────────── */
+  const [varsTick, setVarsTick] = useState(0);
+
+  useEffect(() => {
+    setVarsTick(t => t + 1);
+  }, [vars]);
+
+  const plotData = useMemo(() => {
+    const currentVars = liveVarsRef.current;
+    const out = [];
+
+    dObj.filter(o=>o.visible).forEach(obj => {
+      try {
+        let t;
+        if (obj.type==='surface')         t = genSurface(obj, currentVars);
+        else if (obj.type==='parametric') t = genParametric(obj, currentVars);
+        else if (obj.type==='curve')      t = genCurve(obj, currentVars);
+        else if (obj.type==='implicit')   t = genImplicit(obj, currentVars);
+        else if (obj.type==='vector')     t = genVector(obj, currentVars);
+        else if (obj.type==='complex')    t = genComplex(obj, currentVars);
+
+        if (t && (t.x || t.value)) {
+          const hasData = t.x && (Array.isArray(t.x[0]) ? t.x.some(r=>r.some(v=>v!==null)) : t.x.length>0);
+          if (hasData) out.push(t);
+        }
+      } catch (err) { console.warn('mesh err', obj.expression, err); }
+    });
+
+    return out;
+  }, [dObj, dSet, varsTick, genSurface, genParametric, genCurve, genImplicit, genVector, genComplex]);
+
+  /* ── layout ─────────────────────────────────────────────────── */
+  const layout = useMemo(() => ({
+    paper_bgcolor:'rgba(0,0,0,0)', plot_bgcolor:'rgba(0,0,0,0)',
+    font:{ color:'#f8fafc', family:'Nunito, sans-serif', size:12 },
+    scene:{
+      bgcolor:'rgba(15,15,35,0.55)',
+      aspectmode:'cube',
+      xaxis:{ range:[dSet.xMin,dSet.xMax], showgrid:dSet.showGrid, gridcolor:'rgba(244,114,182,0.15)',
+        showline:dSet.showAxes, linecolor:'rgba(244,114,182,0.5)', linewidth:2,
+        zerolinecolor:'rgba(244,114,182,0.4)', zerolinewidth:2, color:'#94a3b8',
+        title:{ text:'X', font:{color:'#f472b6',size:13} } },
+      yaxis:{ range:[dSet.yMin,dSet.yMax], showgrid:dSet.showGrid, gridcolor:'rgba(168,85,247,0.15)',
+        showline:dSet.showAxes, linecolor:'rgba(168,85,247,0.5)', linewidth:2,
+        zerolinecolor:'rgba(168,85,247,0.4)', zerolinewidth:2, color:'#94a3b8',
+        title:{ text:'Y', font:{color:'#a855f7',size:13} } },
+      zaxis:{ range:[dSet.zMin,dSet.zMax], showgrid:dSet.showGrid, gridcolor:'rgba(251,113,133,0.15)',
+        showline:dSet.showAxes, linecolor:'rgba(251,113,133,0.5)', linewidth:2,
+        zerolinecolor:'rgba(251,113,133,0.4)', zerolinewidth:2, color:'#94a3b8',
+        title:{ text:'Z', font:{color:'#fb7185',size:13} } },
+      camera: cameraRef.current,
+      hoverlabel:{ bgcolor:'rgba(15,15,35,0.95)', bordercolor:'rgba(139,92,246,0.4)', font:{color:'#fff',size:12} },
+    },
+    margin:{ l:0,r:0,t:8,b:0 },
+    showlegend:true,
+    legend:{ x:0.02,y:0.98, bgcolor:'rgba(15,15,35,0.8)', bordercolor:'rgba(139,92,246,0.2)', borderwidth:1, font:{color:'#e2e8f0',size:11} },
+  }), [dSet]);
+
+  /* ── CRUD ──────────────────────────────────────────────────── */
+  const addObj = useCallback(() => {
+    if (!newExpr.trim()) return;
+
+    // ✅ Validate using MathExpr parser before committing
+    const test = new MathExpr(newExpr.trim(), activeTab);
+    if (test.error) {
+      alert(`⚠️ Invalid expression: ${test.error}`);
+      return;
+    }
+
+    const obj = {
+      id:nextId, expression:newExpr.trim(), type:activeTab,
+      color:PALETTE[(nextId-1)%PALETTE.length], visible:true, opacity:0.85,
+      name:`${activeTab} ${nextId}`,
+    };
+    const next=[...objects,obj];
+    setObjects(next); setNextId(n=>n+1); setNewExpr('');
+    pushHist({ objects:next, settings, vars });
+  }, [newExpr,activeTab,nextId,objects,settings,vars,pushHist]);
+
+  const updateObj = useCallback((id,patch) => {
+    setObjects(prev=>{
+      const next=prev.map(o=>o.id===id?{...o,...patch}:o);
+      // ✅ Clear stale cache when expression changes
+      if (patch.expression !== undefined) {
+        const old = prev.find(o=>o.id===id);
+        if (old) exprCache.current.delete(old.expression+'|'+old.type);
+      }
+      return next;
+    });
+  }, []);
+
+  const deleteObj = useCallback((id) => {
+    const next=objects.filter(o=>o.id!==id);
+    setObjects(next); if(selId===id) setSelId(null);
+    pushHist({objects:next,settings,vars});
+  }, [objects,selId,settings,vars,pushHist]);
+
+  /* ── math info panel ────────────────────────────────────────── */
+  const computeMath = (obj) => {
+    if (obj.type!=='surface') return null;
+    const e = new MathExpr(obj.expression,'surface');
+    if (e.error) return { error:e.error };
+    const scope = { x:0, y:0, ...liveVarsRef.current };
+    const fx=e.dX(scope), fy=e.dY(scope);
+    const K=gaussK(obj.expression,0,0,liveVarsRef.current);
+    const cl = K>0.01?'Elliptic (dome/bowl)':K<-0.01?'Hyperbolic (saddle)':'Parabolic';
+    return { fx, fy, grad:fx!==null&&fy!==null?Math.sqrt(fx*fx+fy*fy):null, K, cl };
+  };
+
+  /* ── export / import ─────────────────────────────────────────── */
+  const exportJSON = () => {
+    const blob=new Blob([JSON.stringify({objects,settings,vars},null,2)],{type:'application/json'});
+    const url=URL.createObjectURL(blob);
+    const a=document.createElement('a'); a.href=url; a.download=`3d-graph-${Date.now()}.json`; a.click();
+    URL.revokeObjectURL(url); setCopied(true); setTimeout(()=>setCopied(false),2000);
+  };
+  const importJSON = e => {
+    const file=e.target.files?.[0]; if(!file) return;
+    const r=new FileReader();
+    r.onload = ev => {
+      try {
+        const d=JSON.parse(ev.target.result);
+        if(d.objects) setObjects(d.objects);
+        if(d.settings) setSettings(d.settings);
+        if(d.vars) setVars(d.vars);
+        exprCache.current.clear();
+      } catch {}
+    };
+    r.readAsText(file);
+  };
+
+  /* ── camera presets ──────────────────────────────────────────── */
+  const setCamera = eye => { cameraRef.current={eye}; setSettings(s=>({...s})); };
+
+  /* ── derived ─────────────────────────────────────────────────── */
+  const tabObjs = useMemo(()=>objects.filter(o=>o.type===activeTab),[objects,activeTab]);
+
+  /* ═══════════════════════════════════════════════════════════════
+     RENDER
+  ════════════════════════════════════════════════════════════════ */
+  return (
+    <div className="g3d-root">
+      <Helmet>
+        <title>3D Graphing Calculator — StudyBuddy</title>
+        <meta name="description" content="Interactive 3D graphing: surfaces, parametric, curves, vector fields, complex domain coloring."/>
+        <meta name="robots" content="noindex"/>
+      </Helmet>
+
+      {/* ── math analysis overlay ─────────────────────────────── */}
+      {mathPanel && (
+        <div className="g3d-overlay" onClick={()=>setMathPanel(null)}>
+          <div className="g3d-math-panel glass-card" onClick={e=>e.stopPropagation()}>
+            <div className="g3d-math-head">
+              <span className="g3d-math-title">∂ Analysis</span>
+              <button className="icon-btn" onClick={()=>setMathPanel(null)}><X size={14}/></button>
+            </div>
+            {(() => {
+              const info = computeMath(mathPanel.obj);
+              if (!info) return <p className="g3d-math-note">Only available for z = f(x,y) surfaces.</p>;
+              if (info.error) return <p className="g3d-math-note g3d-math-note--err">Error: {info.error}</p>;
+              return (
+                <div className="g3d-math-rows">
+                  <div className="g3d-math-row"><span>∂z/∂x at (0,0)</span><code>{info.fx?.toFixed(4)??'N/A'}</code></div>
+                  <div className="g3d-math-row"><span>∂z/∂y at (0,0)</span><code>{info.fy?.toFixed(4)??'N/A'}</code></div>
+                  <div className="g3d-math-row"><span>|∇f| at (0,0)</span><code>{info.grad?.toFixed(4)??'N/A'}</code></div>
+                  <div className="g3d-math-row"><span>Gaussian K</span><code>{info.K?.toFixed(4)??'N/A'}</code></div>
+                  <div className="g3d-math-row"><span>Classification</span><span className="g3d-badge">{info.cl}</span></div>
+                </div>
+              );
+            })()}
+          </div>
+        </div>
+      )}
+
+      {/* ── sidebar ───────────────────────────────────────────── */}
+      <aside className={`g3d-sidebar glass-card${sidebar?'':' g3d-sidebar--closed'}`}>
+        <button className="g3d-collapse-btn icon-btn" onClick={()=>setSidebar(s=>!s)} aria-label="Toggle sidebar">
+          {sidebar ? <ChevronLeft size={15}/> : <ChevronRight size={15}/>}
+        </button>
+
+        {sidebar && (<>
+
+          {/* header */}
+          <div className="g3d-hd">
+            <h1 className="pookie-display-title g3d-title">3D Grapher</h1>
+            <div className="g3d-hd-actions">
+              <button onClick={undo} disabled={hIdx<=0} className="icon-btn" title="Undo (Ctrl+Z)"><Undo2 size={13}/></button>
+              <button onClick={redo} disabled={hIdx>=history.length-1} className="icon-btn" title="Redo (Ctrl+Y)"><Redo2 size={13}/></button>
+              <button onClick={()=>setAnim(a=>({...a,on:!a.on}))} className={`icon-btn${anim.on?' g3d-btn-active':''}`} title="Play/Pause (Space)">
+                {anim.on?<Pause size={13}/>:<Play size={13}/>}
+              </button>
+              <button onClick={()=>{ cameraRef.current={eye:{x:1.5,y:1.5,z:1.5}}; setSettings(s=>({...s})); }} className="icon-btn" title="Reset view"><RotateCcw size={13}/></button>
+              <button onClick={()=>setShowCfg(s=>!s)} className={`icon-btn${showCfg?' g3d-btn-active':''}`} title="Settings"><Settings2 size={13}/></button>
+              <button onClick={exportJSON} className="icon-btn" title="Export JSON">{copied?<Check size={13}/>:<Download size={13}/>}</button>
+              <label className="icon-btn" title="Import JSON" style={{cursor:'pointer'}}>
+                <Upload size={13}/>
+                <input type="file" accept=".json" onChange={importJSON} style={{display:'none'}}/>
+              </label>
+            </div>
+          </div>
+
+          {/* settings panel */}
+          {showCfg && (
+            <div className="g3d-cfg glass-card-sm">
+              <p className="field-label" style={{color:'var(--pookie-pink)'}}>Bounds &amp; Resolution</p>
+              {[['X','xMin','xMax'],['Y','yMin','yMax'],['Z','zMin','zMax']].map(([ax,mn,mx])=>(
+                <div key={ax} className="g3d-bound-row">
+                  <span className="g3d-ax-label">{ax}</span>
+                  <input type="number" className="field-input g3d-num-input" value={settings[mn]}
+                    onChange={e=>setSettings(s=>({...s,[mn]:parseFloat(e.target.value)||s[mn]}))} step="1"/>
+                  <span className="g3d-arrow">→</span>
+                  <input type="number" className="field-input g3d-num-input" value={settings[mx]}
+                    onChange={e=>setSettings(s=>({...s,[mx]:parseFloat(e.target.value)||s[mx]}))} step="1"/>
+                </div>
+              ))}
+              <div className="g3d-res-row">
+                <span className="field-label" style={{margin:0}}>Res: {settings.resolution}</span>
+                <input type="range" min="15" max="80" value={settings.resolution}
+                  onChange={e=>setSettings(s=>({...s,resolution:parseInt(e.target.value)}))} className="g3d-slider"/>
+              </div>
+              <div className="g3d-toggles">
+                {[['showGrid','Grid'],['showAxes','Axes'],['curvature','Curvature']].map(([k,lb])=>(
+                  <label key={k} className="g3d-toggle">
+                    <input type="checkbox" checked={settings[k]} onChange={e=>setSettings(s=>({...s,[k]:e.target.checked}))}/>
+                    <span>{lb}</span>
+                  </label>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* CAS loader — shows only while Pyodide is downloading */}
+          <CASLoader status={casStatus} progress={casProgress} />
+
+          {/* type tabs */}
+          <div className="g3d-tabs">
+            {TYPES.map(({id,label,Icon})=>(
+              <button key={id} className={`g3d-tab${activeTab===id?' g3d-tab--active':''}`} onClick={()=>setTab(id)}>
+                <Icon size={12}/><span>{label}</span>
+              </button>
+            ))}
+          </div>
+
+          {/* add expression */}
+          <div className="g3d-add-row">
+            <textarea
+              className="field-input g3d-expr-ta" rows={2} value={newExpr}
+              onChange={e=>setNewExpr(e.target.value)}
+              onKeyDown={e=>{ if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();addObj();} }}
+              placeholder={TYPES.find(t=>t.id===activeTab)?.ph}
+            />
+            <button onClick={addObj} className="btn-primary g3d-add-btn" disabled={!newExpr.trim()}><Plus size={16}/></button>
+          </div>
+
+          {/* expression list */}
+          <div className="g3d-list">
+            {tabObjs.length===0 && (
+              <div className="g3d-empty">
+                <p>No {activeTab} plots yet.</p>
+                <p style={{fontSize:'0.75rem'}}>Type an expression above ↑</p>
+              </div>
+            )}
+            {tabObjs.map(obj=>{
+              const cached = exprCache.current.get(obj.expression+'|'+obj.type);
+              const hasErr = cached?.error;
+              return (
+                <div
+                  key={obj.id}
+                  className={`g3d-card glass-card-sm${selId===obj.id?' g3d-card--sel':''}${hasErr?' g3d-card--err':''}`}
+                  onClick={()=>setSelId(obj.id===selId?null:obj.id)}
+                >
+                  <div className="g3d-card-hd">
+                    <label className="g3d-swatch" style={{background:obj.color}}>
+                      <input type="color" value={obj.color}
+                        onChange={e=>{e.stopPropagation();updateObj(obj.id,{color:e.target.value});}}
+                        onClick={e=>e.stopPropagation()}/>
+                    </label>
+                    <span className="g3d-type-tag" style={{background:hex2rgba(obj.color,0.18),color:obj.color}}>{obj.type}</span>
+                    {hasErr && <span className="g3d-err-dot" title={cached.error}>!</span>}
+                    <div style={{flex:1}}/>
+                    {obj.type==='surface' && (
+                      <button onClick={e=>{e.stopPropagation();setMathPanel({obj});}} className="icon-btn" title="Math analysis" style={{width:26,height:26}}>∂</button>
+                    )}
+                    <button
+                      onClick={e=>{e.stopPropagation();updateObj(obj.id,{visible:!obj.visible});}}
+                      className={`icon-btn${obj.visible?'':' g3d-hidden'}`} title="Toggle visibility"
+                    >
+                      {obj.visible?<Eye size={12}/>:<EyeOff size={12}/>}
+                    </button>
+                    <button onClick={e=>{e.stopPropagation();deleteObj(obj.id);}}
+                      className="icon-btn icon-btn--danger" title="Delete"><Trash2 size={12}/></button>
+                  </div>
+                  <textarea
+                    className="field-input g3d-expr-edit" rows={2} value={obj.expression}
+                    onChange={e=>{
+                      updateObj(obj.id,{expression:e.target.value});
+                      exprCache.current.delete(obj.expression+'|'+obj.type);
+                    }}
+                    onClick={e=>e.stopPropagation()}
+                  />
+                  {(obj.type==='surface'||obj.type==='parametric'||obj.type==='implicit'||obj.type==='complex') && (
+                    <div className="g3d-opacity-row">
+                      <span className="field-label" style={{margin:0,fontSize:'0.68rem'}}>Opacity</span>
+                      <input type="range" min="0.1" max="1" step="0.05" value={obj.opacity}
+                        onClick={e=>e.stopPropagation()}
+                        onChange={e=>updateObj(obj.id,{opacity:parseFloat(e.target.value)})}
+                        className="g3d-slider"/>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+
+          {/* variable sliders */}
+          {Object.keys(vars).length > 0 && (
+            <div className="g3d-vars glass-card-sm">
+              <p className="field-label" style={{color:'var(--pookie-pink)'}}>Variables</p>
+              {Object.keys(vars).map(name=>(
+                <div key={name} className="g3d-var">
+                  <div className="g3d-var-hd">
+                    <span className="g3d-var-name">{name} = {(vars[name]||0).toFixed(2)}</span>
+                    <button
+                      onClick={()=>setAnim(a=>({...a,param:name,on:true}))}
+                      className={`icon-btn${anim.param===name&&anim.on?' g3d-btn-active':''}`}
+                      style={{width:24,height:24}} title={`Animate ${name}`}
+                    ><RotateCw size={10}/></button>
+                  </div>
+                  <input type="range" min="-10" max="10" step="0.1" value={vars[name]||0}
+                    onChange={e=>{
+                      const v=parseFloat(e.target.value);
+                      liveVarsRef.current={...liveVarsRef.current,[name]:v};
+                      setVars(p=>({...p,[name]:v}));
+                    }}
+                    className="g3d-slider"/>
+                </div>
+              ))}
+              {anim.on && (
+                <div className="g3d-var">
+                  <div className="g3d-var-hd"><span className="g3d-var-name">Speed: {anim.speed.toFixed(1)}×</span></div>
+                  <input type="range" min="0.1" max="5" step="0.1" value={anim.speed}
+                    onChange={e=>setAnim(a=>({...a,speed:parseFloat(e.target.value)}))} className="g3d-slider"/>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* examples */}
+          <div className="g3d-examples glass-card-sm">
+            <p className="field-label" style={{color:'var(--pookie-pink)'}}>Examples</p>
+            <div className="g3d-ex-list">
+              {(EXAMPLES[activeTab]||[]).map((ex,i)=>(
+                <button key={i} className="btn-ghost g3d-ex-btn" onClick={()=>setNewExpr(ex)}>
+                  {ex.length>34?ex.slice(0,34)+'…':ex}
+                </button>
+              ))}
+            </div>
+          </div>
+
+        </>)}
+      </aside>
+
+      {/* ── main graph canvas ─────────────────────────────────── */}
+      <main className="g3d-canvas">
+
+        {/* info bar */}
+        <div className="g3d-info glass-card-sm">
+          <span>Objects: {objects.filter(o=>o.visible).length}/{objects.length}</span>
+          <span>Res: {settings.resolution}²</span>
+          {anim.on && <span className="g3d-anim-dot">● {anim.param}</span>}
+        </div>
+
+        <Plot
+          data={plotData}
+          layout={layout}
+          config={{
+            responsive:true, displayModeBar:true,
+            modeBarButtonsToRemove:['resetCameraDefault3d','resetCameraLastSave3d','hoverClosest3d'],
+            displaylogo:false,
+          }}
+          style={{ width:'100%', height:'100%' }}
+          onRelayout={ev=>{ if(ev['scene.camera']) cameraRef.current=ev['scene.camera']; }}
+        />
+
+        {/* camera presets */}
+        <div className="g3d-view-btns">
+          {[['Front',{x:2.5,y:0,z:0}],['Side',{x:0,y:2.5,z:0}],['Top',{x:0,y:0,z:2.5}],['ISO',{x:1.5,y:1.5,z:1.5}]].map(([lb,eye])=>(
+            <button key={lb} className="btn-ghost g3d-view-btn" onClick={()=>setCamera(eye)}>{lb}</button>
+          ))}
+        </div>
+
+      </main>
+    </div>
+  );
+}
+
+
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import Plot from 'react-plotly.js';
+import * as math from 'mathjs';
+import {
+  Trash2, Plus, Eye, EyeOff, Settings, ZoomIn, ZoomOut,
+  RotateCcw, ChevronDown, ChevronUp, Activity,
+  Crosshair, Menu, Layers, X, Calculator, TrendingUp,
+  Grid, Download, Info, Search, Zap,
+} from 'lucide-react';
+import { Helmet } from 'react-helmet-async';
+import './PlotGraph.css';
+
+// ── CAS imports ──────────────────────────────────────────────────────────────
+import { useCAS, useEquationCAS } from '../hooks/useCAS';
+import { generateExplicitWithCAS } from '../services/casTraceGenerator';
+import MathInsights from '../components/graphing/MathInsights';
+import CASLoader from '../components/graphing/CASLoader';
+import '../components/graphing/CAS.css';
+
+const PALETTE = [
+  '#e879f9','#38bdf8','#4ade80','#fbbf24',
+  '#f87171','#fb923c','#a78bfa','#34d399',
+  '#f472b6','#22d3ee',
+];
+
+const EQ_TYPES = [
+  { id: 'explicit',   label: 'y = f(x)',    sym: 'f(x)',  hint: 'e.g. sin(x) + x/2' },
+  { id: 'polar',      label: 'r = f(θ)',    sym: 'r(θ)',  hint: 'e.g. cos(3*theta)' },
+  { id: 'implicit',   label: 'F(x,y) = 0', sym: 'F=0',   hint: 'e.g. x^2 + y^2 = 25' },
+  { id: 'parametric', label: 'Parametric',  sym: 'P(t)',  hint: 'x=cos(t), y=sin(t)' },
+];
+
+const PRESETS = [
+  { label: 'sin(x)',       expr: 'sin(x)',                                                               type: 'explicit',   cat: 'trig' },
+  { label: 'cos(x)',       expr: 'cos(x)',                                                               type: 'explicit',   cat: 'trig' },
+  { label: 'tan(x)',       expr: 'tan(x)',                                                               type: 'explicit',   cat: 'trig' },
+  { label: 'x³−3x',       expr: 'x^3 - 3*x',                                                           type: 'explicit',   cat: 'poly' },
+  { label: 'x⁴−5x²+4',   expr: 'x^4 - 5*x^2 + 4',                                                     type: 'explicit',   cat: 'poly' },
+  { label: 'e^(−x²)',     expr: 'exp(-x^2)',                                                             type: 'explicit',   cat: 'exp' },
+  { label: '1/x',         expr: '1/x',                                                                  type: 'explicit',   cat: 'rational' },
+  { label: 'floor(x)',    expr: 'floor(x)',                                                              type: 'explicit',   cat: 'misc' },
+  { label: 'ln(|x|)',     expr: 'log(abs(x))',                                                          type: 'explicit',   cat: 'exp' },
+  { label: 'abs(sin(x))', expr: 'abs(sin(x))',                                                          type: 'explicit',   cat: 'misc' },
+  { label: 'Circle',      expr: 'x^2 + y^2 = 16',                                                     type: 'implicit',   cat: 'conic' },
+  { label: 'Ellipse',     expr: 'x^2/9 + y^2/4 = 1',                                                  type: 'implicit',   cat: 'conic' },
+  { label: 'Hyperbola',   expr: 'x^2/4 - y^2/9 = 1',                                                  type: 'implicit',   cat: 'conic' },
+  { label: 'Rose 3θ',     expr: 'cos(3*theta)',                                                         type: 'polar',      cat: 'polar' },
+  { label: 'Spiral',      expr: 'theta/3',                                                              type: 'polar',      cat: 'polar' },
+  { label: 'Limaçon',    expr: '1 + 2*cos(theta)',                                                     type: 'polar',      cat: 'polar' },
+  { label: 'Lissajous',  expr: 'x=cos(3*t),y=sin(2*t)',                                                type: 'parametric', cat: 'param' },
+  { label: 'Butterfly',  expr: 'x=sin(t)*(exp(cos(t))-2*cos(4*t)),y=cos(t)*(exp(cos(t))-2*cos(4*t))', type: 'parametric', cat: 'param' },
+  { label: 'Spirograph', expr: 'x=cos(t)+cos(7*t)/2,y=sin(t)+sin(7*t)/2',                             type: 'parametric', cat: 'param' },
+];
+
+const PRESET_CATS = ['trig','poly','exp','rational','conic','polar','param','misc'];
+
+function useWindowSize() {
+  const [size, setSize] = useState({ w: typeof window !== 'undefined' ? window.innerWidth : 1200 });
+  useEffect(() => {
+    const h = () => setSize({ w: window.innerWidth });
+    window.addEventListener('resize', h);
+    return () => window.removeEventListener('resize', h);
+  }, []);
+  return size;
+}
+
+function simpsonIntegrate(f, a, b, n = 1000) {
+  const step = (b - a) / n;
+  let sum = f(a) + f(b);
+  for (let i = 1; i < n; i++) {
+    sum += f(a + i * step) * (i % 2 === 0 ? 2 : 4);
+  }
+  return (step / 3) * sum;
+}
+
+// ── Main Component ──────────────────────────────────────────────────────────
+const GraphingCalculator = () => {
+  const { w } = useWindowSize();
+  const isMobile = w < 768;
+
+  const [equations, setEquations] = useState([
+    { id: 1, expression: 'sin(x)', type: 'explicit', color: PALETTE[0], visible: true, lineStyle: 'solid', lineWidth: 2.5, showDerivative: false, showIntegral: false, label: '' },
+    { id: 2, expression: 'cos(x)', type: 'explicit', color: PALETTE[1], visible: true, lineStyle: 'solid', lineWidth: 2.5, showDerivative: false, showIntegral: false, label: '' },
+  ]);
+  const [nextId, setNextId]           = useState(3);
+  const [newExpr, setNewExpr]         = useState('');
+  const [newType, setNewType]         = useState('explicit');
+  const [graphSettings, setGraphSettings] = useState({ xMin:-10, xMax:10, yMin:-8, yMax:8, showGrid:true, showAxes:true, showLabels:true, showMinorGrid:true });
+  const [variables, setVariables]     = useState({});
+  const [hoverCoord, setHoverCoord]   = useState(null);
+  const [crosshair, setCrosshair]     = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(!isMobile);
+  const [activeTab, setActiveTab]     = useState('equations');
+  const [integralRange, setIntegralRange] = useState({ a:-3, b:3 });
+  const [intersectionPoints, setIntersectionPoints] = useState([]);
+  const [showIntersections, setShowIntersections]   = useState(false);
+  const [showTable, setShowTable]     = useState(false);
+  const [selectedCat, setSelectedCat]= useState('trig');
+  const [integralValues, setIntegralValues] = useState({});
+  const [searchTerm, setSearchTerm]   = useState('');
+  const [criticalPoints, setCriticalPoints] = useState([]);
+  const [showCritical, setShowCritical] = useState(false);
+  const [animParam, setAnimParam]     = useState(null);
+  const [animRunning, setAnimRunning] = useState(false);
+  const animRef = useRef(null);
+  const [plotRevision, setPlotRevision] = useState(0);
+
+  // ── CAS ──────────────────────────────────────────────────────────────────
+  const { status: casStatus, progress: casProgress } = useCAS();
+  // Stores the latest CAS meta for each equation id, so processEquation can read it
+  const equationMetaRef = useRef({});
+  const onEquationMeta = useCallback((id, meta) => {
+    equationMetaRef.current[id] = meta;
+    // ✅ Clear stale CAS cache & force trace recompute when meta updates
+    setPlotRevision(r => r + 1);
+  }, []);
+
+  useEffect(() => { if (isMobile) setSidebarOpen(false); }, [isMobile]);
+
+  // Extract variables
+  useEffect(() => {
+    const reserved = new Set(['x','y','t','r','theta','e','pi','i','sin','cos','tan','log','ln','sqrt','abs','exp','floor','ceil','round','sign','mod','min','max','atan','asin','acos','atan2','sinh','cosh','tanh']);
+    const found = {};
+    equations.forEach(eq => {
+      try {
+        math.parse(eq.expression).filter(n => n.isSymbolNode).forEach(n => {
+          if (!reserved.has(n.name) && !Object.prototype.hasOwnProperty.call(found, n.name))
+            found[n.name] = variables[n.name] ?? 1;
+        });
+      } catch (err) {
+        if (process.env.NODE_ENV === 'development') console.warn('[StudyBuddy] Silent catch:', err);
+      }
+    });
+    if (JSON.stringify(found) !== JSON.stringify(variables)) setVariables(found);
+  }, [equations]);
+
+  // Compute integral values
+  useEffect(() => {
+    const vals = {};
+    equations.forEach(eq => {
+      if (eq.showIntegral && eq.type === 'explicit') {
+        try {
+          const compiled = math.compile(eq.expression);
+          const f = x => {
+            try {
+              const v = compiled.evaluate({ x, ...variables });
+              return isFinite(v) ? v : 0;
+            } catch { return 0; }
+          };
+          vals[eq.id] = simpsonIntegrate(f, integralRange.a, integralRange.b);
+        } catch (err) {
+          if (process.env.NODE_ENV === 'development') console.warn('[StudyBuddy] Silent catch:', err);
+        }
+      }
+    });
+    setIntegralValues(vals);
+  }, [equations, integralRange, variables]);
+
+  const safeEval = (expr, scope) => {
+    try {
+      const v = math.evaluate(expr, scope);
+      return typeof v === 'number' && isFinite(v) ? v : null;
+    } catch (err) {
+      if (process.env.NODE_ENV === 'development') console.warn('[StudyBuddy] Non-blocking math error:', err);
+      return null;
+    }
+  };
+
+  // ── Animation ────────────────────────────────────────────────────────────
+  const startAnimation = useCallback((varName) => {
+    if (animRunning) { clearInterval(animRef.current); setAnimRunning(false); return; }
+    setAnimRunning(true);
+    let t = variables[varName] ?? 0;
+    animRef.current = setInterval(() => {
+      t = (t + 0.05) % (2 * Math.PI);
+      setVariables(prev => ({ ...prev, [varName]: +t.toFixed(3) }));
+    }, 50);
+  }, [animRunning, variables]);
+
+  useEffect(() => () => clearInterval(animRef.current), []);
+
+  // ── Data generators ──────────────────────────────────────────────────────
+
+  const generateExplicitExtras = useCallback((eq) => {
+    const { xMin, xMax } = graphSettings;
+    const n = 2000;
+    const step = (xMax - xMin) / (n - 1);
+    const xd = [], yd = [], xi = [], yi = [];
+    for (let i = 0; i < n; i++) {
+      const x = xMin + i * step;
+      const y = safeEval(eq.expression, { x, ...variables });
+      if (eq.showDerivative && y !== null) {
+        const y2 = safeEval(eq.expression, { x: x + 1e-5, ...variables });
+        if (y2 !== null) { xd.push(x); yd.push((y2 - y) / 1e-5); }
+      }
+      if (eq.showIntegral && y !== null && x >= integralRange.a && x <= integralRange.b) {
+        xi.push(x); yi.push(y);
+      }
+    }
+    return { xd, yd, xi, yi };
+  }, [graphSettings, variables, integralRange]);
+
+  const generatePolar = useCallback((eq) => {
+    const xs = [], ys = [];
+    const n = 2000;
+    for (let i = 0; i <= n; i++) {
+      const theta = (i / n) * 6 * Math.PI;
+      const r = safeEval(eq.expression, { theta, x: theta, t: theta, ...variables });
+      if (r !== null) { xs.push(r * Math.cos(theta)); ys.push(r * Math.sin(theta)); }
+    }
+    return { xs, ys };
+  }, [variables]);
+
+  const generateImplicit = useCallback((eq) => {
+    const { xMin, xMax, yMin, yMax } = graphSettings;
+    // ✅ Adaptive resolution — prevents mobile freeze on dense implicit grids
+    const res = typeof window !== 'undefined' && window.innerWidth < 768 ? 150 : 300;
+    const xs = [], ys = [];
+    const xStep = (xMax - xMin) / res, yStep = (yMax - yMin) / res;
+    let lhs, rhs;
+    if (eq.expression.includes('=')) {
+      const p = eq.expression.split('='); lhs = p[0].trim(); rhs = p[1]?.trim() || '0';
+    } else {
+      lhs = eq.expression; rhs = '0';
+    }
+    for (let i = 0; i <= res; i++) {
+      for (let j = 0; j <= res; j++) {
+        const x = xMin + i * xStep, y = yMin + j * yStep;
+        const lv = safeEval(lhs, { x, y, ...variables });
+        const rv = safeEval(rhs, { x, y, ...variables });
+        if (lv !== null && rv !== null && Math.abs(lv - rv) < 0.07) { xs.push(x); ys.push(y); }
+      }
+    }
+    return { xs, ys };
+  }, [graphSettings, variables]);
+
+  const generateParametric = useCallback((eq) => {
+    const xs = [], ys = [];
+    const parts = eq.expression.split(',');
+    if (parts.length < 2) return { xs, ys };
+    const xExpr = parts[0].replace(/x\s*=\s*/i, '').trim();
+    const yExpr = parts[1].replace(/y\s*=\s*/i, '').trim();
+    const n = 3000, tMin = -4 * Math.PI, tMax = 4 * Math.PI;
+    const step = (tMax - tMin) / n;
+    for (let i = 0; i <= n; i++) {
+      const t = tMin + i * step;
+      const x = safeEval(xExpr, { t, ...variables });
+      const y = safeEval(yExpr, { t, ...variables });
+      if (x !== null && y !== null) { xs.push(x); ys.push(y); }
+    }
+    return { xs, ys };
+  }, [variables]);
+
+  // ── Critical points ──────────────────────────────────────────────────────
+  const findCriticalPoints = useCallback(() => {
+    const visible = equations.filter(e => e.visible && e.type === 'explicit');
+    const pts = [];
+    visible.forEach(eq => {
+      const { xMin, xMax } = graphSettings;
+      const n = 3000, step = (xMax - xMin) / n;
+      let prevD = null;
+      for (let i = 0; i <= n; i++) {
+        const x = xMin + i * step;
+        const y = safeEval(eq.expression, { x, ...variables });
+        const y2 = safeEval(eq.expression, { x: x + 1e-5, ...variables });
+        if (y !== null && y2 !== null) {
+          const d = (y2 - y) / 1e-5;
+          if (prevD !== null && Math.sign(d) !== Math.sign(prevD)) {
+            const y2nd = safeEval(eq.expression, { x: x + 1e-5, ...variables });
+            const y3rd = safeEval(eq.expression, { x: x + 2e-5, ...variables });
+            const d2 = y2nd !== null && y3rd !== null ? (y3rd - 2*y2nd + y) / (1e-5*1e-5) : 0;
+            pts.push({ x: +x.toFixed(4), y: +y.toFixed(4), type: d2 < 0 ? 'max' : 'min', color: eq.color, label: eq.label || eq.expression });
+          }
+          prevD = d;
+        }
+      }
+    });
+    setCriticalPoints(pts);
+  }, [equations, graphSettings, variables]);
+
+  // ── Intersection finder ──────────────────────────────────────────────────
+  const findIntersections = useCallback(() => {
+    const visible = equations.filter(e => e.visible && e.type === 'explicit');
+    if (visible.length < 2) { setIntersectionPoints([]); return; }
+    const [e1, e2] = visible;
+    const { xMin, xMax } = graphSettings;
+    const n = 4000, step = (xMax - xMin) / n;
+    const pts = [];
+    let prev = null;
+    for (let i = 0; i <= n; i++) {
+      const x = xMin + i * step;
+      const y1 = safeEval(e1.expression, { x, ...variables });
+      const y2 = safeEval(e2.expression, { x, ...variables });
+      if (y1 !== null && y2 !== null) {
+        const diff = y1 - y2;
+        if (prev !== null && Math.sign(diff) !== Math.sign(prev.diff)) {
+          const xi = prev.x - prev.diff * (step / (diff - prev.diff));
+          const yi = safeEval(e1.expression, { x: xi, ...variables });
+          if (yi !== null) pts.push({ x: +xi.toFixed(4), y: +yi.toFixed(4) });
+        }
+        prev = { x, diff };
+      }
+    }
+    setIntersectionPoints(pts);
+  }, [equations, graphSettings, variables]);
+
+  // ── Build traces ─────────────────────────────────────────────────────────
+  const processEquation = useCallback((eq) => {
+    const traces = [];
+    const dash = eq.lineStyle === 'dashed' ? 'dash' : eq.lineStyle === 'dotted' ? 'dot' : 'solid';
+
+    if (eq.type === 'explicit') {
+      // ── CAS-aware explicit trace (handles asymptote gaps + reference lines) ──
+      const meta = equationMetaRef.current[eq.id] ?? null;
+      const casTraces = generateExplicitWithCAS(eq, graphSettings, variables, meta);
+      traces.push(...casTraces);
+
+      // ── Derivative + integral overlays ──
+      const { xd, yd, xi, yi } = generateExplicitExtras(eq);
+      if (eq.showDerivative && xd.length > 0)
+        traces.push({
+          x: xd, y: yd, mode: 'lines', type: 'scatter', name: `f'`,
+          line: { color: eq.color, width: 1.5, dash: 'dash' },
+          opacity: 0.6,
+          hovertemplate: `Derivative<br>x: %{x:.4f}<br>y: %{y:.4f}<extra></extra>`,
+        });
+      if (eq.showIntegral && xi.length > 1)
+        traces.push({
+          x: [xi[0], ...xi, xi[xi.length-1], xi[0]],
+          y: [0, ...yi, 0, 0],
+          mode: 'none', type: 'scatter', fill: 'toself',
+          fillcolor: eq.color + '22', line: { color: 'transparent' },
+          name: `∫`, hoverinfo: 'skip',
+        });
+
+    } else if (eq.type === 'polar') {
+      const { xs, ys } = generatePolar(eq);
+      traces.push({
+        x: xs, y: ys, mode: 'lines', type: 'scatter', name: `r=${eq.expression}`,
+        line: { color: eq.color, width: eq.lineWidth, dash },
+        visible: eq.visible ? true : 'legendonly',
+        hovertemplate: `x: %{x:.4f}<br>y: %{y:.4f}<extra></extra>`,
+      });
+
+    } else if (eq.type === 'implicit') {
+      const { xs, ys } = generateImplicit(eq);
+      traces.push({
+        x: xs, y: ys, mode: 'markers', type: 'scatter', name: eq.expression,
+        marker: { color: eq.color, size: 2.5, opacity: 0.85 },
+        visible: eq.visible ? true : 'legendonly',
+        hoverinfo: 'skip',
+      });
+
+    } else if (eq.type === 'parametric') {
+      const { xs, ys } = generateParametric(eq);
+      traces.push({
+        x: xs, y: ys, mode: 'lines', type: 'scatter', name: eq.expression.slice(0, 20),
+        line: { color: eq.color, width: eq.lineWidth, dash },
+        visible: eq.visible ? true : 'legendonly',
+        hovertemplate: `x: %{x:.4f}<br>y: %{y:.4f}<extra></extra>`,
+      });
+    }
+
+    return traces;
+  }, [generateExplicitExtras, generatePolar, generateImplicit, generateParametric, graphSettings, variables]);
+
+  const allTraces = useMemo(() => {
+    const traces = equations.flatMap(processEquation);
+    if (showIntersections && intersectionPoints.length > 0)
+      traces.push({
+        x: intersectionPoints.map(p => p.x), y: intersectionPoints.map(p => p.y),
+        mode: 'markers+text', type: 'scatter', name: 'Intersections',
+        marker: { color: '#fff', size: 10, symbol: 'cross', line: { color: '#e879f9', width: 2.5 } },
+        text: intersectionPoints.map(p => `(${p.x},${p.y})`),
+        textposition: 'top center', textfont: { color: '#f0e6ff', size: 10, family: 'JetBrains Mono,monospace' },
+        hovertemplate: `Intersection<br>x: %{x}<br>y: %{y}<extra></extra>`,
+      });
+    if (showCritical && criticalPoints.length > 0) {
+      const maxPts = criticalPoints.filter(p => p.type === 'max');
+      const minPts = criticalPoints.filter(p => p.type === 'min');
+      if (maxPts.length > 0) traces.push({
+        x: maxPts.map(p=>p.x), y: maxPts.map(p=>p.y), mode: 'markers', type: 'scatter', name: 'Maxima',
+        marker: { color: '#4ade80', size: 9, symbol: 'triangle-up', line: { color: '#fff', width: 1 } },
+        hovertemplate: `Local Max<br>(%{x:.3f}, %{y:.3f})<extra></extra>`,
+      });
+      if (minPts.length > 0) traces.push({
+        x: minPts.map(p=>p.x), y: minPts.map(p=>p.y), mode: 'markers', type: 'scatter', name: 'Minima',
+        marker: { color: '#f87171', size: 9, symbol: 'triangle-down', line: { color: '#fff', width: 1 } },
+        hovertemplate: `Local Min<br>(%{x:.3f}, %{y:.3f})<extra></extra>`,
+      });
+    }
+    if (crosshair && hoverCoord) {
+      traces.push(
+        { x: [graphSettings.xMin, graphSettings.xMax], y: [hoverCoord.y, hoverCoord.y], mode: 'lines', type: 'scatter', line: { color: 'rgba(232,121,249,0.25)', width: 1, dash: 'dot' }, hoverinfo: 'skip', name: '', showlegend: false },
+        { x: [hoverCoord.x, hoverCoord.x], y: [graphSettings.yMin, graphSettings.yMax], mode: 'lines', type: 'scatter', line: { color: 'rgba(232,121,249,0.25)', width: 1, dash: 'dot' }, hoverinfo: 'skip', name: '', showlegend: false }
+      );
+    }
+    return traces;
+  }, [equations, processEquation, intersectionPoints, showIntersections, crosshair, hoverCoord, graphSettings, criticalPoints, showCritical]);
+
+  const layout = useMemo(() => ({
+    paper_bgcolor: 'rgba(0,0,0,0)',
+    plot_bgcolor: 'rgba(0,0,0,0)',
+    font: { color: '#c4b5fd', family: "'JetBrains Mono','Fira Mono',monospace", size: 11 },
+    xaxis: {
+      range: [graphSettings.xMin, graphSettings.xMax],
+      showgrid: graphSettings.showGrid, gridcolor: 'rgba(139,92,246,0.12)', gridwidth: 1,
+      minor: graphSettings.showMinorGrid ? { showgrid: true, gridcolor: 'rgba(139,92,246,0.05)', gridwidth: 1 } : undefined,
+      zeroline: graphSettings.showAxes, zerolinecolor: 'rgba(181,123,238,0.55)', zerolinewidth: 1.5,
+      showticklabels: graphSettings.showLabels,
+      tickfont: { color: '#7c5cbf', size: 10, family: 'JetBrains Mono,monospace' },
+      linecolor: 'rgba(139,92,246,0.15)', showline: true,
+    },
+    yaxis: {
+      range: [graphSettings.yMin, graphSettings.yMax],
+      showgrid: graphSettings.showGrid, gridcolor: 'rgba(139,92,246,0.12)', gridwidth: 1,
+      minor: graphSettings.showMinorGrid ? { showgrid: true, gridcolor: 'rgba(139,92,246,0.05)', gridwidth: 1 } : undefined,
+      zeroline: graphSettings.showAxes, zerolinecolor: 'rgba(181,123,238,0.55)', zerolinewidth: 1.5,
+      showticklabels: graphSettings.showLabels,
+      tickfont: { color: '#7c5cbf', size: 10, family: 'JetBrains Mono,monospace' },
+      linecolor: 'rgba(139,92,246,0.15)', showline: true,
+    },
+    margin: isMobile ? { l:40, r:8, t:10, b:40 } : { l:50, r:12, t:18, b:48 },
+    showlegend: true,
+    legend: { bgcolor: 'rgba(8,5,20,0.88)', bordercolor: 'rgba(139,92,246,0.2)', borderwidth: 1, font: { color: '#c4b5fd', size: 10, family: 'JetBrains Mono' }, x: 1, xanchor: 'right', y: 1 },
+    dragmode: 'pan',
+    hoverlabel: { bgcolor: 'rgba(14,8,36,0.97)', bordercolor: '#7c3aed', font: { color: '#e9d5ff', family: 'JetBrains Mono,monospace', size: 11.5 } },
+    hovermode: 'closest',
+    modebar: { bgcolor: 'transparent', color: '#7c3aed', activecolor: '#e879f9' },
+  }), [graphSettings, isMobile]);
+
+  const config = useMemo(() => ({
+    responsive: true,
+    displayModeBar: !isMobile,
+    scrollZoom: true,
+    modeBarButtonsToRemove: ['select2d','lasso2d','hoverClosestCartesian','hoverCompareCartesian','toggleSpikelines'],
+    displaylogo: false,
+    toImageButtonOptions: { format: 'svg', filename: 'graph' },
+  }), [isMobile]);
+
+  const addEquation = () => {
+    if (!newExpr.trim()) return;
+    // ✅ Validates syntax before committing to state
+    try {
+      math.parse(newExpr);
+    } catch (e) {
+      alert(`⚠️ Invalid syntax: ${e.message}`);
+      return;
+    }
+    setEquations(prev => [...prev, {
+      id: nextId, expression: newExpr.trim(), type: newType,
+      color: PALETTE[(nextId - 1) % PALETTE.length],
+      visible: true, lineStyle: 'solid', lineWidth: 2.5,
+      showDerivative: false, showIntegral: false, label: '',
+    }]);
+    setNewExpr(''); setNextId(n => n + 1);
+  };
+
+  const updateEq = (id, patch) => setEquations(prev => {
+    const next = prev.map(e => e.id === id ? { ...e, ...patch } : e);
+    // ✅ Force CAS re-analysis when expression or type changes
+    if (patch.expression !== undefined || patch.type !== undefined) {
+      equationMetaRef.current[id] = null;
+      setPlotRevision(r => r + 1);
+    }
+    return next;
+  });
+
+  const deleteEq = (id) => setEquations(prev => prev.filter(e => e.id !== id));
+
+  const zoom = (f) => setGraphSettings(prev => {
+    const xc = (prev.xMin + prev.xMax) / 2, yc = (prev.yMin + prev.yMax) / 2;
+    return {
+      ...prev,
+      xMin: xc - (prev.xMax - prev.xMin) * f / 2, xMax: xc + (prev.xMax - prev.xMin) * f / 2,
+      yMin: yc - (prev.yMax - prev.yMin) * f / 2, yMax: yc + (prev.yMax - prev.yMin) * f / 2,
+    };
+  });
+
+  const tableData = useMemo(() => {
+    const eqs = equations.filter(e => e.visible && e.type === 'explicit');
+    const xs = Array.from({ length: 21 }, (_, i) => graphSettings.xMin + i * (graphSettings.xMax - graphSettings.xMin) / 20);
+    return { xs, eqs };
+  }, [equations, graphSettings]);
+
+  const filteredPresets = PRESETS.filter(p => p.cat === selectedCat || selectedCat === 'all');
+  const searchedPresets = searchTerm
+    ? PRESETS.filter(p => p.label.toLowerCase().includes(searchTerm.toLowerCase()) || p.expr.toLowerCase().includes(searchTerm.toLowerCase()))
+    : filteredPresets;
+
+  return (
+    <div className="gc-root">
+      <Helmet>
+        <title>
+          {equations.length === 0
+            ? "Graphing Calculator — Plot 2D & 3D Equations | StudyBuddy"
+            : `Graphing Calculator (${equations.filter(e => e.visible).length} active) — StudyBuddy`}
+        </title>
+        <meta name="description" content={equations.length === 0 ? "Free graphing calculator for 2D and 3D equations. Plot explicit, implicit, polar, and parametric functions with real-time analysis." : `Plotting ${equations.filter(e => e.visible).length} equations. Interactive graphing with derivatives, integrals, intersections, and critical points.`} />
+        <link rel="canonical" href="https://study-buddy-seven-blush.vercel.app/plot-graph" />
+        <meta property="og:title" content="Graphing Calculator — Visualize Math Beautifully" />
+        <meta property="og:description" content="Plot 2D and 3D equations with real-time analysis. Explicit, implicit, polar, and parametric functions." />
+        <meta property="og:type" content="website" />
+        <meta property="og:url" content="https://study-buddy-seven-blush.vercel.app/plot-graph" />
+        <meta property="og:image" content="https://study-buddy-seven-blush.vercel.app/og-image.png" />
+        <meta property="og:site_name" content="StudyBuddy" />
+        <meta name="twitter:card" content="summary_large_image" />
+        <meta name="twitter:title" content="Graphing Calculator — Visualize Math Beautifully" />
+        <meta name="twitter:description" content="Plot 2D and 3D equations with real-time analysis. Explicit, implicit, polar, and parametric functions." />
+        <meta name="twitter:image" content="https://study-buddy-seven-blush.vercel.app/og-image.png" />
+      </Helmet>
+
+      {isMobile && (
+        <button className="gc-fab" onClick={() => setSidebarOpen(o => !o)} aria-label="Toggle sidebar">
+          {sidebarOpen ? <X size={20} /> : <Menu size={20} />}
+        </button>
+      )}
+
+      <aside className={`gc-sidebar${sidebarOpen ? ' open' : ''}`}>
+        <nav className="gc-tabs">
+          {[
+            { id: 'equations', icon: <Layers size={13} />, label: 'Equations' },
+            { id: 'analysis',  icon: <Activity size={13} />, label: 'Analyze' },
+            { id: 'settings',  icon: <Settings size={13} />, label: 'Settings' },
+          ].map(t => (
+            <button key={t.id} className={`gc-tab${activeTab === t.id ? ' active' : ''}`} onClick={() => setActiveTab(t.id)}>
+              {t.icon}<span>{t.label}</span>
+            </button>
+          ))}
+        </nav>
+
+        {/* EQUATIONS TAB */}
+        {activeTab === 'equations' && (
+          <div className="gc-panel">
+            {/* CAS progress indicator — hides itself when ready */}
+            <CASLoader status={casStatus} progress={casProgress} />
+
+            <div className="gc-type-grid">
+              {EQ_TYPES.map(t => (
+                <button key={t.id} className={`gc-type-btn${newType === t.id ? ' sel' : ''}`} onClick={() => setNewType(t.id)}>
+                  <span className="gc-type-badge">{t.sym}</span>
+                  <span className="gc-type-label">{t.label}</span>
+                </button>
+              ))}
+            </div>
+
+            <div className="gc-input-block">
+              <input
+                className="gc-input"
+                value={newExpr}
+                onChange={e => setNewExpr(e.target.value)}
+                onKeyDown={e => e.key === 'Enter' && addEquation()}
+                placeholder={EQ_TYPES.find(t => t.id === newType)?.hint}
+                spellCheck={false} autoComplete="off"
+              />
+              <button className="gc-add-btn" onClick={addEquation} title="Add (Enter)">
+                <Plus size={16} />
+              </button>
+            </div>
+
+            <div className="gc-eq-list">
+              {equations.map(eq => (
+                <EquationCard
+                  key={eq.id}
+                  eq={eq}
+                  onUpdate={p => updateEq(eq.id, p)}
+                  onDelete={() => deleteEq(eq.id)}
+                  integralRange={integralRange}
+                  setIntegralRange={setIntegralRange}
+                  integralValue={integralValues[eq.id]}
+                  onMeta={onEquationMeta}
+                />
+              ))}
+            </div>
+
+            <div className="gc-section-hdr"><Zap size={11}/> Quick Presets</div>
+            <div className="gc-search-wrap">
+              <Search size={12} className="gc-search-icon"/>
+              <input className="gc-search" placeholder="Search presets…" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} />
+            </div>
+            {!searchTerm && (
+              <div className="gc-cat-pills">
+                {PRESET_CATS.map(c => (
+                  <button key={c} className={`gc-cat-pill${selectedCat === c ? ' sel' : ''}`} onClick={() => setSelectedCat(c)}>{c}</button>
+                ))}
+              </div>
+            )}
+            <div className="gc-presets">
+              {searchedPresets.map(ex => (
+                <button key={ex.label} className="gc-preset-btn" onClick={() => { setNewExpr(ex.expr); setNewType(ex.type); }}>
+                  <span className="gc-preset-label">{ex.label}</span>
+                  <span className="gc-preset-type">{ex.type}</span>
+                </button>
+              ))}
+            </div>
+
+            {Object.keys(variables).length > 0 && (
+              <>
+                <div className="gc-section-hdr"><Calculator size={11}/> Variables</div>
+                {Object.entries(variables).map(([k, v]) => (
+                  <div key={k} className="gc-var-block">
+                    <div className="gc-var-header">
+                      <span className="gc-var-name">{k}</span>
+                      <span className="gc-var-val">{v.toFixed(3)}</span>
+                      <button className="gc-anim-btn" onClick={() => startAnimation(k)} title="Animate">
+                        {animRunning && animParam === k ? '⏹' : '▶'}
+                      </button>
+                    </div>
+                    <input className="gc-range" type="range" min="-10" max="10" step="0.01" value={v}
+                      onChange={e => { setVariables(prev => ({ ...prev, [k]: parseFloat(e.target.value) })); setAnimParam(k); }} />
+                    <div className="gc-range-labels"><span>-10</span><span>0</span><span>10</span></div>
+                  </div>
+                ))}
+              </>
+            )}
+          </div>
+        )}
+
+        {/* ANALYSIS TAB */}
+        {activeTab === 'analysis' && (
+          <div className="gc-panel">
+            <div className="gc-analysis-card">
+              <div className="gc-analysis-title"><Crosshair size={13}/> Intersections</div>
+              <p className="gc-hint">Compares the first two visible explicit equations.</p>
+              <div className="gc-btn-row">
+                <button className="gc-action-btn" onClick={findIntersections}>Find Points</button>
+                <button className={`gc-action-btn${showIntersections ? ' on' : ''}`} onClick={() => setShowIntersections(s => !s)}>
+                  {showIntersections ? <EyeOff size={12}/> : <Eye size={12}/>} {showIntersections ? 'Hide' : 'Show'}
+                </button>
+              </div>
+              {intersectionPoints.length > 0 && (
+                <div className="gc-pt-grid">
+                  {intersectionPoints.map((p, i) => (
+                    <div key={i} className="gc-pt">
+                      <span className="gc-pt-idx">{i+1}</span>
+                      <span>({p.x}, {p.y})</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div className="gc-analysis-card">
+              <div className="gc-analysis-title"><TrendingUp size={13}/> Critical Points</div>
+              <p className="gc-hint">Finds local maxima and minima of explicit equations.</p>
+              <div className="gc-btn-row">
+                <button className="gc-action-btn" onClick={findCriticalPoints}>Find</button>
+                <button className={`gc-action-btn${showCritical ? ' on' : ''}`} onClick={() => setShowCritical(s => !s)}>
+                  {showCritical ? <EyeOff size={12}/> : <Eye size={12}/>} {showCritical ? 'Hide' : 'Show'}
+                </button>
+              </div>
+              {criticalPoints.length > 0 && (
+                <div className="gc-pt-grid">
+                  {criticalPoints.slice(0,8).map((p, i) => (
+                    <div key={i} className="gc-pt" style={{ borderColor: p.color + '44' }}>
+                      <span className={`gc-pt-badge ${p.type}`}>{p.type === 'max' ? '▲' : '▼'}</span>
+                      <span>({p.x}, {p.y})</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div className="gc-analysis-card">
+              <div className="gc-analysis-title"><Crosshair size={13}/> Coordinate Crosshair</div>
+              <label className="gc-toggle-row">
+                <span>Enable crosshair</span>
+                <span className={`gc-toggle${crosshair ? ' on' : ''}`} onClick={() => setCrosshair(s => !s)} />
+              </label>
+              {hoverCoord && crosshair && (
+                <div className="gc-coord-box">
+                  <div>x <span>=</span> <b>{hoverCoord.x?.toFixed(6)}</b></div>
+                  <div>y <span>=</span> <b>{hoverCoord.y?.toFixed(6)}</b></div>
+                </div>
+              )}
+            </div>
+
+            <div className="gc-analysis-card">
+              <div className="gc-analysis-title"><Calculator size={13}/> Integral Values</div>
+              {equations.filter(e => e.showIntegral && integralValues[e.id] !== undefined).length === 0
+                ? <p className="gc-hint">Enable "Integral Area" on an equation to compute.</p>
+                : equations.filter(e => e.showIntegral && integralValues[e.id] !== undefined).map(eq => (
+                  <div key={eq.id} className="gc-integral-row" style={{ '--ec': eq.color }}>
+                    <span style={{ color: eq.color }}>{(eq.label || eq.expression).slice(0, 14)}</span>
+                    <span className="gc-integral-val">∫ = {integralValues[eq.id]?.toFixed(5)}</span>
+                  </div>
+                ))
+              }
+            </div>
+
+            <div className="gc-analysis-card">
+              <div className="gc-analysis-title"><Info size={13}/> Table of Values</div>
+              <label className="gc-toggle-row">
+                <span>Show table</span>
+                <span className={`gc-toggle${showTable ? ' on' : ''}`} onClick={() => setShowTable(s => !s)} />
+              </label>
+              {showTable && (
+                <div className="gc-tbl-wrap">
+                  <table className="gc-tbl">
+                    <thead>
+                      <tr>
+                        <th>x</th>
+                        {tableData.eqs.map(e => <th key={e.id} style={{ color: e.color }}>{(e.label || e.expression).slice(0, 8)}</th>)}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {tableData.xs.map(x => (
+                        <tr key={x}>
+                          <td>{x.toFixed(2)}</td>
+                          {tableData.eqs.map(e => {
+                            const y = safeEval(e.expression, { x, ...variables });
+                            return <td key={e.id} style={{ color: y !== null ? e.color + 'cc' : undefined }}>{y !== null ? y.toFixed(4) : '—'}</td>;
+                          })}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* SETTINGS TAB */}
+        {activeTab === 'settings' && (
+          <div className="gc-panel">
+            <div className="gc-section-hdr">Viewport Range</div>
+            <div className="gc-settings-grid">
+              {[['xMin','X min'],['xMax','X max'],['yMin','Y min'],['yMax','Y max']].map(([key, label]) => (
+                <div className="gc-field" key={key}>
+                  <label>{label}</label>
+                  <input type="number" className="gc-num" value={graphSettings[key]} step="0.5"
+                    onChange={e => setGraphSettings(prev => ({ ...prev, [key]: parseFloat(e.target.value) || prev[key] }))} />
+                </div>
+              ))}
+            </div>
+            <button className="gc-action-btn full" onClick={() => setGraphSettings(p => ({ ...p, xMin:-10, xMax:10, yMin:-8, yMax:8 }))}>
+              <RotateCcw size={12}/> Reset Viewport
+            </button>
+            <div className="gc-section-hdr" style={{ marginTop: 20 }}>Display</div>
+            {[['showGrid','Major Grid'],['showMinorGrid','Minor Grid'],['showAxes','Axis Lines'],['showLabels','Tick Labels']].map(([key, label]) => (
+              <label className="gc-toggle-row" key={key}>
+                <span>{label}</span>
+                <span className={`gc-toggle${graphSettings[key] ? ' on' : ''}`}
+                  onClick={() => setGraphSettings(prev => ({ ...prev, [key]: !prev[key] }))} />
+              </label>
+            ))}
+          </div>
+        )}
+      </aside>
+
+      {/* GRAPH */}
+      <div className="gc-graph">
+        <div className="gc-toolbar">
+          <div className="gc-coord-pill">
+            {hoverCoord
+              ? <><span className="gc-coord-x">x={hoverCoord.x?.toFixed(3)}</span><span className="gc-coord-sep">|</span><span className="gc-coord-y">y={hoverCoord.y?.toFixed(3)}</span></>
+              : <span className="gc-coord-idle">hover to inspect</span>}
+          </div>
+          <div className="gc-toolbar-btns">
+            <button className="gc-tb-btn" onClick={() => zoom(0.6)} title="Zoom in"><ZoomIn size={14}/></button>
+            <button className="gc-tb-btn" onClick={() => zoom(1.5)} title="Zoom out"><ZoomOut size={14}/></button>
+            <button className="gc-tb-btn" onClick={() => setGraphSettings(p => ({ ...p, xMin:-10, xMax:10, yMin:-8, yMax:8 }))} title="Reset"><RotateCcw size={14}/></button>
+          </div>
+        </div>
+
+        <Plot
+          data={allTraces}
+          layout={layout}
+          config={config}
+          style={{ width: '100%', height: '100%' }}
+          revision={plotRevision}
+          onHover={e => { if (e.points?.[0]) setHoverCoord({ x: e.points[0].x, y: e.points[0].y }); }}
+          onUnhover={() => setHoverCoord(null)}
+          onRelayout={e => {
+            if (e['xaxis.range[0]'] !== undefined)
+              setGraphSettings(prev => ({
+                ...prev,
+                xMin: e['xaxis.range[0]'], xMax: e['xaxis.range[1]'],
+                yMin: e['yaxis.range[0]'], yMax: e['yaxis.range[1]'],
+              }));
+          }}
+        />
+
+        {equations.length === 0 && (
+          <div className="gc-empty-hint">
+            <div className="gc-empty-icon">∫</div>
+            <div>Add an equation to get started</div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
+// ── Equation Card ─────────────────────────────────────────────────────────────
+const EquationCard = ({ eq, onUpdate, onDelete, integralRange, setIntegralRange, integralValue, onMeta }) => {
+  const [open, setOpen] = useState(false);
+
+  // Run CAS analysis for this expression (numeric immediately, SymPy when ready)
+  const { meta, loading, upgraded } = useEquationCAS(eq.expression, eq.type);
+
+  // Propagate meta up so processEquation can rebuild the trace with correct asymptotes
+  useEffect(() => {
+    onMeta?.(eq.id, meta);
+  }, [meta, eq.id, onMeta]);
+
+  return (
+    <div className={`gc-eq-card${open ? ' open' : ''}`} style={{ '--ec': eq.color }}>
+      <div className="gc-eq-row">
+        <div className="gc-eq-dot" style={{ background: eq.color }} />
+        <input
+          className="gc-eq-expr"
+          value={eq.expression}
+          onChange={e => onUpdate({ expression: e.target.value })}
+          spellCheck={false}
+        />
+        <div className="gc-eq-actions">
+          <button className="gc-eq-btn" onClick={() => onUpdate({ visible: !eq.visible })} title={eq.visible ? 'Hide' : 'Show'}>
+            {eq.visible ? <Eye size={12}/> : <EyeOff size={12}/>}
+          </button>
+          <button className="gc-eq-btn" onClick={() => setOpen(o => !o)} title="Options">
+            {open ? <ChevronUp size={12}/> : <ChevronDown size={12}/>}
+          </button>
+          <button className="gc-eq-btn del" onClick={onDelete} title="Delete">
+            <Trash2 size={12}/>
+          </button>
+        </div>
+      </div>
+
+      {/* CAS insight badges — shown for explicit functions only */}
+      {eq.type === 'explicit' && (
+        <MathInsights meta={meta} loading={loading} upgraded={upgraded} />
+      )}
+
+      {open && (
+        <div className="gc-eq-opts">
+          <div className="gc-opt-row">
+            <span className="gc-opt-label">Label</span>
+            <input className="gc-opt-input" value={eq.label} placeholder="custom name" onChange={e => onUpdate({ label: e.target.value })} />
+          </div>
+
+          <div className="gc-opt-row">
+            <span className="gc-opt-label">Color</span>
+            <div className="gc-color-row">
+              {PALETTE.map(c => (
+                <button key={c} className={`gc-color-dot${eq.color === c ? ' sel' : ''}`} style={{ '--dc': c, background: c }} onClick={() => onUpdate({ color: c })} />
+              ))}
+            </div>
+          </div>
+
+          <div className="gc-opt-row">
+            <span className="gc-opt-label">Style</span>
+            <div className="gc-seg">
+              {['solid', 'dashed', 'dotted'].map(s => (
+                <button key={s} className={eq.lineStyle === s ? 'active' : ''} onClick={() => onUpdate({ lineStyle: s })}>{s}</button>
+              ))}
+            </div>
+          </div>
+
+          <div className="gc-opt-row">
+            <span className="gc-opt-label">Width</span>
+            <input className="gc-range" type="range" min="0.5" max="6" step="0.5" value={eq.lineWidth}
+              onChange={e => onUpdate({ lineWidth: parseFloat(e.target.value) })} />
+            <span className="gc-opt-val">{eq.lineWidth}px</span>
+          </div>
+
+          {eq.type === 'explicit' && (
+            <>
+              <div className="gc-checks">
+                <label className="gc-check">
+                  <input type="checkbox" checked={eq.showDerivative} onChange={e => onUpdate({ showDerivative: e.target.checked })} />
+                  <span>Show f′(x)</span>
+                </label>
+                <label className="gc-check">
+                  <input type="checkbox" checked={eq.showIntegral} onChange={e => onUpdate({ showIntegral: e.target.checked })} />
+                  <span>Integral area</span>
+                </label>
+              </div>
+              {eq.showIntegral && (
+                <>
+                  <div className="gc-opt-row">
+                    <span className="gc-opt-label">Range</span>
+                    <div className="gc-from-to">
+                      <input type="number" value={integralRange.a} step="0.5" onChange={e => setIntegralRange(r => ({ ...r, a: parseFloat(e.target.value) }))} />
+                      <span>→</span>
+                      <input type="number" value={integralRange.b} step="0.5" onChange={e => setIntegralRange(r => ({ ...r, b: parseFloat(e.target.value) }))} />
+                    </div>
+                  </div>
+                  {integralValue !== undefined && (
+                    <div className="gc-integral-display">∫ ≈ <b>{integralValue.toFixed(6)}</b></div>
+                  )}
+                </>
+              )}
+            </>
+          )}
+        </div>
+      )}
+    </div>
+  );
+};
+
+export default GraphingCalculator;
+
+// src/services/casCache.js
+// Local IndexedDB cache for CAS (SymPy) analysis results.
+// Named casCache (not db) to avoid collision with Firebase's db export.
+// Results are keyed by expression string — purely derived data, no sync needed.
+
+const DB_NAME = 'StudyBuddyCAS';
+const DB_VERSION = 1;
+const STORE = 'analysis';
+
+function openDB() {
+  return new Promise((resolve, reject) => {
+    const req = indexedDB.open(DB_NAME, DB_VERSION);
+    req.onerror = () => reject(req.error);
+    req.onsuccess = () => resolve(req.result);
+    req.onupgradeneeded = (e) => {
+      const database = e.target.result;
+      if (!database.objectStoreNames.contains(STORE)) {
+        database.createObjectStore(STORE, { keyPath: 'key' });
+      }
+    };
+  });
+}
+
+export const casCache = {
+  async get(key) {
+    try {
+      const database = await openDB();
+      return new Promise((resolve, reject) => {
+        const tx = database.transaction(STORE, 'readonly');
+        const req = tx.objectStore(STORE).get(key);
+        req.onsuccess = () => resolve(req.result?.value ?? null);
+        req.onerror = () => reject(req.error);
+      });
+    } catch {
+      return null; // Never crash the graph
+    }
+  },
+
+  async set(key, value) {
+    try {
+      const database = await openDB();
+      return new Promise((resolve, reject) => {
+        const tx = database.transaction(STORE, 'readwrite');
+        const req = tx.objectStore(STORE).put({ key, value, ts: Date.now() });
+        req.onsuccess = () => resolve();
+        req.onerror = () => reject(req.error);
+      });
+    } catch {} // Silently fail — CAS is enhancement-only
+  },
+
+  async clear() {
+    try {
+      const database = await openDB();
+      return new Promise((resolve, reject) => {
+        const tx = database.transaction(STORE, 'readwrite');
+        const req = tx.objectStore(STORE).clear();
+        req.onsuccess = () => resolve();
+        req.onerror = () => reject(req.error);
+      });
+    } catch {}
+  },
+};
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+// src/services/casManager.js
+// Promise-based wrapper around the Pyodide Web Worker.
+// All analysis results are persisted in IndexedDB so they load instantly
+// on subsequent visits — the 20 MB WASM download only happens once per CDN cache.
+
+import { casCache } from './casCache'; // ← local IndexedDB, not Firebase
+
+let worker = null;
+let messageId = 0;
+const pending = new Map();
+
+// 'idle' | 'loading' | 'ready' | 'error'
+let _status = 'idle';
+const _statusListeners = new Set();
+
+function setStatus(s, pct) {
+  _status = s;
+  _statusListeners.forEach(fn => fn(s, pct));
+}
+
+/** Subscribe to status changes. Returns an unsubscribe fn. */
+export function onCASStatus(fn) {
+  _statusListeners.add(fn);
+  fn(_status); // fire immediately with current value
+  return () => _statusListeners.delete(fn);
+}
+
+export function getCASStatus() {
+  return _status;
+}
+
+/** Lazily boot the worker. Safe to call multiple times. */
+function getWorker() {
+  if (worker) return worker;
+
+  worker = new Worker(new URL('../workers/cas.worker.js', import.meta.url), {
+    type: 'classic',
+  });
+
+  setStatus('loading');
+
+  worker.onmessage = (e) => {
+    const { id, type, result, error, pct } = e.data;
+
+    if (type === 'ready') {
+      setStatus('ready');
+      return;
+    }
+
+    if (type === 'progress') {
+      // Broadcast progress so spinner can show a bar
+      _statusListeners.forEach(fn => fn('loading', pct));
+      return;
+    }
+
+    if (type === 'error' && id === undefined) {
+      setStatus('error');
+      return;
+    }
+
+    const p = pending.get(id);
+    if (!p) return;
+    pending.delete(id);
+
+    if (type === 'success') p.resolve(result);
+    else p.reject(new Error(error));
+  };
+
+  worker.onerror = () => setStatus('error');
+
+  return worker;
+}
+
+/** Wait until the worker is ready (resolves immediately if already ready). */
+function waitReady(timeoutMs = 45_000) {
+  if (_status === 'ready') return Promise.resolve();
+  if (_status === 'error') return Promise.reject(new Error('CAS failed to load'));
+
+  // Kick off load if not started yet
+  if (_status === 'idle') getWorker();
+
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => {
+      unsub();
+      reject(new Error('CAS load timeout'));
+    }, timeoutMs);
+
+    const unsub = onCASStatus((s) => {
+      if (s === 'ready') { clearTimeout(timer); unsub(); resolve(); }
+      if (s === 'error') { clearTimeout(timer); unsub(); reject(new Error('CAS load failed')); }
+    });
+  });
+}
+
+// ─── Public API ─────────────────────────────────────────────────────────────
+
+export const cas = {
+  /** Boot the worker early (call on page mount so it loads in the background). */
+  preload() {
+    if (_status === 'idle') getWorker();
+  },
+
+  /** Return current status string. */
+  get status() {
+    return _status;
+  },
+
+  /**
+   * Analyse an expression.
+   * Returns the CAS metadata object, or null if Pyodide fails.
+   * Results are cached in IndexedDB keyed by (mode + variable + expr).
+   */
+  async analyze(expr, mode = 'analyze2D', variable = 'x') {
+    const cacheKey = `cas|${mode}|${variable}|${expr}`;
+
+    // 1. Check persistent cache first (instant)
+    const cached = await casCache.get(cacheKey);
+    if (cached && !cached.error) return cached;
+
+    // 2. Wait for Pyodide (may already be ready)
+    try {
+      await waitReady();
+    } catch {
+      return null; // CAS unavailable — caller falls back to numeric
+    }
+
+    // 3. Send to worker
+    return new Promise((resolve, reject) => {
+      const id = ++messageId;
+      pending.set(id, { resolve, reject });
+      getWorker().postMessage({ id, expr, variable, mode });
+    })
+      .then(async (result) => {
+        if (!result.error) await casCache.set(cacheKey, result);
+        return result;
+      })
+      .catch((err) => {
+        if (process.env.NODE_ENV === 'development') console.warn('[CAS] Pyodide fallback triggered:', err);
+        return null; // Safe fallback to numeric-only mode
+      });
+  },
+
+  kill() {
+    if (worker) {
+      worker.terminate();
+      worker = null;
+      setStatus('idle');
+    }
+  },
+};
+
+
+
+
+
+
+
+
+
+
+
+
+
+// src/services/casTraceGenerator.js
+// Drop-in replacement for the generateExplicit function in PlotGraph.jsx.
+// When meta is provided (from useEquationCAS), it:
+//   • Inserts null gaps at vertical asymptotes (clean breaks instead of spikes)
+//   • Draws dashed asymptote reference lines
+//   • Draws critical-point markers (▲ max / ▼ min)
+//   • Draws horizontal asymptote reference lines
+// When meta is null or from numeric source, it degrades gracefully.
+
+import * as math from 'mathjs';
+
+function safeEval(expr, scope) {
+  try {
+    const v = math.evaluate(expr, scope);
+    return typeof v === 'number' && isFinite(v) ? v : null;
+  } catch (err) {
+    if (process.env.NODE_ENV === 'development') console.warn('[StudyBuddy] Non-blocking math error:', err);
+    return null;
+  }
+}
+
+/**
+ * @param {object} eq        — equation object {expression, color, lineWidth, lineStyle, label, ...}
+ * @param {object} settings  — {xMin, xMax, yMin, yMax}
+ * @param {object} vars      — current variable values
+ * @param {object|null} meta — output of useEquationCAS (may be numeric or SymPy)
+ * @returns {Array}  Plotly trace objects
+ */
+export function generateExplicitWithCAS(eq, settings, vars, meta) {
+  const { xMin, xMax, yMin, yMax } = settings;
+  const n = 2000;
+  const step = (xMax - xMin) / (n - 1);
+  const xs = [], ys = [];
+
+  // Build exclusion zones around known vertical asymptotes
+  const asymptotes = meta?.verticalAsymptotes ?? [];
+  const exclusionRadius = step * 2;
+
+  for (let i = 0; i < n; i++) {
+    const x = xMin + i * step;
+
+    // Is this x within 2 steps of a known asymptote?
+    const nearAsym = asymptotes.some(a => Math.abs(x - a) < exclusionRadius);
+    if (nearAsym) {
+      xs.push(x);
+      ys.push(null); // null → Plotly breaks the line cleanly
+      continue;
+    }
+
+    const y = safeEval(eq.expression, { x, ...vars });
+    xs.push(x);
+    ys.push(y);
+  }
+
+  const dash =
+    eq.lineStyle === 'dashed' ? 'dash'
+    : eq.lineStyle === 'dotted' ? 'dot'
+    : 'solid';
+
+  const traces = [
+    {
+      x: xs,
+      y: ys,
+      mode: 'lines',
+      type: 'scatter',
+      name: eq.label || eq.expression,
+      line: { color: eq.color, width: eq.lineWidth ?? 2.5, dash },
+      visible: eq.visible ? true : 'legendonly',
+      connectgaps: false,
+      hovertemplate: `<b>${eq.label || eq.expression}</b><br>x: %{x:.4f}<br>y: %{y:.4f}<extra></extra>`,
+    },
+  ];
+
+  if (!meta) return traces;
+
+  // ── Vertical asymptote reference lines ──────────────────────────────────
+  asymptotes.forEach(a => {
+    if (a < xMin || a > xMax) return;
+    traces.push({
+      x: [a, a],
+      y: [yMin, yMax],
+      mode: 'lines',
+      type: 'scatter',
+      name: `x=${a}`,
+      line: { color: '#ef4444', width: 1, dash: 'dash' },
+      opacity: 0.55,
+      showlegend: false,
+      hoverinfo: 'name',
+    });
+  });
+
+  // ── Horizontal asymptote reference lines ────────────────────────────────
+  (meta.horizontalAsymptotes ?? []).forEach(h => {
+    if (h.y < yMin || h.y > yMax) return;
+    traces.push({
+      x: [xMin, xMax],
+      y: [h.y, h.y],
+      mode: 'lines',
+      type: 'scatter',
+      name: `y=${h.y}`,
+      line: { color: '#f59e0b', width: 1, dash: 'dash' },
+      opacity: 0.5,
+      showlegend: false,
+      hoverinfo: 'name',
+    });
+  });
+
+  // ── Critical point markers ───────────────────────────────────────────────
+  const cps = (meta.criticalPoints ?? []).filter(p => p.x >= xMin && p.x <= xMax);
+
+  if (cps.length > 0) {
+    // Distinguish max vs min using a very small neighbourhood
+    const maxima = cps.filter(p => {
+      const yL = safeEval(eq.expression, { x: p.x - 0.02, ...vars });
+      const yR = safeEval(eq.expression, { x: p.x + 0.02, ...vars });
+      return yL !== null && yR !== null && yL < p.y && yR < p.y;
+    });
+    const minima = cps.filter(p => {
+      const yL = safeEval(eq.expression, { x: p.x - 0.02, ...vars });
+      const yR = safeEval(eq.expression, { x: p.x + 0.02, ...vars });
+      return yL !== null && yR !== null && yL > p.y && yR > p.y;
+    });
+
+    if (maxima.length > 0)
+      traces.push({
+        x: maxima.map(p => p.x),
+        y: maxima.map(p => p.y),
+        mode: 'markers',
+        type: 'scatter',
+        name: 'Local Max',
+        marker: {
+          color: '#4ade80',
+          size: 8,
+          symbol: 'triangle-up',
+          line: { color: '#fff', width: 1 },
+        },
+        hovertemplate: 'Max (%{x:.3f}, %{y:.3f})<extra></extra>',
+        showlegend: false,
+      });
+
+    if (minima.length > 0)
+      traces.push({
+        x: minima.map(p => p.x),
+        y: minima.map(p => p.y),
+        mode: 'markers',
+        type: 'scatter',
+        name: 'Local Min',
+        marker: {
+          color: '#f87171',
+          size: 8,
+          symbol: 'triangle-down',
+          line: { color: '#fff', width: 1 },
+        },
+        hovertemplate: 'Min (%{x:.3f}, %{y:.3f})<extra></extra>',
+        showlegend: false,
+      });
+  }
+
+  return traces;
+}
+
+
+/* eslint-disable no-restricted-globals */
+// src/workers/cas.worker.js
+// Runs Pyodide + SymPy entirely off the main thread.
+// Main thread sends:  { id, expr, variable, mode }
+// Worker replies with: { id, type: 'success'|'error', result|error }
+// Also sends: { type: 'ready' } | { type: 'progress', pct }
+
+const PYODIDE_URL = 'https://cdn.jsdelivr.net/pyodide/v0.25.0/full/';
+
+let pyodideReady = false;
+
+async function initPyodide() {
+  self.postMessage({ type: 'progress', pct: 10 });
+  importScripts(`${PYODIDE_URL}pyodide.js`);
+  self.postMessage({ type: 'progress', pct: 30 });
+
+  self.pyodide = await loadPyodide({ indexURL: PYODIDE_URL });
+  self.postMessage({ type: 'progress', pct: 70 });
+
+  await self.pyodide.loadPackage('sympy');
+  self.postMessage({ type: 'progress', pct: 95 });
+
+  pyodideReady = true;
+  self.postMessage({ type: 'ready', pct: 100 });
+}
+
+initPyodide().catch(err => {
+  self.postMessage({ type: 'error', error: err.message });
+});
+
+self.onmessage = async (event) => {
+  const { id, expr, variable = 'x', mode = 'analyze2D' } = event.data;
+
+  if (!pyodideReady) {
+    self.postMessage({ id, type: 'error', error: 'Pyodide not ready yet' });
+    return;
+  }
+
+  try {
+    let result;
+    if (mode === 'analyze2D')      result = analyze2D(expr, variable);
+    else if (mode === 'analyze3D') result = analyze3D(expr);
+    else if (mode === 'simplify')  result = simplifyExpr(expr);
+    else                           result = analyze2D(expr, variable);
+
+    self.postMessage({ id, type: 'success', result });
+  } catch (err) {
+    self.postMessage({ id, type: 'error', error: err.message });
+  }
+};
+
+// ─── SymPy 2D Analysis ──────────────────────────────────────────────────────
+function analyze2D(expr, variable) {
+  // Sanitise: replace ^ with ** so mathjs-style input also works
+  const safeExpr = expr.replace(/\^/g, '**');
+
+  //  Safely pass string to Pyodide without template injection
+  self.pyodide.globals.set('expr_str', safeExpr);
+  self.pyodide.globals.set('var_name', variable);
+
+  const script = `
+import sympy as sp
+import json
+
+x = sp.Symbol(var_name)
+
+try:
+    f = sp.sympify(expr_str, locals={'e': sp.E, 'pi': sp.pi})
+
+    # ── Simplification ──────────────────────────────────────────
+    simplified = str(sp.simplify(f))
+
+    # ── Derivative ──────────────────────────────────────────────
+    df = sp.diff(f, x)
+
+    # ── Critical Points ─────────────────────────────────────────
+    critical = []
+    try:
+        sols = sp.solve(sp.Eq(df, 0), x)
+        for s in sols[:8]:  # cap at 8
+            if s.is_real and s.is_finite:
+                try:
+                    yv = float(f.subs(x, s))
+                    if abs(yv) < 1e10:
+                        critical.append({"x": float(s), "y": round(yv, 6)})
+                except:
+                    pass
+    except:
+        pass
+
+    # ── Singularities / Vertical Asymptotes ─────────────────────
+    singularities = []
+    vertical_asym = []
+    try:
+        poles = sp.singularities(f, x)
+        for p in poles:
+            if p.is_real and p.is_finite:
+                val = float(p)
+                singularities.append(val)
+                try:
+                    lim_val = sp.limit(f, x, p)
+                    if lim_val in [sp.oo, -sp.oo, sp.zoo]:
+                        vertical_asym.append(round(val, 6))
+                except:
+                    vertical_asym.append(round(val, 6))
+    except:
+        pass
+
+    # ── Horizontal Asymptotes ────────────────────────────────────
+    horiz_asym = []
+    try:
+        lim_pos = sp.limit(f, x, sp.oo)
+        lim_neg = sp.limit(f, x, -sp.oo)
+        if lim_pos.is_real and lim_pos.is_finite:
+            horiz_asym.append({"side": "right", "y": round(float(lim_pos), 6)})
+        if lim_neg.is_real and lim_neg.is_finite and lim_neg != lim_pos:
+            horiz_asym.append({"side": "left", "y": round(float(lim_neg), 6)})
+    except:
+        pass
+
+    # ── Symmetry ─────────────────────────────────────────────────
+    f_neg = f.subs(x, -x)
+    is_even = sp.simplify(f_neg - f) == 0
+    is_odd  = sp.simplify(f_neg + f) == 0
+    symmetry = "even" if is_even else "odd" if is_odd else "none"
+
+    # ── Periodicity ──────────────────────────────────────────────
+    period = None
+    try:
+        p = sp.periodicity(f, x)
+        if p and p.is_finite and p.is_real:
+            period = round(float(p), 6)
+    except:
+        pass
+
+    # ── Intercepts ───────────────────────────────────────────────
+    y_intercept = None
+    x_intercepts = []
+    try:
+        y0 = f.subs(x, 0)
+        if y0.is_real and y0.is_finite:
+            y_intercept = round(float(y0), 6)
+    except:
+        pass
+    try:
+        x0s = sp.solve(sp.Eq(f, 0), x)
+        for s in x0s[:6]:
+            if s.is_real and s.is_finite:
+                x_intercepts.append(round(float(s), 6))
+    except:
+        pass
+
+    # ── Domain ───────────────────────────────────────────────────
+    domain_str = "Reals"
+    try:
+        dom = sp.calculus.util.continuous_domain(f, x, sp.S.Reals)
+        domain_str = str(dom)
+    except:
+        pass
+
+    result = {
+        "simplified": simplified,
+        "derivative": str(df),
+        "criticalPoints": critical,
+        "singularities": singularities,
+        "verticalAsymptotes": vertical_asym,
+        "horizontalAsymptotes": horiz_asym,
+        "domain": domain_str,
+        "symmetry": symmetry,
+        "period": period,
+        "intercepts": {"y": y_intercept, "x": x_intercepts},
+    }
+except Exception as e:
+    result = {"error": str(e)}
+
+json.dumps(result)
+`;
+
+  const jsonStr = self.pyodide.runPython(script);
+  return JSON.parse(jsonStr);
+}
+
+// ─── SymPy 3D Analysis (stub — extend as needed) ────────────────────────────
+function analyze3D(expr) {
+  return { mode: '3D', simplified: expr };
+}
+
+// ─── Simplify only ──────────────────────────────────────────────────────────
+function simplifyExpr(expr) {
+  const safeExpr = expr.replace(/\^/g, '**');
+
+  //  Safely pass string to avoid template injection
+  self.pyodide.globals.set('expr_str', safeExpr);
+
+  const script = `
+import sympy as sp
+import json
+try:
+    f = sp.sympify(expr_str)
+    result = {"simplified": str(sp.simplify(f))}
+except Exception as e:
+    result = {"error": str(e)}
+json.dumps(result)
+`;
+  return JSON.parse(self.pyodide.runPython(script));
+}
+
+
+
+// src/themes.js  v4.0
+// ─── StudyBuddy Advanced Theme System ────────────────────────────────────────
+// Each theme ships with:
+//   • CSS vars injected onto <html>
+//   • bodyClass applied to <body>
+//   • overlayHTML injected into #theme-overlay (fixed, z:0, pointer-events:none)
+//   • overlayScript: JS run once after overlay mounts (visual only)
+//   • cursorScript: JS for the per-theme custom cursor
+// ─────────────────────────────────────────────────────────────────────────────
+
+export const THEMES = {
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // 1. POOKIE  ·  Pink × Purple Galaxy — Upgraded
+  //    Cursor: sparkle dot with trailing aurora stardust
+  // ══════════════════════════════════════════════════════════════════════════
+  pookie: {
+    name: "Pookie",
+    emoji: "🌸",
+    description: "Pink & purple galaxy vibes",
+    bodyClass: "theme-pookie",
+
+    fonts: {
+      google:  "https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&family=Playfair+Display:ital,wght@0,700;1,700&family=Dancing+Script:wght@500;700&display=swap",
+      display: "'Dancing Script', cursive",
+      body:    "'Nunito', sans-serif",
+      mono:    "'DM Mono', monospace",
+    },
+
+    vars: {
+      "--pookie-bg":        "#06020f",
+      "--pookie-surface":   "rgba(168,85,247,0.08)",
+      "--pookie-surface2":  "rgba(168,85,247,0.16)",
+      "--pookie-pink":      "#f472b6",
+      "--pookie-pink2":     "#ec4899",
+      "--pookie-purple":    "#a855f7",
+      "--pookie-purple2":   "#7c3aed",
+      "--pookie-rose":      "#fb7185",
+      "--pookie-text":      "#f8fafc",
+      "--pookie-muted":     "#94a3b8",
+      "--pookie-border":    "rgba(244,114,182,0.22)",
+      "--pookie-border2":   "rgba(244,114,182,0.38)",
+      "--pookie-radius":    "20px",
+      "--pookie-radius-sm": "12px",
+      "--pookie-shadow":    "0 8px 32px rgba(168,85,247,0.18)",
+      "--pookie-shadow-h":  "0 14px 44px rgba(244,114,182,0.30)",
+      "--pookie-glow":      "0 0 32px rgba(244,114,182,0.32)",
+      "--pookie-font":      "'Nunito', sans-serif",
+      "--pookie-display":   "'Dancing Script', cursive",
+      "--theme-bg":         "#06020f",
+      "--theme-surface":    "rgba(168,85,247,0.08)",
+      "--theme-accent":     "#f472b6",
+      "--theme-accent2":    "#a855f7",
+      "--theme-text":       "#f8fafc",
+      "--theme-muted":      "#94a3b8",
+      "--theme-border":     "rgba(244,114,182,0.22)",
+      "--theme-radius":     "20px",
+      "--theme-radius-sm":  "12px",
+      "--theme-shadow":     "0 8px 32px rgba(168,85,247,0.18)",
+      "--theme-shadow-h":   "0 14px 44px rgba(244,114,182,0.30)",
+      "--theme-glow":       "0 0 32px rgba(244,114,182,0.32)",
+      "--theme-cursor-color": "#f472b6",
+    },
+
+    overlayHTML: [
+      '<canvas id="pookie-stars" style="position:fixed;inset:0;width:100%;height:100%;pointer-events:none;z-index:0;"></canvas>',
+      '<div class="pookie-aurora pookie-aurora--1"></div>',
+      '<div class="pookie-aurora pookie-aurora--2"></div>',
+      '<div class="pookie-aurora pookie-aurora--3"></div>',
+      '<div class="pookie-nebula pookie-nebula--1"></div>',
+      '<div class="pookie-nebula pookie-nebula--2"></div>',
+      '<div class="pookie-nebula pookie-nebula--3"></div>',
+      '<div class="pookie-comet"></div>',
+      '<div class="pookie-comet pookie-comet--2"></div>',
+    ].join(""),
+
+    overlayScript: [
+      "(function() {",
+      "  var canvas = document.getElementById('pookie-stars');",
+      "  if (!canvas) return;",
+      "  var ctx = canvas.getContext('2d');",
+      "  var W, H, stars = [];",
+      "  function resize() {",
+      "    W = canvas.width  = window.innerWidth;",
+      "    H = canvas.height = window.innerHeight;",
+      "  }",
+      "  function mkStars() {",
+      "    stars = [];",
+      "    for (var i = 0; i < 320; i++) {",
+      "      var c = Math.random();",
+      "      stars.push({",
+      "        x: Math.random() * W, y: Math.random() * H,",
+      "        r: Math.random() * 1.9 + 0.1,",
+      "        o: Math.random() * 0.8 + 0.1,",
+      "        s: Math.random() * 0.5 + 0.1,",
+      "        phase: Math.random() * Math.PI * 2,",
+      "        color: c > 0.7 ? '#f472b6' : c > 0.5 ? '#a855f7' : c > 0.3 ? '#c4b5fd' : '#fff'",
+      "      });",
+      "    }",
+      "  }",
+      "  var t = 0;",
+      "  function draw() {",
+      "    ctx.clearRect(0, 0, W, H);",
+      "    t += 0.01;",
+      "    for (var i = 0; i < stars.length; i++) {",
+      "      var s = stars[i];",
+      "      var tw = Math.sin(t * s.s * 60 / 60 + s.phase);",
+      "      ctx.beginPath();",
+      "      ctx.arc(s.x, s.y, s.r * (1 + 0.4 * tw), 0, Math.PI * 2);",
+      "      ctx.fillStyle = s.color;",
+      "      ctx.globalAlpha = s.o * (0.5 + 0.5 * tw);",
+      "      ctx.fill();",
+      "      if (s.o > 0.7 && s.r > 1.4) {",
+      "        ctx.globalAlpha = 0.18 * (0.5 + 0.5 * tw);",
+      "        var gl = s.r * 8;",
+      "        for (var a = 0; a < 2; a++) {",
+      "          ctx.save();",
+      "          ctx.translate(s.x, s.y);",
+      "          ctx.rotate(a * Math.PI / 2);",
+      "          ctx.beginPath();",
+      "          ctx.moveTo(-gl, 0); ctx.lineTo(gl, 0);",
+      "          ctx.strokeStyle = s.color;",
+      "          ctx.lineWidth = 0.5;",
+      "          ctx.stroke();",
+      "          ctx.restore();",
+      "        }",
+      "      }",
+      "    }",
+      "    ctx.globalAlpha = 1;",
+      "    requestAnimationFrame(draw);",
+      "  }",
+      "  resize(); mkStars(); draw();",
+      "  window.addEventListener('resize', function() { resize(); mkStars(); });",
+      "})();",
+    ].join("\n"),
+
+    cursorScript: [
+      "(function() {",
+      "  document.querySelectorAll('.pookie-cursor,.pookie-cursor__trail,.pookie-sparkle').forEach(function(e) { e.remove(); });",
+      "  var cursor = document.createElement('div');",
+      "  cursor.className = 'pookie-cursor';",
+      "  cursor.innerHTML = '<div class=\"pookie-cursor__ring\"></div><div class=\"pookie-cursor__dot\"></div>';",
+      "  document.body.appendChild(cursor);",
+      "  var trail = document.createElement('div');",
+      "  trail.className = 'pookie-cursor__trail';",
+      "  document.body.appendChild(trail);",
+      "  var mx = -100, my = -100, tx = -100, ty = -100, sparkleTimer = 0;",
+      "  var COLORS = ['#f472b6','#a855f7','#ec4899','#c4b5fd','#fbbf24','#fff'];",
+      "  function spawnSparkle(x, y) {",
+      "    var s = document.createElement('div');",
+      "    s.className = 'pookie-sparkle';",
+      "    var size = 3 + Math.random() * 5;",
+      "    var dx = (Math.random() - 0.5) * 32;",
+      "    var dy = (Math.random() - 0.5) * 32;",
+      "    s.style.cssText = 'left:' + (x+dx) + 'px;top:' + (y+dy) + 'px;width:' + size + 'px;height:' + size + 'px;background:' + COLORS[Math.floor(Math.random()*COLORS.length)] + ';box-shadow:0 0 ' + (size*1.5) + 'px currentColor;';",
+      "    document.body.appendChild(s);",
+      "    setTimeout(function() { s.remove(); }, 700);",
+      "  }",
+      "  document.addEventListener('mousemove', function(e) {",
+      "    mx = e.clientX; my = e.clientY;",
+      "    cursor.style.left = mx + 'px'; cursor.style.top = my + 'px';",
+      "    sparkleTimer++;",
+      "    if (sparkleTimer % 4 === 0) spawnSparkle(mx, my);",
+      "  });",
+      "  setInterval(function() {",
+      "    tx += (mx - tx) * 0.18; ty += (my - ty) * 0.18;",
+      "    trail.style.left = tx + 'px'; trail.style.top = ty + 'px';",
+      "  }, 16);",
+      "  document.addEventListener('mousedown', function() {",
+      "    var dot = cursor.querySelector('.pookie-cursor__dot');",
+      "    if (dot) dot.style.transform = 'scale(0.6)';",
+      "    for (var i = 0; i < 7; i++) spawnSparkle(mx, my);",
+      "  });",
+      "  document.addEventListener('mouseup', function() {",
+      "    var dot = cursor.querySelector('.pookie-cursor__dot');",
+      "    if (dot) dot.style.transform = 'scale(1)';",
+      "  });",
+      "})();",
+    ].join("\n"),
+
+    swatches:      ["#06020f", "#f472b6", "#a855f7", "#fb7185"],
+    previewBg:     "#06020f",
+    previewCard:   "rgba(168,85,247,0.14)",
+    previewAccent: "#f472b6",
+    dark: true,
+  },
+
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // 2. AESTHETIC  ·  Warm Parchment × Moody Autumnal — Upgraded
+  //    Cursor: antique quill pen with ink dot trail
+  // ══════════════════════════════════════════════════════════════════════════
+  aesthetic: {
+    name: "Aesthetic",
+    emoji: "🍂",
+    description: "Warm parchment & golden tones",
+    bodyClass: "theme-aesthetic",
+
+    fonts: {
+      google:  "https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,600;0,700;1,400;1,600&family=Lora:ital,wght@0,400;0,600;1,400&family=IM+Fell+English:ital@0;1&display=swap",
+      display: "'IM Fell English', serif",
+      body:    "'Lora', serif",
+      mono:    "'Courier Prime', monospace",
+    },
+
+    vars: {
+      "--pookie-bg":        "#f5efe4",
+      "--pookie-surface":   "rgba(196,147,100,0.12)",
+      "--pookie-surface2":  "rgba(196,147,100,0.24)",
+      "--pookie-pink":      "#b5673d",
+      "--pookie-pink2":     "#9c5030",
+      "--pookie-purple":    "#8b6347",
+      "--pookie-purple2":   "#6b4a30",
+      "--pookie-rose":      "#c96442",
+      "--pookie-text":      "#2c1f12",
+      "--pookie-muted":     "#7a6048",
+      "--pookie-border":    "rgba(181,103,61,0.25)",
+      "--pookie-border2":   "rgba(181,103,61,0.45)",
+      "--pookie-radius":    "4px",
+      "--pookie-radius-sm": "2px",
+      "--pookie-shadow":    "0 2px 14px rgba(100,60,20,0.15)",
+      "--pookie-shadow-h":  "0 8px 28px rgba(100,60,20,0.22)",
+      "--pookie-glow":      "0 0 22px rgba(185,110,55,0.30)",
+      "--pookie-font":      "'Lora', serif",
+      "--pookie-display":   "'IM Fell English', serif",
+      "--theme-bg":         "#f5efe4",
+      "--theme-surface":    "rgba(196,147,100,0.12)",
+      "--theme-accent":     "#b5673d",
+      "--theme-accent2":    "#8b6347",
+      "--theme-text":       "#2c1f12",
+      "--theme-muted":      "#7a6048",
+      "--theme-border":     "rgba(181,103,61,0.25)",
+      "--theme-radius":     "4px",
+      "--theme-radius-sm":  "2px",
+      "--theme-shadow":     "0 2px 14px rgba(100,60,20,0.15)",
+      "--theme-shadow-h":   "0 8px 28px rgba(100,60,20,0.22)",
+      "--theme-glow":       "0 0 22px rgba(185,110,55,0.30)",
+      "--theme-cursor-color": "#b5673d",
+      "--aesthetic-grain-opacity": "0.055",
+    },
+
+    overlayHTML: [
+      '<div class="aesthetic-grain"></div>',
+      '<div class="aesthetic-vignette"></div>',
+      '<div class="aesthetic-warmlight"></div>',
+      '<div class="aesthetic-watercolor aesthetic-watercolor--1"></div>',
+      '<div class="aesthetic-watercolor aesthetic-watercolor--2"></div>',
+      '<div class="aesthetic-watercolor aesthetic-watercolor--3"></div>',
+      '<svg class="aesthetic-botanicals" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 600" preserveAspectRatio="xMidYMid slice">',
+      '<g opacity="0.08" transform="translate(28,410) rotate(-22)">',
+      '<line x1="0" y1="0" x2="0" y2="-120" stroke="#5a3e28" stroke-width="1.8"/>',
+      '<path d="M0,-8 Q28,-28 22,-60 Q2,-38 0,-8Z" fill="#5a3e28"/>',
+      '<path d="M0,-8 Q-26,-26 -18,-58 Q2,-36 0,-8Z" fill="#5a3e28"/>',
+      '<path d="M0,-22 Q32,-38 26,-72 Q4,-50 0,-22Z" fill="#5a3e28"/>',
+      '<path d="M0,-22 Q-28,-34 -22,-68 Q4,-48 0,-22Z" fill="#5a3e28"/>',
+      '<path d="M0,-38 Q26,-50 20,-84 Q2,-60 0,-38Z" fill="#5a3e28"/>',
+      '<path d="M0,-38 Q-24,-46 -18,-80 Q4,-58 0,-38Z" fill="#5a3e28"/>',
+      '</g>',
+      '<g opacity="0.075" transform="translate(724,58) rotate(12)">',
+      '<path d="M0,0 Q14,-20 0,-34 Q-14,-20 0,0Z" fill="#8b4a30"/>',
+      '<path d="M0,0 Q20,-6 24,8 Q12,20 0,0Z" fill="#9c5535"/>',
+      '<path d="M0,0 Q-20,-6 -24,8 Q-12,20 0,0Z" fill="#9c5535"/>',
+      '<path d="M0,30 Q2,55 -6,70" stroke="#5a3e28" stroke-width="1.4" fill="none"/>',
+      '</g>',
+      '</svg>',
+    ].join(""),
+
+    overlayScript: "",
+
+    cursorScript: [
+      "(function() {",
+      "  document.querySelectorAll('.aesthetic-cursor,.aesthetic-ink-dot,.aesthetic-ink-trail').forEach(function(e) { e.remove(); });",
+      "  var cursor = document.createElement('div');",
+      "  cursor.className = 'aesthetic-cursor';",
+      "  cursor.innerHTML = '<svg width=\"32\" height=\"36\" viewBox=\"0 0 32 36\" xmlns=\"http://www.w3.org/2000/svg\"><path d=\"M28,2 C20,2 6,18 2,34\" stroke=\"#5a3e28\" stroke-width=\"1\" fill=\"none\" opacity=\"0.7\"/><path d=\"M28,2 C32,6 30,14 20,20 C22,12 26,6 28,2Z\" fill=\"#c8a882\" opacity=\"0.6\"/><path d=\"M28,2 C24,8 18,14 14,22 C18,14 24,8 28,2Z\" fill=\"#b89060\" opacity=\"0.5\"/><path d=\"M2,34 L5,30 L4,32Z\" fill=\"#2c1f12\" opacity=\"0.8\"/><ellipse cx=\"2.5\" cy=\"34.5\" rx=\"1.2\" ry=\"1.5\" fill=\"#1a0f08\" opacity=\"0.55\"/></svg>';",
+      "  document.body.appendChild(cursor);",
+      "  var inkDot = document.createElement('div');",
+      "  inkDot.className = 'aesthetic-ink-dot';",
+      "  document.body.appendChild(inkDot);",
+      "  var mx = -100, my = -100, ix = -100, iy = -100;",
+      "  var lastTrailX = -200, lastTrailY = -200, trailTimer = 0;",
+      "  function spawnInkTrail(x, y) {",
+      "    var t = document.createElement('div');",
+      "    t.className = 'aesthetic-ink-trail';",
+      "    var size = 4 + Math.random() * 6;",
+      "    t.style.cssText = 'left:' + x + 'px;top:' + y + 'px;width:' + size + 'px;height:' + size + 'px;';",
+      "    document.body.appendChild(t);",
+      "    setTimeout(function() { t.remove(); }, 1200);",
+      "  }",
+      "  document.addEventListener('mousemove', function(e) {",
+      "    mx = e.clientX; my = e.clientY;",
+      "    cursor.style.left = mx + 'px'; cursor.style.top = my + 'px';",
+      "    trailTimer++;",
+      "    if (trailTimer % 6 === 0) {",
+      "      var dx = mx - lastTrailX, dy = my - lastTrailY;",
+      "      if (Math.sqrt(dx*dx+dy*dy) > 15) {",
+      "        spawnInkTrail(mx, my);",
+      "        lastTrailX = mx; lastTrailY = my;",
+      "      }",
+      "    }",
+      "  });",
+      "  setInterval(function() {",
+      "    ix += (mx - ix) * 0.14; iy += (my - iy) * 0.14;",
+      "    inkDot.style.left = ix + 'px'; inkDot.style.top = iy + 'px';",
+      "  }, 16);",
+      "  document.addEventListener('mousedown', function() {",
+      "    cursor.style.transform = 'translate(-6px,-2px) rotate(45deg) scale(0.85)';",
+      "    spawnInkTrail(mx, my); spawnInkTrail(mx+3, my+3);",
+      "  });",
+      "  document.addEventListener('mouseup', function() {",
+      "    cursor.style.transform = 'translate(-6px,-2px) rotate(45deg) scale(1)';",
+      "  });",
+      "})();",
+    ].join("\n"),
+
+    swatches:      ["#f5efe4", "#b5673d", "#8b6347", "#c96442"],
+    previewBg:     "#f5efe4",
+    previewCard:   "rgba(196,147,100,0.20)",
+    previewAccent: "#b5673d",
+    dark: false,
+  },
+
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // 3. STELLER  ·  Deep Space Indigo × Cyan — Upgraded
+  //    Cursor: animated sci-fi targeting reticle
+  // ══════════════════════════════════════════════════════════════════════════
+  steller: {
+    name: "Steller",
+    emoji: "🚀",
+    description: "Deep space indigo & cyan",
+    bodyClass: "theme-steller",
+
+    fonts: {
+      google:  "https://fonts.googleapis.com/css2?family=Oxanium:wght@400;500;600;700;800&family=Exo+2:ital,wght@0,300;0,400;0,600;0,700;1,400&family=Share+Tech+Mono&display=swap",
+      display: "'Oxanium', sans-serif",
+      body:    "'Exo 2', sans-serif",
+      mono:    "'Share Tech Mono', monospace",
+    },
+
+    vars: {
+      "--pookie-bg":        "#020510",
+      "--pookie-surface":   "rgba(56,189,248,0.07)",
+      "--pookie-surface2":  "rgba(56,189,248,0.14)",
+      "--pookie-pink":      "#38bdf8",
+      "--pookie-pink2":     "#0ea5e9",
+      "--pookie-purple":    "#818cf8",
+      "--pookie-purple2":   "#6366f1",
+      "--pookie-rose":      "#34d399",
+      "--pookie-text":      "#e0f2fe",
+      "--pookie-muted":     "#7aadcc",
+      "--pookie-border":    "rgba(56,189,248,0.20)",
+      "--pookie-border2":   "rgba(56,189,248,0.40)",
+      "--pookie-radius":    "6px",
+      "--pookie-radius-sm": "3px",
+      "--pookie-shadow":    "0 4px 24px rgba(56,189,248,0.14)",
+      "--pookie-shadow-h":  "0 12px 40px rgba(56,189,248,0.28)",
+      "--pookie-glow":      "0 0 28px rgba(56,189,248,0.38)",
+      "--pookie-font":      "'Exo 2', sans-serif",
+      "--pookie-display":   "'Oxanium', sans-serif",
+      "--theme-bg":         "#020510",
+      "--theme-surface":    "rgba(56,189,248,0.07)",
+      "--theme-accent":     "#38bdf8",
+      "--theme-accent2":    "#818cf8",
+      "--theme-text":       "#e0f2fe",
+      "--theme-muted":      "#7aadcc",
+      "--theme-border":     "rgba(56,189,248,0.20)",
+      "--theme-radius":     "6px",
+      "--theme-radius-sm":  "3px",
+      "--theme-shadow":     "0 4px 24px rgba(56,189,248,0.14)",
+      "--theme-shadow-h":   "0 12px 40px rgba(56,189,248,0.28)",
+      "--theme-glow":       "0 0 28px rgba(56,189,248,0.38)",
+      "--theme-cursor-color": "#38bdf8",
+      "--steller-scan-color": "rgba(56,189,248,0.04)",
+    },
+
+    overlayHTML: [
+      '<canvas id="steller-space" style="position:fixed;inset:0;width:100%;height:100%;pointer-events:none;z-index:0;"></canvas>',
+      '<div class="steller-scanlines"></div>',
+      '<div class="steller-planet">',
+      '  <div class="steller-planet-ring steller-planet-ring--3"></div>',
+      '  <div class="steller-planet-ring steller-planet-ring--2"></div>',
+      '  <div class="steller-planet-ring steller-planet-ring--1"></div>',
+      '  <div class="steller-planet-core"></div>',
+      '</div>',
+      '<div class="steller-hud-corner steller-hud-corner--tl"></div>',
+      '<div class="steller-hud-corner steller-hud-corner--br"></div>',
+      '<div class="steller-hud-corner steller-hud-corner--tr"></div>',
+      '<div class="steller-hud-corner steller-hud-corner--bl"></div>',
+      '<div class="steller-hud-data"><div>SYS: ONLINE</div><div>THM: STELLER</div></div>',
+      '<div class="steller-hud-data-br"><div>FIELD: ACTIVE</div><div>SYNC: 100%</div></div>',
+    ].join(""),
+
+    overlayScript: [
+      "(function() {",
+      "  var canvas = document.getElementById('steller-space');",
+      "  if (!canvas) return;",
+      "  var ctx = canvas.getContext('2d');",
+      "  var W, H, stars = [], nebula = [], streaks = [], constellations = [];",
+      "  function resize() {",
+      "    W = canvas.width = window.innerWidth;",
+      "    H = canvas.height = window.innerHeight;",
+      "  }",
+      "  function init() {",
+      "    stars = [];",
+      "    for (var i = 0; i < 360; i++) {",
+      "      var c = Math.random();",
+      "      stars.push({",
+      "        x: Math.random()*W, y: Math.random()*H,",
+      "        r: Math.random()*1.5+0.15,",
+      "        brightness: Math.random(),",
+      "        twinkleSpeed: Math.random()*0.028+0.006,",
+      "        phase: Math.random()*Math.PI*2,",
+      "        hue: c>0.75 ? '#38bdf8' : c>0.55 ? '#818cf8' : c>0.3 ? '#bfdbfe' : '#e0f2fe'",
+      "      });",
+      "    }",
+      "    nebula = [];",
+      "    for (var j = 0; j < 7; j++) {",
+      "      nebula.push({",
+      "        x: Math.random()*W, y: Math.random()*H,",
+      "        rx: 110+Math.random()*180, ry: 70+Math.random()*130,",
+      "        hue: Math.random()>0.5 ? '56,189,248' : '129,140,248',",
+      "        alpha: 0.020+Math.random()*0.030,",
+      "        drift: (Math.random()-0.5)*0.05",
+      "      });",
+      "    }",
+      "    var bright = stars.filter(function(s) { return s.brightness > 0.8; }).slice(0,12);",
+      "    constellations = [];",
+      "    for (var k = 0; k < bright.length-1; k+=2) {",
+      "      var a = bright[k], b = bright[k+1];",
+      "      if (!b) continue;",
+      "      var dx = b.x-a.x, dy = b.y-a.y;",
+      "      if (Math.sqrt(dx*dx+dy*dy) < 250) constellations.push({x1:a.x,y1:a.y,x2:b.x,y2:b.y});",
+      "    }",
+      "    streaks = [];",
+      "    for (var m = 0; m < 35; m++) {",
+      "      streaks.push({",
+      "        x: Math.random()*W, y: Math.random()*H,",
+      "        len: 0, maxLen: 55+Math.random()*130,",
+      "        angle: Math.random()*Math.PI*2,",
+      "        speed: 7+Math.random()*16,",
+      "        life: 1, done: false",
+      "      });",
+      "    }",
+      "  }",
+      "  var t = 0, streaksDone = false;",
+      "  function draw() {",
+      "    ctx.clearRect(0, 0, W, H);",
+      "    t += 0.016;",
+      "    for (var n = 0; n < nebula.length; n++) {",
+      "      var nb = nebula[n];",
+      "      nb.x += nb.drift;",
+      "      if (nb.x > W+280) nb.x = -280;",
+      "      var g = ctx.createRadialGradient(nb.x,nb.y,0,nb.x,nb.y,nb.rx);",
+      "      g.addColorStop(0,'rgba('+nb.hue+','+nb.alpha+')');",
+      "      g.addColorStop(1,'rgba('+nb.hue+',0)');",
+      "      ctx.beginPath();",
+      "      ctx.ellipse(nb.x,nb.y,nb.rx,nb.ry,0,0,Math.PI*2);",
+      "      ctx.fillStyle = g; ctx.fill();",
+      "    }",
+      "    ctx.globalAlpha = 0.06;",
+      "    ctx.strokeStyle = '#38bdf8'; ctx.lineWidth = 0.6;",
+      "    ctx.setLineDash([4,8]);",
+      "    for (var ci = 0; ci < constellations.length; ci++) {",
+      "      var c = constellations[ci];",
+      "      ctx.beginPath(); ctx.moveTo(c.x1,c.y1); ctx.lineTo(c.x2,c.y2); ctx.stroke();",
+      "    }",
+      "    ctx.setLineDash([]); ctx.globalAlpha = 1;",
+      "    for (var si = 0; si < stars.length; si++) {",
+      "      var s = stars[si];",
+      "      var tw = Math.sin(t*(s.twinkleSpeed*60)+s.phase);",
+      "      ctx.beginPath();",
+      "      ctx.arc(s.x,s.y,s.r*(1+0.42*tw),0,Math.PI*2);",
+      "      ctx.fillStyle = s.hue;",
+      "      ctx.globalAlpha = 0.25+0.55*s.brightness*(0.6+0.4*tw);",
+      "      ctx.fill();",
+      "      if (s.brightness > 0.86) {",
+      "        ctx.globalAlpha = 0.14*(0.5+0.5*tw);",
+      "        for (var ai = 0; ai < 2; ai++) {",
+      "          ctx.save(); ctx.translate(s.x,s.y); ctx.rotate(ai*Math.PI/2);",
+      "          ctx.beginPath(); ctx.moveTo(-s.r*7,0); ctx.lineTo(s.r*7,0);",
+      "          ctx.strokeStyle = s.hue; ctx.lineWidth = 0.5; ctx.stroke(); ctx.restore();",
+      "        }",
+      "      }",
+      "    }",
+      "    ctx.globalAlpha = 1;",
+      "    if (!streaksDone) {",
+      "      var allDone = true;",
+      "      for (var ri = 0; ri < streaks.length; ri++) {",
+      "        var sr = streaks[ri];",
+      "        if (sr.done) continue;",
+      "        sr.len = Math.min(sr.len+sr.speed, sr.maxLen);",
+      "        sr.life -= 0.020;",
+      "        if (sr.life <= 0 || sr.len >= sr.maxLen) { sr.done = true; continue; }",
+      "        allDone = false;",
+      "        var ex = sr.x+Math.cos(sr.angle)*sr.len;",
+      "        var ey = sr.y+Math.sin(sr.angle)*sr.len;",
+      "        var sg = ctx.createLinearGradient(sr.x,sr.y,ex,ey);",
+      "        sg.addColorStop(0,'rgba(56,189,248,0)');",
+      "        sg.addColorStop(1,'rgba(56,189,248,'+(sr.life*0.75)+')');",
+      "        ctx.beginPath(); ctx.moveTo(sr.x,sr.y); ctx.lineTo(ex,ey);",
+      "        ctx.strokeStyle = sg; ctx.lineWidth = 0.9;",
+      "        ctx.globalAlpha = sr.life; ctx.stroke(); ctx.globalAlpha = 1;",
+      "      }",
+      "      if (allDone) streaksDone = true;",
+      "    }",
+      "    requestAnimationFrame(draw);",
+      "  }",
+      "  resize(); init(); draw();",
+      "  window.addEventListener('resize', function() { resize(); init(); });",
+      "})();",
+    ].join("\n"),
+
+    cursorScript: [
+      "(function() {",
+      "  document.querySelectorAll('.steller-cursor,.steller-cursor-h-line,.steller-cursor-v-line').forEach(function(e) { e.remove(); });",
+      "  var cursor = document.createElement('div');",
+      "  cursor.className = 'steller-cursor';",
+      "  cursor.innerHTML = '<div class=\"steller-cursor__tl\"></div><div class=\"steller-cursor__tr\"></div><div class=\"steller-cursor__bl\"></div><div class=\"steller-cursor__br\"></div><div class=\"steller-cursor__outer\"></div><div class=\"steller-cursor__inner\"></div><div class=\"steller-cursor__dot\"></div>';",
+      "  document.body.appendChild(cursor);",
+      "  var hLine = document.createElement('div');",
+      "  hLine.className = 'steller-cursor-h-line';",
+      "  document.body.appendChild(hLine);",
+      "  var vLine = document.createElement('div');",
+      "  vLine.className = 'steller-cursor-v-line';",
+      "  document.body.appendChild(vLine);",
+      "  var mx = window.innerWidth/2, my = window.innerHeight/2;",
+      "  document.addEventListener('mousemove', function(e) {",
+      "    mx = e.clientX; my = e.clientY;",
+      "    cursor.style.left = mx+'px'; cursor.style.top = my+'px';",
+      "    hLine.style.top = my+'px'; vLine.style.left = mx+'px';",
+      "  });",
+      "  document.addEventListener('mousedown', function() {",
+      "    var outer = cursor.querySelector('.steller-cursor__outer');",
+      "    var dot = cursor.querySelector('.steller-cursor__dot');",
+      "    if (outer) outer.style.opacity = '1';",
+      "    if (dot) dot.style.boxShadow = '0 0 12px 5px rgba(56,189,248,0.9)';",
+      "    var scan = document.createElement('div');",
+      "    scan.className = 'steller-cursor-scan';",
+      "    scan.style.cssText = 'left:'+mx+'px;top:'+my+'px;';",
+      "    document.body.appendChild(scan);",
+      "    setTimeout(function() { scan.remove(); }, 600);",
+      "  });",
+      "  document.addEventListener('mouseup', function() {",
+      "    var outer = cursor.querySelector('.steller-cursor__outer');",
+      "    var dot = cursor.querySelector('.steller-cursor__dot');",
+      "    if (outer) outer.style.opacity = '';",
+      "    if (dot) dot.style.boxShadow = '';",
+      "  });",
+      "})();",
+    ].join("\n"),
+
+    swatches:      ["#020510", "#38bdf8", "#818cf8", "#34d399"],
+    previewBg:     "#020510",
+    previewCard:   "rgba(56,189,248,0.10)",
+    previewAccent: "#38bdf8",
+    dark: true,
+  },
+
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // 4. NOTEBOOK  ·  College-ruled paper + red margin + spiral binding
+  //    Cursor: fountain pen nib with ink stroke trail
+  // ══════════════════════════════════════════════════════════════════════════
+  notebook: {
+    name: "Notebook",
+    emoji: "📓",
+    description: "College-ruled paper & handwritten ink",
+    bodyClass: "theme-notebook",
+
+    fonts: {
+      google:  "https://fonts.googleapis.com/css2?family=Caveat:wght@400;500;600;700&family=Caveat+Brush&family=Kalam:wght@300;400;700&family=Patrick+Hand&display=swap",
+      display: "'Caveat Brush', cursive",
+      body:    "'Kalam', cursive",
+      mono:    "'Patrick Hand', cursive",
+    },
+
+    vars: {
+      "--pookie-bg":        "#f8f6ef",
+      "--pookie-surface":   "rgba(255,255,255,0.75)",
+      "--pookie-surface2":  "rgba(255,255,255,0.92)",
+      "--pookie-pink":      "#1a3a6b",
+      "--pookie-pink2":     "#0f2449",
+      "--pookie-purple":    "#2855a0",
+      "--pookie-purple2":   "#1e3f7a",
+      "--pookie-rose":      "#c0392b",
+      "--pookie-text":      "#1c1c2e",
+      "--pookie-muted":     "#6b7280",
+      "--pookie-border":    "rgba(26,58,107,0.18)",
+      "--pookie-border2":   "rgba(26,58,107,0.34)",
+      "--pookie-radius":    "2px",
+      "--pookie-radius-sm": "1px",
+      "--pookie-shadow":    "0 1px 6px rgba(0,0,0,0.10)",
+      "--pookie-shadow-h":  "0 4px 20px rgba(0,0,0,0.16)",
+      "--pookie-glow":      "0 0 16px rgba(26,58,107,0.20)",
+      "--pookie-font":      "'Kalam', cursive",
+      "--pookie-display":   "'Caveat Brush', cursive",
+      "--theme-bg":         "#f8f6ef",
+      "--theme-surface":    "rgba(255,255,255,0.75)",
+      "--theme-accent":     "#1a3a6b",
+      "--theme-accent2":    "#2855a0",
+      "--theme-text":       "#1c1c2e",
+      "--theme-muted":      "#6b7280",
+      "--theme-border":     "rgba(26,58,107,0.18)",
+      "--theme-radius":     "2px",
+      "--theme-radius-sm":  "1px",
+      "--theme-shadow":     "0 1px 6px rgba(0,0,0,0.10)",
+      "--theme-shadow-h":   "0 4px 20px rgba(0,0,0,0.16)",
+      "--theme-glow":       "0 0 16px rgba(26,58,107,0.20)",
+      "--theme-cursor-color": "#1a3a6b",
+      "--nb-line-color":    "rgba(147,197,253,0.55)",
+      "--nb-margin-color":  "rgba(220,38,38,0.35)",
+      "--nb-line-height":   "32px",
+      "--nb-margin-left":   "72px",
+      "--nb-paper":         "#faf8f1",
+    },
+
+    overlayHTML: (function() {
+      var coils = "";
+      for (var i = 0; i < 24; i++) {
+        coils += '<div class="nb-coil" style="left:' + (i * 36 + 12) + 'px"></div>';
+      }
+      return [
+        '<div class="nb-page-shell">',
+        '  <div class="nb-spiral">' + coils + '</div>',
+        '  <div class="nb-rules"></div>',
+        '  <div class="nb-margin-line"></div>',
+        '  <div class="nb-margin-line-2"></div>',
+        '  <div class="nb-hole nb-hole--1"><div class="nb-hole-ring"></div></div>',
+        '  <div class="nb-hole nb-hole--2"><div class="nb-hole-ring"></div></div>',
+        '  <div class="nb-hole nb-hole--3"><div class="nb-hole-ring"></div></div>',
+        '  <div class="nb-page-curl"></div>',
+        '  <div class="nb-coffee-ring"></div>',
+        '  <div class="nb-ink-blot"></div>',
+        '  <div class="nb-date-stamp" id="nb-date"></div>',
+        '</div>',
+      ].join("");
+    })(),
+
+    overlayScript: [
+      "(function() {",
+      "  var el = document.getElementById('nb-date');",
+      "  if (el) {",
+      "    var now = new Date();",
+      "    el.textContent = now.toLocaleDateString('en-US', { month:'short', day:'numeric', year:'numeric' });",
+      "  }",
+      "})();",
+    ].join("\n"),
+
+    cursorScript: [
+      "(function() {",
+      "  document.querySelectorAll('.notebook-cursor,.notebook-ink-stroke').forEach(function(e) { e.remove(); });",
+      "  var cursor = document.createElement('div');",
+      "  cursor.className = 'notebook-cursor';",
+      "  cursor.innerHTML = '<svg width=\"28\" height=\"34\" viewBox=\"0 0 28 34\" xmlns=\"http://www.w3.org/2000/svg\"><rect x=\"10\" y=\"0\" width=\"8\" height=\"22\" rx=\"2\" fill=\"#1a3a6b\" opacity=\"0.85\"/><rect x=\"9\" y=\"18\" width=\"10\" height=\"3\" rx=\"1\" fill=\"#2855a0\" opacity=\"0.7\"/><polygon points=\"10,21 18,21 14,34\" fill=\"#0f2449\" opacity=\"0.9\"/><line x1=\"14\" y1=\"21\" x2=\"14\" y2=\"33\" stroke=\"#4a7abf\" stroke-width=\"0.5\" opacity=\"0.6\"/><rect x=\"12\" y=\"3\" width=\"2\" height=\"12\" rx=\"1\" fill=\"rgba(255,255,255,0.18)\"/><ellipse cx=\"14\" cy=\"33.5\" rx=\"1.5\" ry=\"1\" fill=\"#0f2449\" opacity=\"0.7\"/></svg>';",
+      "  document.body.appendChild(cursor);",
+      "  var mx = -100, my = -100;",
+      "  var lastStrokeX = -999, lastStrokeY = -999, strokeTimer = 0;",
+      "  function spawnStroke(x, y, px, py) {",
+      "    var dx = x-px, dy = y-py;",
+      "    var len = Math.sqrt(dx*dx+dy*dy);",
+      "    if (len < 2) return;",
+      "    var angle = Math.atan2(dy, dx);",
+      "    var stroke = document.createElement('div');",
+      "    stroke.className = 'notebook-ink-stroke';",
+      "    stroke.style.cssText = 'left:'+px+'px;top:'+py+'px;width:'+len+'px;height:'+(1+Math.random()*1.5)+'px;transform:rotate('+angle+'rad);border-radius:1px;';",
+      "    document.body.appendChild(stroke);",
+      "    setTimeout(function() { stroke.remove(); }, 1400);",
+      "  }",
+      "  document.addEventListener('mousemove', function(e) {",
+      "    mx = e.clientX; my = e.clientY;",
+      "    cursor.style.left = mx+'px'; cursor.style.top = my+'px';",
+      "    strokeTimer++;",
+      "    if (strokeTimer % 3 === 0) {",
+      "      if (lastStrokeX > -900) spawnStroke(mx, my, lastStrokeX, lastStrokeY);",
+      "      lastStrokeX = mx; lastStrokeY = my;",
+      "    }",
+      "  });",
+      "  document.addEventListener('mousedown', function() {",
+      "    cursor.style.transform = 'translate(-3px,-3px) rotate(45deg) scale(0.88)';",
+      "  });",
+      "  document.addEventListener('mouseup', function() {",
+      "    cursor.style.transform = 'translate(-3px,-3px) rotate(45deg) scale(1)';",
+      "  });",
+      "})();",
+    ].join("\n"),
+
+    swatches:      ["#f8f6ef", "#1a3a6b", "#2855a0", "#c0392b"],
+    previewBg:     "#f8f6ef",
+    previewCard:   "rgba(255,255,255,0.85)",
+    previewAccent: "#1a3a6b",
+    dark: false,
+  },
+
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // 5. GRAPH PAPER  ·  Clean white × engineering blue
+  //    Cursor: full-viewport precision crosshair with coordinate label
+  // ══════════════════════════════════════════════════════════════════════════
+  graphpaper: {
+    name: "Graph Paper",
+    emoji: "📐",
+    description: "Engineering graph paper — precise & minimal",
+    bodyClass: "theme-graphpaper",
+
+    fonts: {
+      google:  "https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&family=IBM+Plex+Mono:wght@300;400;500;600&family=IBM+Plex+Serif:ital,wght@0,400;0,600;1,400&display=swap",
+      display: "'IBM Plex Serif', serif",
+      body:    "'IBM Plex Sans', sans-serif",
+      mono:    "'IBM Plex Mono', monospace",
+    },
+
+    vars: {
+      "--pookie-bg":        "#fefefe",
+      "--pookie-surface":   "rgba(37,99,235,0.04)",
+      "--pookie-surface2":  "rgba(37,99,235,0.09)",
+      "--pookie-pink":      "#1d4ed8",
+      "--pookie-pink2":     "#1e40af",
+      "--pookie-purple":    "#7c3aed",
+      "--pookie-purple2":   "#6d28d9",
+      "--pookie-rose":      "#dc2626",
+      "--pookie-text":      "#0a0f1e",
+      "--pookie-muted":     "#6b7280",
+      "--pookie-border":    "rgba(37,99,235,0.18)",
+      "--pookie-border2":   "rgba(37,99,235,0.34)",
+      "--pookie-radius":    "3px",
+      "--pookie-radius-sm": "2px",
+      "--pookie-shadow":    "0 1px 4px rgba(0,0,0,0.06)",
+      "--pookie-shadow-h":  "0 4px 18px rgba(0,0,0,0.10)",
+      "--pookie-glow":      "0 0 16px rgba(37,99,235,0.22)",
+      "--pookie-font":      "'IBM Plex Sans', sans-serif",
+      "--pookie-display":   "'IBM Plex Serif', serif",
+      "--theme-bg":         "#fefefe",
+      "--theme-surface":    "rgba(37,99,235,0.04)",
+      "--theme-accent":     "#1d4ed8",
+      "--theme-accent2":    "#7c3aed",
+      "--theme-text":       "#0a0f1e",
+      "--theme-muted":      "#6b7280",
+      "--theme-border":     "rgba(37,99,235,0.18)",
+      "--theme-radius":     "3px",
+      "--theme-radius-sm":  "2px",
+      "--theme-shadow":     "0 1px 4px rgba(0,0,0,0.06)",
+      "--theme-shadow-h":   "0 4px 18px rgba(0,0,0,0.10)",
+      "--theme-glow":       "0 0 16px rgba(37,99,235,0.22)",
+      "--theme-cursor-color": "#1d4ed8",
+      "--gp-minor":         "rgba(147,197,253,0.52)",
+      "--gp-major":         "rgba(37,99,235,0.24)",
+      "--gp-cell":          "20px",
+      "--gp-axis":          "rgba(37,99,235,0.55)",
+      "--gp-label":         "rgba(37,99,235,0.38)",
+    },
+
+    overlayHTML: [
+      '<div class="gp-grid-layer"></div>',
+      '<canvas id="gp-canvas" class="gp-canvas"></canvas>',
+      '<div class="gp-axis-x" id="gp-ax"></div>',
+      '<div class="gp-axis-x-label">x</div>',
+      '<div class="gp-axis-y" id="gp-ay"></div>',
+      '<div class="gp-axis-y-label">y</div>',
+      '<div class="gp-origin"><div class="gp-origin-dot"></div><div class="gp-origin-label">O (0,0)</div></div>',
+      '<div class="gp-ticks-x" id="gp-ticks-x"></div>',
+      '<div class="gp-ticks-y" id="gp-ticks-y"></div>',
+      '<div class="gp-corner-mark gp-corner-mark--tl"><span class="gp-label-text">StudyBuddy v4.0 \u00b7 \u0192(x)</span></div>',
+      '<div class="gp-annotations">',
+      '  <div class="gp-annotation gp-annotation--1"><span class="gp-note-text">Graph Paper Mode</span><div class="gp-note-line"></div></div>',
+      '  <div class="gp-annotation gp-annotation--2"><div class="gp-delta-mark">\u0394</div><span class="gp-note-text">scale: 20px/unit</span></div>',
+      '</div>',
+    ].join(""),
+
+    overlayScript: [
+      "(function() {",
+      "  var CELL = 20;",
+      "  var txCon = document.getElementById('gp-ticks-x');",
+      "  var tyCon = document.getElementById('gp-ticks-y');",
+      "  if (txCon && tyCon) {",
+      "    var W = window.innerWidth, H = window.innerHeight;",
+      "    var cx = W/2, cy = H/2;",
+      "    for (var x = CELL; x < W/2; x += CELL) {",
+      "      var major = (x % 100 === 0);",
+      "      var pxArr = [cx+x, cx-x];",
+      "      for (var pi = 0; pi < pxArr.length; pi++) {",
+      "        var px = pxArr[pi];",
+      "        var tick = document.createElement('div');",
+      "        tick.className = 'gp-tick-mark gp-tick-mark--x' + (major ? ' gp-tick-mark--x-major' : '');",
+      "        tick.style.left = px+'px';",
+      "        txCon.appendChild(tick);",
+      "        if (major) {",
+      "          var lbl = document.createElement('span');",
+      "          lbl.style.cssText = 'position:absolute;left:'+px+'px;top:10px;transform:translateX(-50%);font-family:IBM Plex Mono,monospace;font-size:8px;color:rgba(37,99,235,0.38);white-space:nowrap;pointer-events:none;';",
+      "          lbl.textContent = Math.round((px-cx)/CELL);",
+      "          txCon.appendChild(lbl);",
+      "        }",
+      "      }",
+      "    }",
+      "    for (var y = CELL; y < H/2; y += CELL) {",
+      "      var majorY = (y % 100 === 0);",
+      "      var pyArr = [cy+y, cy-y];",
+      "      for (var yi = 0; yi < pyArr.length; yi++) {",
+      "        var py = pyArr[yi];",
+      "        var tickY = document.createElement('div');",
+      "        tickY.className = 'gp-tick-mark gp-tick-mark--y' + (majorY ? ' gp-tick-mark--y-major' : '');",
+      "        tickY.style.top = py+'px';",
+      "        tyCon.appendChild(tickY);",
+      "        if (majorY) {",
+      "          var lblY = document.createElement('span');",
+      "          lblY.style.cssText = 'position:absolute;top:'+py+'px;left:10px;transform:translateY(-50%);font-family:IBM Plex Mono,monospace;font-size:8px;color:rgba(37,99,235,0.38);white-space:nowrap;pointer-events:none;';",
+      "          lblY.textContent = -Math.round((py-cy)/CELL);",
+      "          tyCon.appendChild(lblY);",
+      "        }",
+      "      }",
+      "    }",
+      "  }",
+      "  var canvas = document.getElementById('gp-canvas');",
+      "  if (!canvas) return;",
+      "  var ctx = canvas.getContext('2d');",
+      "  var CW, CH;",
+      "  function resize() {",
+      "    CW = canvas.width = window.innerWidth;",
+      "    CH = canvas.height = window.innerHeight;",
+      "  }",
+      "  var SCALE = 20, ft = 0;",
+      "  function drawFn(ccx, ccy, fn, color, alpha, lineWidth) {",
+      "    ctx.beginPath();",
+      "    ctx.strokeStyle = color; ctx.lineWidth = lineWidth; ctx.globalAlpha = alpha;",
+      "    var first = true;",
+      "    for (var px = 0; px <= CW; px += 1.5) {",
+      "      var fx = (px-ccx)/SCALE;",
+      "      var fy;",
+      "      try { fy = fn(fx); } catch(e) { continue; }",
+      "      if (!isFinite(fy) || Math.abs(fy)>200) { first=true; continue; }",
+      "      var sy = ccy - fy*SCALE;",
+      "      if (first) { ctx.moveTo(px,sy); first=false; } else { ctx.lineTo(px,sy); }",
+      "    }",
+      "    ctx.stroke(); ctx.globalAlpha = 1;",
+      "  }",
+      "  function draw() {",
+      "    ctx.clearRect(0,0,CW,CH);",
+      "    ft += 0.008;",
+      "    var ccx = CW/2, ccy = CH/2;",
+      "    drawFn(ccx,ccy,function(x){return Math.sin(x+ft);},'rgba(37,99,235,0.10)',1,1.8);",
+      "    drawFn(ccx,ccy,function(x){return Math.cos(x*0.8-ft*0.6)*0.7;},'rgba(124,58,237,0.07)',1,1.4);",
+      "    drawFn(ccx,ccy,function(x){return x*x*0.04;},'rgba(220,38,38,0.05)',1,1);",
+      "    requestAnimationFrame(draw);",
+      "  }",
+      "  resize(); draw();",
+      "  window.addEventListener('resize', resize);",
+      "})();",
+    ].join("\n"),
+
+    cursorScript: [
+      "(function() {",
+      "  document.querySelectorAll('.gp-cursor,.gp-cursor-h-line,.gp-cursor-v-line,.gp-cursor__label').forEach(function(e) { e.remove(); });",
+      "  var CELL = 20;",
+      "  var dot = document.createElement('div');",
+      "  dot.className = 'gp-cursor';",
+      "  dot.innerHTML = '<div class=\"gp-cursor__dot\"></div>';",
+      "  document.body.appendChild(dot);",
+      "  var label = document.createElement('div');",
+      "  label.className = 'gp-cursor__label';",
+      "  label.style.cssText = 'position:fixed;pointer-events:none;z-index:99999;font-family:IBM Plex Mono,monospace;font-size:9px;color:rgba(37,99,235,0.65);background:rgba(255,255,255,0.88);padding:1px 5px;border-radius:2px;border:1px solid rgba(37,99,235,0.18);white-space:nowrap;';",
+      "  document.body.appendChild(label);",
+      "  var hLine = document.createElement('div');",
+      "  hLine.className = 'gp-cursor-h-line';",
+      "  document.body.appendChild(hLine);",
+      "  var vLine = document.createElement('div');",
+      "  vLine.className = 'gp-cursor-v-line';",
+      "  document.body.appendChild(vLine);",
+      "  var mx = window.innerWidth/2, my = window.innerHeight/2;",
+      "  document.addEventListener('mousemove', function(e) {",
+      "    mx = e.clientX; my = e.clientY;",
+      "    dot.style.left = mx+'px'; dot.style.top = my+'px';",
+      "    hLine.style.top = my+'px'; vLine.style.left = mx+'px';",
+      "    var gx = ((mx-window.innerWidth/2)/CELL).toFixed(1);",
+      "    var gy = (-(my-window.innerHeight/2)/CELL).toFixed(1);",
+      "    label.textContent = '('+gx+', '+gy+')';",
+      "    label.style.left = (mx+14)+'px'; label.style.top = (my-20)+'px';",
+      "  });",
+      "  document.addEventListener('mousedown', function() {",
+      "    var d = dot.querySelector('.gp-cursor__dot');",
+      "    if (d) d.style.background = 'rgba(37,99,235,0.90)';",
+      "  });",
+      "  document.addEventListener('mouseup', function() {",
+      "    var d = dot.querySelector('.gp-cursor__dot');",
+      "    if (d) d.style.background = '';",
+      "  });",
+      "})();",
+    ].join("\n"),
+
+    swatches:      ["#fefefe", "#1d4ed8", "#7c3aed", "#dc2626"],
+    previewBg:     "#fefefe",
+    previewCard:   "rgba(37,99,235,0.07)",
+    previewAccent: "#1d4ed8",
+    dark: false,
+  },
+};
+
+export const THEME_IDS     = Object.keys(THEMES);
+export const DEFAULT_THEME = "pookie";
+import { StrictMode } from 'react';
+import { createRoot } from 'react-dom/client';
+import { HelmetProvider } from 'react-helmet-async';
+import './Styles.css';
+import "./ThemeOverlays.css"; 
+import App from './App.jsx';
+
+createRoot(document.getElementById('root')).render(
+  <StrictMode>
+    <HelmetProvider>
+      <App />
+    </HelmetProvider>
+  </StrictMode>
+);
+
+

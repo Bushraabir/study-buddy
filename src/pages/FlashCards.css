@@ -1,37 +1,62 @@
+/* ============================================================
+   FlashCards.css  — StudyBuddy v4.1
+   Fully theme-aware via --theme-* + --pookie-* CSS vars.
+   Works across: pookie / aesthetic / steller / notebook / graphpaper
+   ============================================================ */
 
+/* ── Page ───────────────────────────────────────────────────── */
 .pookie-page {
   min-height: 100vh;
-  background: var(--pookie-bg);
-  background-image:
-    radial-gradient(ellipse 60% 40% at 20% 0%, rgba(168,85,247,0.14) 0%, transparent 70%),
-    radial-gradient(ellipse 50% 35% at 85% 90%, rgba(244,114,182,0.10) 0%, transparent 70%);
+  background: var(--theme-bg);
   font-family: var(--pookie-font);
-  color: var(--pookie-text);
+  color: var(--theme-text);
   padding: 40px 32px 80px;
-  max-width: 100%; 
+  max-width: 100%;
   margin: 0 auto;
   position: relative;
   overflow-x: hidden;
+  transition: background 0.45s ease, color 0.35s ease;
 }
 
-/* ── Floating sparkles ── */
-.pookie-sparkles { position: fixed; inset: 0; pointer-events: none; z-index: 0; }
+/* Light themes: remove the dark gradient overlay */
+body.theme-notebook .pookie-page,
+body.theme-aesthetic .pookie-page,
+body.theme-graphpaper .pookie-page {
+  background: transparent;
+}
+
+/* ── Floating sparkles (pookie/steller only — hide on light themes) ── */
+.pookie-sparkles {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+}
+
 .pookie-sparkle {
   position: absolute;
-  width: 6px; height: 6px;
+  width: 6px;
+  height: 6px;
   border-radius: 50%;
-  background: var(--pookie-pink);
+  background: var(--theme-accent);
   top: calc(10% + var(--i) * 11%);
   left: calc(5% + var(--i) * 12%);
-  opacity: 0.35;
+  opacity: 0.28;
   animation: pookie-float calc(3s + var(--i) * 0.4s) ease-in-out infinite alternate;
 }
-@keyframes pookie-float {
-  from { transform: translateY(0) scale(1); opacity: 0.35; }
-  to   { transform: translateY(-18px) scale(1.6); opacity: 0.7; }
+
+body.theme-aesthetic .pookie-sparkle,
+body.theme-notebook .pookie-sparkle,
+body.theme-graphpaper .pookie-sparkle {
+  display: none;
 }
 
-/* ── Confetti ── */
+@keyframes pookie-float {
+  from { transform: translateY(0) scale(1);   opacity: 0.28; }
+  to   { transform: translateY(-18px) scale(1.6); opacity: 0.55; }
+}
+
+/* ── Confetti ───────────────────────────────────────────────── */
 .pookie-confetti {
   position: fixed;
   top: 0;
@@ -40,30 +65,42 @@
   pointer-events: none;
 }
 
-/* ── Header ── */
-.pookie-header { text-align: center; margin-bottom: 40px; position: relative; z-index: 1; }
+/* ── Header ─────────────────────────────────────────────────── */
+.pookie-header {
+  text-align: center;
+  margin-bottom: 40px;
+  position: relative;
+  z-index: 1;
+}
 
 .pookie-badge {
   display: inline-block;
-  background: var(--pookie-surface2);
-  border: 1px solid var(--pookie-border);
-  backdrop-filter: blur(12px);
+  background: color-mix(in srgb, var(--theme-accent) 14%, transparent);
+  border: 1px solid color-mix(in srgb, var(--theme-accent) 28%, transparent);
   border-radius: 999px;
   padding: 6px 20px;
   font-size: 0.82rem;
   font-weight: 700;
   letter-spacing: 0.08em;
-  color: var(--pookie-pink);
+  color: var(--theme-accent);
   text-transform: uppercase;
   margin-bottom: 18px;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
+body.theme-aesthetic .pookie-badge,
+body.theme-notebook .pookie-badge,
+body.theme-graphpaper .pookie-badge {
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
 }
 
 .pookie-title {
   font-family: var(--pookie-display);
   font-size: clamp(2rem, 5vw, 3.4rem);
   font-weight: 700;
-  font-style: italic;
-  background: linear-gradient(135deg, var(--pookie-pink) 0%, var(--pookie-purple) 55%, var(--pookie-rose) 100%);
+  background: linear-gradient(135deg, var(--theme-accent), var(--theme-accent2));
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
@@ -71,13 +108,28 @@
   line-height: 1.15;
 }
 
+body.theme-pookie .pookie-title   { font-style: italic; }
+body.theme-steller .pookie-title  { font-style: normal; letter-spacing: 0.04em; }
+body.theme-notebook .pookie-title { font-style: normal; }
+
+body.theme-aesthetic .pookie-title {
+  font-style: italic;
+  -webkit-text-fill-color: transparent;
+}
+
+body.theme-graphpaper .pookie-title {
+  font-style: normal;
+  font-size: clamp(1.8rem, 4vw, 2.8rem);
+  letter-spacing: 0.02em;
+}
+
 .pookie-subtitle {
-  color: var(--pookie-muted);
+  color: var(--theme-muted);
   font-size: 1rem;
   font-weight: 500;
 }
 
-/* ── Toolbar ── */
+/* ── Toolbar ────────────────────────────────────────────────── */
 .pookie-toolbar {
   display: flex;
   flex-wrap: wrap;
@@ -93,6 +145,7 @@
   flex: 1;
   min-width: 180px;
 }
+
 .pookie-search-icon {
   position: absolute;
   left: 14px;
@@ -102,51 +155,95 @@
   pointer-events: none;
 }
 
-/* ── Inputs & Selects ── */
+/* ── Inputs ─────────────────────────────────────────────────── */
 .pookie-input {
   width: 100%;
   padding: 12px 16px;
-  background: var(--pookie-surface);
-  border: 1px solid var(--pookie-border);
-  border-radius: var(--pookie-radius-sm);
-  color: var(--pookie-text);
+  background: var(--theme-surface);
+  border: 1px solid var(--theme-border);
+  border-radius: var(--theme-radius-sm);
+  color: var(--theme-text);
   font-family: var(--pookie-font);
   font-size: 0.97rem;
   font-weight: 500;
   transition: border-color 0.25s, box-shadow 0.25s, background 0.25s;
   backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  -webkit-appearance: none;
+  caret-color: var(--theme-accent);
 }
+
 .pookie-input--search { padding-left: 42px; }
+
 .pookie-input:focus {
   outline: none;
-  border-color: var(--pookie-pink);
-  box-shadow: var(--pookie-glow);
-  background: rgba(244,114,182,0.07);
+  border-color: var(--theme-accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--theme-accent) 14%, transparent);
+  background: color-mix(in srgb, var(--theme-accent) 6%, transparent);
 }
-.pookie-input::placeholder { color: var(--pookie-muted); }
 
+.pookie-input::placeholder { color: var(--theme-muted); }
+
+body.theme-aesthetic .pookie-input,
+body.theme-notebook .pookie-input,
+body.theme-graphpaper .pookie-input {
+  background: rgba(255,255,255,0.85);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+body.theme-aesthetic .pookie-input:focus,
+body.theme-notebook .pookie-input:focus,
+body.theme-graphpaper .pookie-input:focus {
+  background: rgba(255,255,255,0.97);
+}
+
+/* ── Select ─────────────────────────────────────────────────── */
 .pookie-select {
   padding: 12px 16px;
-  background: var(--pookie-surface);
-  border: 1px solid var(--pookie-border);
-  border-radius: var(--pookie-radius-sm);
-  color: var(--pookie-text);
+  background: var(--theme-surface);
+  border: 1px solid var(--theme-border);
+  border-radius: var(--theme-radius-sm);
+  color: var(--theme-text);
   font-family: var(--pookie-font);
   font-size: 0.97rem;
   font-weight: 500;
   cursor: pointer;
   backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
   transition: border-color 0.25s;
   min-width: 150px;
+  -webkit-appearance: none;
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6' fill='%2394a3b8'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 12px center;
+  padding-right: 34px;
 }
-.pookie-select:focus { outline: none; border-color: var(--pookie-pink); }
-.pookie-select option { background: #1a1a2e; color: var(--pookie-text); }
 
+.pookie-select:focus {
+  outline: none;
+  border-color: var(--theme-accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--theme-accent) 14%, transparent);
+}
+
+body.theme-pookie .pookie-select option,
+body.theme-steller .pookie-select option { background: #0f0f23; }
+
+body.theme-aesthetic .pookie-select,
+body.theme-notebook .pookie-select,
+body.theme-graphpaper .pookie-select {
+  background-color: rgba(255,255,255,0.85);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+/* ── Label ──────────────────────────────────────────────────── */
 .pookie-label {
   display: block;
   font-size: 0.82rem;
   font-weight: 700;
-  color: var(--pookie-pink);
+  color: var(--theme-accent);
   letter-spacing: 0.06em;
   text-transform: uppercase;
   margin-bottom: 6px;
@@ -154,10 +251,23 @@
 }
 .pookie-label:first-child { margin-top: 0; }
 
-/* ── Buttons ── */
+body.theme-aesthetic .pookie-label {
+  text-transform: none;
+  font-style: italic;
+  letter-spacing: 0.01em;
+  color: var(--theme-accent);
+}
+
+body.theme-graphpaper .pookie-label {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.75rem;
+  letter-spacing: 0.08em;
+}
+
+/* ── Buttons ────────────────────────────────────────────────── */
 .pookie-btn {
   padding: 11px 22px;
-  border-radius: var(--pookie-radius-sm);
+  border-radius: var(--theme-radius-sm);
   border: none;
   font-family: var(--pookie-font);
   font-size: 0.95rem;
@@ -165,78 +275,141 @@
   cursor: pointer;
   transition: transform 0.18s, box-shadow 0.25s, opacity 0.2s;
   white-space: nowrap;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
 }
+
 .pookie-btn--primary {
-  background: linear-gradient(135deg, var(--pookie-purple) 0%, var(--pookie-pink2) 100%);
+  background: linear-gradient(135deg, var(--theme-accent2), var(--theme-accent));
   color: #fff;
-  box-shadow: 0 4px 18px rgba(168,85,247,0.35);
+  box-shadow: 0 4px 18px color-mix(in srgb, var(--theme-accent) 35%, transparent);
 }
+
+body.theme-notebook .pookie-btn--primary,
+body.theme-aesthetic .pookie-btn--primary { color: #fff; }
+
+body.theme-steller .pookie-btn--primary {
+  color: #020510;
+  font-family: var(--pookie-display);
+  letter-spacing: 0.06em;
+}
+
+body.theme-graphpaper .pookie-btn--primary {
+  color: #fff;
+  font-family: 'IBM Plex Sans', sans-serif;
+  letter-spacing: 0.04em;
+  font-weight: 600;
+}
+
 .pookie-btn--primary:hover {
-  box-shadow: 0 8px 28px rgba(168,85,247,0.5);
+  box-shadow: 0 8px 28px color-mix(in srgb, var(--theme-accent) 50%, transparent);
   transform: translateY(-2px);
 }
+
 .pookie-btn--quiz {
-  background: linear-gradient(135deg, var(--pookie-pink) 0%, var(--pookie-rose) 100%);
+  background: linear-gradient(135deg, var(--theme-accent), color-mix(in srgb, var(--theme-accent) 60%, var(--pookie-rose)));
   color: #fff;
-  box-shadow: 0 4px 18px rgba(244,114,182,0.4);
+  box-shadow: 0 4px 18px color-mix(in srgb, var(--theme-accent) 38%, transparent);
 }
+
+body.theme-steller .pookie-btn--quiz,
+body.theme-graphpaper .pookie-btn--quiz { color: #fff; }
+body.theme-steller .pookie-btn--quiz { color: #020510; }
+
 .pookie-btn--quiz:hover {
-  box-shadow: 0 8px 28px rgba(244,114,182,0.6);
+  box-shadow: 0 8px 28px color-mix(in srgb, var(--theme-accent) 55%, transparent);
   transform: translateY(-2px);
 }
+
 .pookie-btn--submit {
-  background: linear-gradient(135deg, var(--pookie-pink) 0%, var(--pookie-purple) 100%);
+  background: linear-gradient(135deg, var(--theme-accent), var(--theme-accent2));
   color: #fff;
   width: 100%;
   margin-top: 20px;
   padding: 14px;
   font-size: 1rem;
-  box-shadow: 0 4px 20px rgba(244,114,182,0.35);
+  box-shadow: 0 4px 20px color-mix(in srgb, var(--theme-accent) 35%, transparent);
 }
+
+body.theme-steller .pookie-btn--submit { color: #020510; }
+
 .pookie-btn--submit:hover {
-  box-shadow: 0 8px 30px rgba(244,114,182,0.55);
+  box-shadow: 0 8px 30px color-mix(in srgb, var(--theme-accent) 50%, transparent);
   transform: translateY(-2px);
 }
 
-/* ── Form Card ── */
+@media (hover: none) and (pointer: coarse) {
+  .pookie-btn--primary:hover,
+  .pookie-btn--quiz:hover,
+  .pookie-btn--submit:hover { transform: none; }
+}
+
+/* ── Form Card ──────────────────────────────────────────────── */
 .pookie-form-card {
-  background: var(--pookie-surface);
-  border: 1px solid var(--pookie-border);
-  border-radius: var(--pookie-radius);
+  background: var(--theme-surface);
+  border: 1px solid var(--theme-border);
+  border-radius: var(--theme-radius);
   backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
   padding: 28px;
   overflow: hidden;
-  box-shadow: var(--pookie-shadow);
+  box-shadow: var(--theme-shadow);
   position: relative;
   z-index: 1;
+  margin-bottom: 0;
 }
-.pookie-form-card::before {
+
+body.theme-aesthetic .pookie-form-card,
+body.theme-notebook .pookie-form-card,
+body.theme-graphpaper .pookie-form-card {
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  background: rgba(255,255,255,0.92);
+}
+
+body.theme-notebook .pookie-form-card {
+  border-left: 3px solid rgba(220,38,38,0.28);
+}
+
+body.theme-graphpaper .pookie-form-card::before {
   content: '';
   position: absolute;
   inset: 0;
-  background: linear-gradient(135deg, rgba(244,114,182,0.05) 0%, rgba(168,85,247,0.05) 100%);
   border-radius: inherit;
+  z-index: -1;
+  background-image:
+    linear-gradient(var(--gp-major, rgba(37,99,235,0.14)) 1px, transparent 1px),
+    linear-gradient(90deg, var(--gp-major, rgba(37,99,235,0.14)) 1px, transparent 1px),
+    linear-gradient(var(--gp-minor, rgba(147,197,253,0.30)) 1px, transparent 1px),
+    linear-gradient(90deg, var(--gp-minor, rgba(147,197,253,0.30)) 1px, transparent 1px);
+  background-size: 100px 100px, 100px 100px, 20px 20px, 20px 20px;
   pointer-events: none;
+  opacity: 0.4;
 }
+
 .pookie-form-title {
   font-family: var(--pookie-display);
-  font-style: italic;
   font-size: 1.5rem;
-  color: var(--pookie-pink);
+  color: var(--theme-accent);
   margin-bottom: 20px;
 }
+
+body.theme-pookie .pookie-form-title  { font-style: italic; }
+body.theme-aesthetic .pookie-form-title { font-style: italic; }
+body.theme-steller .pookie-form-title { font-style: normal; letter-spacing: 0.04em; }
+
 .pookie-form { display: flex; flex-direction: column; }
 
-/* ── Hint ── */
+/* ── Hint ───────────────────────────────────────────────────── */
 .pookie-hint {
   text-align: center;
-  color: var(--pookie-muted);
+  color: var(--theme-muted);
   font-size: 0.9rem;
   margin-bottom: 24px;
   font-weight: 600;
 }
 
-/* ── Card Grid ── */
+/* ── Card Grid ──────────────────────────────────────────────── */
 .pookie-card-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(270px, 1fr));
@@ -245,36 +418,49 @@
   z-index: 1;
 }
 
-/* ── Empty State ── */
+/* ── Empty State ────────────────────────────────────────────── */
 .pookie-empty {
   grid-column: 1 / -1;
   text-align: center;
   padding: 72px 20px;
-  color: var(--pookie-muted);
+  color: var(--theme-muted);
 }
-.pookie-empty-emoji { font-size: 3.5rem; display: block; margin-bottom: 16px; }
 
-/* ── Flip Card ── */
+.pookie-empty-emoji {
+  font-size: 3.5rem;
+  display: block;
+  margin-bottom: 16px;
+}
+
+/* ── Flip Cards ─────────────────────────────────────────────── */
 .pookie-flip-card {
   perspective: 1100px;
+  -webkit-perspective: 1100px;
   height: 220px;
   cursor: pointer;
-  border-radius: var(--pookie-radius);
-  -webkit-perspective: 1100px;
-  -webkit-transform: translateZ(0);
+  border-radius: var(--theme-radius);
   transform: translateZ(0);
+  -webkit-transform: translateZ(0);
 }
-.pookie-flip-card--deleting { opacity: 0.4; pointer-events: none; }
+
+.pookie-flip-card--deleting {
+  opacity: 0.4;
+  pointer-events: none;
+}
 
 .pookie-flip-inner {
   position: relative;
-  width: 100%; height: 100%;
+  width: 100%;
+  height: 100%;
   transform-style: preserve-3d;
   -webkit-transform-style: preserve-3d;
-  transition: transform 0.55s cubic-bezier(0.4,0.2,0.2,1);
-  border-radius: var(--pookie-radius);
+  transition: transform 0.55s cubic-bezier(0.4, 0.2, 0.2, 1);
+  border-radius: var(--theme-radius);
 }
-.pookie-flip-card--flipped .pookie-flip-inner { transform: rotateY(180deg); }
+
+.pookie-flip-card--flipped .pookie-flip-inner {
+  transform: rotateY(180deg);
+}
 
 .pookie-flip-front,
 .pookie-flip-back {
@@ -282,43 +468,90 @@
   inset: 0;
   backface-visibility: hidden;
   -webkit-backface-visibility: hidden;
-  border-radius: var(--pookie-radius);
+  border-radius: var(--theme-radius);
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
   padding: 22px;
-  border: 1px solid var(--pookie-border);
-  box-shadow: var(--pookie-shadow);
-
+  border: 1px solid var(--theme-border);
+  box-shadow: var(--theme-shadow);
   overflow: hidden;
 }
+
 .pookie-flip-front {
-  background: linear-gradient(145deg, rgba(168,85,247,0.1) 0%, rgba(244,114,182,0.08) 100%);
-  transition: box-shadow 0.3s;
-  -webkit-backface-visibility: hidden;
-  backface-visibility: hidden;
+  background: color-mix(in srgb, var(--theme-accent2) 9%, var(--theme-surface));
+  transition: box-shadow 0.3s, border-color 0.3s;
 }
+
 .pookie-flip-card:hover .pookie-flip-front {
-  box-shadow: var(--pookie-shadow-h);
-  border-color: rgba(244,114,182,0.4);
+  box-shadow: var(--theme-shadow-h);
+  border-color: color-mix(in srgb, var(--theme-accent) 40%, transparent);
 }
+
 .pookie-flip-back {
-  background: linear-gradient(145deg, rgba(244,114,182,0.12) 0%, rgba(168,85,247,0.1) 100%);
+  background: color-mix(in srgb, var(--theme-accent) 10%, var(--theme-surface));
   transform: rotateY(180deg);
+  -webkit-transform: rotateY(180deg);
   justify-content: flex-start;
   gap: 8px;
   padding-top: 20px;
-  -webkit-transform: rotateY(180deg);
-  backface-visibility: hidden;
 }
 
-.pookie-card-icon { font-size: 1.5rem; margin-bottom: 8px; }
+/* Light themes: solid-ish card faces */
+body.theme-aesthetic .pookie-flip-front,
+body.theme-aesthetic .pookie-flip-back {
+  background: rgba(255,252,244,0.94);
+  border-color: rgba(181,103,61,0.22);
+}
+
+body.theme-notebook .pookie-flip-front {
+  background: rgba(255,254,249,0.82);
+  border-color: rgba(147,197,253,0.45);
+}
+
+body.theme-notebook .pookie-flip-back {
+  background: rgba(255,254,249,0.92);
+  border-left: 2px solid rgba(220,38,38,0.22);
+}
+
+body.theme-graphpaper .pookie-flip-front,
+body.theme-graphpaper .pookie-flip-back {
+  background: rgba(255,255,255,0.78);
+  border-color: rgba(37,99,235,0.18);
+}
+
+/* Graph paper grid on flip cards */
+body.theme-graphpaper .pookie-flip-front::before,
+body.theme-graphpaper .pookie-flip-back::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(var(--gp-minor, rgba(147,197,253,0.40)) 1px, transparent 1px),
+    linear-gradient(90deg, var(--gp-minor, rgba(147,197,253,0.40)) 1px, transparent 1px);
+  background-size: 20px 20px;
+  pointer-events: none;
+  z-index: 0;
+  opacity: 0.5;
+  border-radius: inherit;
+}
+
+body.theme-graphpaper .pookie-flip-front > *,
+body.theme-graphpaper .pookie-flip-back > * {
+  position: relative;
+  z-index: 1;
+}
+
+.pookie-card-icon {
+  font-size: 1.5rem;
+  margin-bottom: 8px;
+}
 
 .pookie-card-text {
   font-size: 0.97rem;
   font-weight: 600;
-  color: var(--pookie-text);
+  color: var(--theme-text);
   text-align: center;
   line-height: 1.5;
   word-break: break-word;
@@ -333,11 +566,12 @@
   position: absolute;
   bottom: 12px;
   font-size: 0.72rem;
-  color: var(--pookie-muted);
+  color: var(--theme-muted);
   font-weight: 600;
   letter-spacing: 0.05em;
 }
 
+/* ── Tags ───────────────────────────────────────────────────── */
 .pookie-tags {
   display: flex;
   flex-wrap: wrap;
@@ -345,49 +579,79 @@
   justify-content: center;
   margin-top: 4px;
 }
+
 .pookie-tag {
-  background: rgba(168,85,247,0.2);
-  border: 1px solid rgba(168,85,247,0.3);
+  background: color-mix(in srgb, var(--theme-accent2) 20%, transparent);
+  border: 1px solid color-mix(in srgb, var(--theme-accent2) 32%, transparent);
   border-radius: 999px;
   padding: 3px 10px;
   font-size: 0.72rem;
   font-weight: 700;
-  color: var(--pookie-purple);
+  color: var(--theme-accent2);
 }
 
+body.theme-graphpaper .pookie-tag {
+  font-family: 'IBM Plex Mono', monospace;
+  border-radius: 3px;
+}
+
+/* ── Delete button ──────────────────────────────────────────── */
 .pookie-delete-btn {
   margin-top: auto;
   padding: 7px 16px;
-  background: rgba(251,113,133,0.15);
-  border: 1px solid rgba(251,113,133,0.35);
-  border-radius: var(--pookie-radius-sm);
+  background: color-mix(in srgb, var(--pookie-rose) 14%, transparent);
+  border: 1px solid color-mix(in srgb, var(--pookie-rose) 34%, transparent);
+  border-radius: var(--theme-radius-sm);
   color: var(--pookie-rose);
   font-family: var(--pookie-font);
   font-size: 0.82rem;
   font-weight: 700;
   cursor: pointer;
   transition: background 0.2s, transform 0.15s;
+  touch-action: manipulation;
 }
+
 .pookie-delete-btn:hover {
-  background: rgba(251,113,133,0.3);
+  background: color-mix(in srgb, var(--pookie-rose) 28%, transparent);
   transform: scale(1.04);
 }
 
-/* ── Skeleton ── */
+body.theme-aesthetic .pookie-delete-btn,
+body.theme-notebook .pookie-delete-btn,
+body.theme-graphpaper .pookie-delete-btn {
+  color: #c0392b;
+  background: rgba(192,57,43,0.10);
+  border-color: rgba(192,57,43,0.28);
+}
+
+/* ── Skeleton ───────────────────────────────────────────────── */
 .pookie-skeleton {
-  background: var(--pookie-surface);
-  border: 1px solid var(--pookie-border);
-  border-radius: var(--pookie-radius);
+  background: var(--theme-surface);
+  border: 1px solid var(--theme-border);
+  border-radius: var(--theme-radius);
   height: 220px;
   padding: 24px;
   display: flex;
   flex-direction: column;
   gap: 14px;
   justify-content: center;
+  animation: fc-shimmer 1.5s ease-in-out infinite;
 }
 
+@keyframes fc-shimmer {
+  0%, 100% { opacity: 0.7; }
+  50%       { opacity: 1.0; }
+}
 
-/* ── Quiz ── */
+.pookie-skeleton__line {
+  height: 14px;
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--theme-accent) 10%, transparent);
+}
+.pookie-skeleton__line--short { width: 40%; }
+.pookie-skeleton__line--med   { width: 65%; }
+
+/* ── Quiz ───────────────────────────────────────────────────── */
 .pookie-quiz {
   max-width: 700px;
   margin: 0 auto;
@@ -403,77 +667,143 @@
   flex-wrap: wrap;
   gap: 10px;
 }
+
 .pookie-quiz-exit {
-  background: rgba(255,255,255,0.06);
-  border: 1px solid rgba(255,255,255,0.12);
-  color: var(--pookie-muted);
-  border-radius: var(--pookie-radius-sm);
+  background: color-mix(in srgb, var(--theme-text) 6%, transparent);
+  border: 1px solid var(--theme-border);
+  color: var(--theme-muted);
+  border-radius: var(--theme-radius-sm);
   padding: 8px 16px;
   font-family: var(--pookie-font);
   font-size: 0.88rem;
   font-weight: 700;
   cursor: pointer;
   transition: color 0.2s, border-color 0.2s;
+  touch-action: manipulation;
 }
-.pookie-quiz-exit:hover { color: var(--pookie-rose); border-color: var(--pookie-rose); }
+
+.pookie-quiz-exit:hover {
+  color: var(--pookie-rose);
+  border-color: color-mix(in srgb, var(--pookie-rose) 50%, transparent);
+}
+
+body.theme-aesthetic .pookie-quiz-exit:hover,
+body.theme-notebook .pookie-quiz-exit:hover,
+body.theme-graphpaper .pookie-quiz-exit:hover {
+  color: #c0392b;
+  border-color: rgba(192,57,43,0.40);
+}
 
 .pookie-quiz-progress-text {
   font-weight: 700;
-  color: var(--pookie-muted);
+  color: var(--theme-muted);
   font-size: 0.92rem;
 }
 
+body.theme-graphpaper .pookie-quiz-progress-text {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.85rem;
+}
+
+/* ── Progress bar ───────────────────────────────────────────── */
 .pookie-quiz-bar-track {
   width: 100%;
   height: 8px;
-  background: rgba(255,255,255,0.08);
+  background: color-mix(in srgb, var(--theme-text) 8%, transparent);
   border-radius: 999px;
   overflow: hidden;
   margin-bottom: 28px;
 }
+
 .pookie-quiz-bar-fill {
   height: 100%;
   border-radius: 999px;
-  background: linear-gradient(90deg, var(--pookie-pink) 0%, var(--pookie-purple) 100%);
+  background: linear-gradient(90deg, var(--theme-accent), var(--theme-accent2));
 }
 
+body.theme-graphpaper .pookie-quiz-bar-track { border-radius: 2px; }
+body.theme-graphpaper .pookie-quiz-bar-fill  { border-radius: 2px; }
+
+/* ── Quiz Card ──────────────────────────────────────────────── */
 .pookie-quiz-card {
-  background: var(--pookie-surface);
-  border: 1px solid var(--pookie-border);
-  border-radius: var(--pookie-radius);
+  background: var(--theme-surface);
+  border: 1px solid var(--theme-border);
+  border-radius: var(--theme-radius);
   backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
   padding: 36px 28px 28px;
   text-align: center;
   margin-bottom: 24px;
-  box-shadow: var(--pookie-shadow);
+  box-shadow: var(--theme-shadow);
   transition: border-color 0.3s, box-shadow 0.3s;
 }
+
+body.theme-aesthetic .pookie-quiz-card,
+body.theme-notebook .pookie-quiz-card,
+body.theme-graphpaper .pookie-quiz-card {
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  background: rgba(255,255,255,0.90);
+}
+
+body.theme-notebook .pookie-quiz-card {
+  border-left: 3px solid rgba(220,38,38,0.22);
+}
+
+body.theme-graphpaper .pookie-quiz-card {
+  border-radius: var(--theme-radius-sm);
+  position: relative;
+  overflow: hidden;
+}
+
+body.theme-graphpaper .pookie-quiz-card::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  background-image:
+    linear-gradient(var(--gp-minor, rgba(147,197,253,0.35)) 1px, transparent 1px),
+    linear-gradient(90deg, var(--gp-minor, rgba(147,197,253,0.35)) 1px, transparent 1px);
+  background-size: 20px 20px;
+  opacity: 0.45;
+  pointer-events: none;
+}
+
+body.theme-graphpaper .pookie-quiz-card > * { position: relative; z-index: 1; }
+
 .pookie-quiz-card--correct {
-  border-color: rgba(52,211,153,0.5);
+  border-color: rgba(52,211,153,0.50);
   box-shadow: 0 0 30px rgba(52,211,153,0.15);
 }
+
 .pookie-quiz-card--wrong {
-  border-color: rgba(251,113,133,0.5);
-  box-shadow: 0 0 30px rgba(251,113,133,0.15);
+  border-color: color-mix(in srgb, var(--pookie-rose) 50%, transparent);
+  box-shadow: 0 0 30px color-mix(in srgb, var(--pookie-rose) 15%, transparent);
 }
 
 .pookie-quiz-q-label {
   font-size: 0.75rem;
   font-weight: 800;
-  letter-spacing: 0.1em;
+  letter-spacing: 0.10em;
   text-transform: uppercase;
-  color: var(--pookie-pink);
+  color: var(--theme-accent);
   display: block;
   margin-bottom: 14px;
 }
+
+body.theme-graphpaper .pookie-quiz-q-label {
+  font-family: 'IBM Plex Mono', monospace;
+}
+
 .pookie-quiz-question {
   font-size: clamp(1.1rem, 3vw, 1.45rem);
   font-weight: 700;
-  color: var(--pookie-text);
+  color: var(--theme-text);
   line-height: 1.5;
   margin-bottom: 16px;
 }
 
+/* ── Quiz Feedback ──────────────────────────────────────────── */
 .pookie-quiz-feedback {
   display: inline-block;
   padding: 8px 20px;
@@ -482,17 +812,26 @@
   font-size: 0.95rem;
   margin-top: 8px;
 }
+
 .pookie-quiz-feedback--correct {
   background: rgba(52,211,153,0.15);
   color: #34d399;
-  border: 1px solid rgba(52,211,153,0.3);
-}
-.pookie-quiz-feedback--wrong {
-  background: rgba(251,113,133,0.15);
-  color: var(--pookie-rose);
-  border: 1px solid rgba(251,113,133,0.3);
+  border: 1px solid rgba(52,211,153,0.30);
 }
 
+.pookie-quiz-feedback--wrong {
+  background: color-mix(in srgb, var(--pookie-rose) 14%, transparent);
+  color: var(--pookie-rose);
+  border: 1px solid color-mix(in srgb, var(--pookie-rose) 30%, transparent);
+}
+
+body.theme-aesthetic .pookie-quiz-feedback--wrong,
+body.theme-notebook .pookie-quiz-feedback--wrong,
+body.theme-graphpaper .pookie-quiz-feedback--wrong {
+  color: #c0392b;
+}
+
+/* ── Quiz Options ───────────────────────────────────────────── */
 .pookie-quiz-options {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -500,10 +839,10 @@
 }
 
 .pookie-quiz-option {
-  background: var(--pookie-surface2);
-  border: 1px solid var(--pookie-border);
-  border-radius: var(--pookie-radius-sm);
-  color: var(--pookie-text);
+  background: var(--theme-surface);
+  border: 1px solid var(--theme-border);
+  border-radius: var(--theme-radius-sm);
+  color: var(--theme-text);
   font-family: var(--pookie-font);
   font-size: 0.95rem;
   font-weight: 600;
@@ -515,12 +854,31 @@
   align-items: flex-start;
   gap: 12px;
   backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
 }
+
+body.theme-aesthetic .pookie-quiz-option,
+body.theme-notebook .pookie-quiz-option,
+body.theme-graphpaper .pookie-quiz-option {
+  background: rgba(255,255,255,0.88);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
 .pookie-quiz-option:hover:not(:disabled) {
-  background: rgba(244,114,182,0.12);
-  border-color: var(--pookie-pink);
-  box-shadow: 0 4px 18px rgba(244,114,182,0.2);
+  background: color-mix(in srgb, var(--theme-accent) 10%, transparent);
+  border-color: var(--theme-accent);
+  box-shadow: 0 4px 18px color-mix(in srgb, var(--theme-accent) 20%, transparent);
 }
+
+body.theme-aesthetic .pookie-quiz-option:hover:not(:disabled),
+body.theme-notebook .pookie-quiz-option:hover:not(:disabled),
+body.theme-graphpaper .pookie-quiz-option:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--theme-accent) 8%, rgba(255,255,255,0.95));
+}
+
 .pookie-quiz-option:disabled { opacity: 0.7; cursor: default; }
 
 .pookie-quiz-option-letter {
@@ -531,56 +889,98 @@
   width: 26px;
   height: 26px;
   border-radius: 50%;
-  background: linear-gradient(135deg, var(--pookie-purple) 0%, var(--pookie-pink2) 100%);
+  background: linear-gradient(135deg, var(--theme-accent2), var(--theme-accent));
   font-size: 0.75rem;
   font-weight: 800;
   color: #fff;
 }
 
-/* ── Quiz Result ── */
+body.theme-steller .pookie-quiz-option-letter { color: #020510; }
+
+body.theme-graphpaper .pookie-quiz-option-letter {
+  border-radius: 3px;
+  font-family: 'IBM Plex Mono', monospace;
+  color: #fff;
+}
+
+/* ── Quiz Result ────────────────────────────────────────────── */
 .pookie-quiz-result {
-  background: var(--pookie-surface);
-  border: 1px solid var(--pookie-border);
-  border-radius: var(--pookie-radius);
+  background: var(--theme-surface);
+  border: 1px solid var(--theme-border);
+  border-radius: var(--theme-radius);
   backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
   padding: 52px 32px;
   text-align: center;
-  box-shadow: var(--pookie-shadow-h);
+  box-shadow: var(--theme-shadow-h);
 }
-.pookie-quiz-result-emoji { font-size: 4rem; margin-bottom: 16px; }
+
+body.theme-aesthetic .pookie-quiz-result,
+body.theme-notebook .pookie-quiz-result,
+body.theme-graphpaper .pookie-quiz-result {
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  background: rgba(255,255,255,0.92);
+}
+
+body.theme-notebook .pookie-quiz-result {
+  border-left: 3px solid rgba(220,38,38,0.22);
+}
+
+.pookie-quiz-result-emoji {
+  font-size: 4rem;
+  margin-bottom: 16px;
+}
+
 .pookie-quiz-result-title {
   font-family: var(--pookie-display);
-  font-style: italic;
   font-size: 2rem;
-  color: var(--pookie-pink);
+  color: var(--theme-accent);
   margin-bottom: 20px;
 }
+
+body.theme-pookie .pookie-quiz-result-title,
+body.theme-aesthetic .pookie-quiz-result-title { font-style: italic; }
+
+body.theme-steller .pookie-quiz-result-title {
+  font-style: normal;
+  letter-spacing: 0.06em;
+}
+
 .pookie-quiz-result-score {
   font-size: 3.2rem;
   font-weight: 900;
-  color: var(--pookie-text);
+  color: var(--theme-text);
   margin-bottom: 8px;
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 16px;
 }
+
 .pookie-quiz-result-pct {
   font-size: 1.2rem;
   font-weight: 700;
-  color: var(--pookie-pink);
-  background: rgba(244,114,182,0.1);
-  border: 1px solid rgba(244,114,182,0.25);
+  color: var(--theme-accent);
+  background: color-mix(in srgb, var(--theme-accent) 10%, transparent);
+  border: 1px solid color-mix(in srgb, var(--theme-accent) 26%, transparent);
   border-radius: 999px;
   padding: 4px 14px;
 }
+
+body.theme-graphpaper .pookie-quiz-result-pct {
+  font-family: 'IBM Plex Mono', monospace;
+  border-radius: 3px;
+}
+
 .pookie-quiz-result-msg {
-  color: var(--pookie-muted);
+  color: var(--theme-muted);
   font-size: 1rem;
   font-weight: 600;
   margin-bottom: 32px;
   line-height: 1.6;
 }
+
 .pookie-quiz-result-btns {
   display: flex;
   gap: 14px;
@@ -588,19 +988,19 @@
   flex-wrap: wrap;
 }
 
-/* ── Responsive ── */
+/* ── Responsive ─────────────────────────────────────────────── */
 @media (max-width: 768px) {
   .pookie-page { padding: 28px 16px 64px; }
   .pookie-quiz-options { grid-template-columns: 1fr; }
   .pookie-toolbar { flex-direction: column; align-items: stretch; }
   .pookie-btn { text-align: center; }
+  .pookie-quiz-card { padding: 24px 18px; }
 }
 
 @media (max-width: 480px) {
   .pookie-card-grid { grid-template-columns: 1fr; }
   .pookie-flip-card { height: 200px; }
   .pookie-quiz-result-score { font-size: 2.4rem; }
-  .pookie-quiz-card { padding: 24px 18px; }
 }
 
 @media (min-width: 1024px) {
