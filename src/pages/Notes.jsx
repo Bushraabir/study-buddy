@@ -20,7 +20,8 @@ import { Plugin, PluginKey } from "prosemirror-state";
 import { Helmet } from "react-helmet-async";
 import Fuse from "fuse.js";
 import { motion, AnimatePresence } from "framer-motion";
-
+import Underline from "@tiptap/extension-underline";
+import Link from "@tiptap/extension-link";
 import {
   FaPlus, FaTrash, FaHeart, FaRegHeart, FaThumbtack,
   FaSearch, FaTimes, FaArrowLeft,
