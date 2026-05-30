@@ -1,206 +1,209 @@
-/* eslint-disable no-restricted-globals */
-// src/workers/cas.worker.js
-// Runs Pyodide + SymPy entirely off the main thread.
-// Main thread sends:  { id, expr, variable, mode }
-// Worker replies with: { id, type: 'success'|'error', result|error }
-// Also sends: { type: 'ready' } | { type: 'progress', pct }
+// src/services/casManager.js
+// Promise-based wrapper around the Pyodide Web Worker.
+// All analysis results are persisted in IndexedDB so they load instantly
+// on subsequent visits — the 20 MB WASM download only happens once per CDN cache.
 
-const PYODIDE_URL = 'https://cdn.jsdelivr.net/pyodide/v0.25.0/full/';
+import { casCache } from './casCache'; // ← local IndexedDB, not Firebase
 
-let pyodideReady = false;
-
-async function initPyodide() {
-  self.postMessage({ type: 'progress', pct: 10 });
-  importScripts(`${PYODIDE_URL}pyodide.js`);
-  self.postMessage({ type: 'progress', pct: 30 });
-
-  self.pyodide = await loadPyodide({ indexURL: PYODIDE_URL });
-  self.postMessage({ type: 'progress', pct: 70 });
-
-  await self.pyodide.loadPackage('sympy');
-  self.postMessage({ type: 'progress', pct: 95 });
-
-  pyodideReady = true;
-  self.postMessage({ type: 'ready', pct: 100 });
-}
-
-initPyodide().catch(err => {
-  self.postMessage({ type: 'error', error: err.message });
-});
-
-self.onmessage = async (event) => {
-  const { id, expr, variable = 'x', mode = 'analyze2D' } = event.data;
-
-  if (!pyodideReady) {
-    self.postMessage({ id, type: 'error', error: 'Pyodide not ready yet' });
-    return;
-  }
-
+// ─── 1. Environment guards (safe for Vite, Webpack, Next.js, and SSR) ─────
+const isBrowser = typeof window !== 'undefined' && typeof document !== 'undefined';
+const isDev = (() => {
   try {
-    let result;
-    if (mode === 'analyze2D')      result = analyze2D(expr, variable);
-    else if (mode === 'analyze3D') result = analyze3D(expr);
-    else if (mode === 'simplify')  result = simplifyExpr(expr);
-    else                           result = analyze2D(expr, variable);
-
-    self.postMessage({ id, type: 'success', result });
-  } catch (err) {
-    self.postMessage({ id, type: 'error', error: err.message });
+    return typeof process !== 'undefined' && process.env && process.env.NODE_ENV === 'development';
+  } catch {
+    return false;
   }
-};
+})();
 
-// ─── SymPy 2D Analysis ──────────────────────────────────────────────────────
-function analyze2D(expr, variable) {
-  // Sanitise: replace ^ with ** so mathjs-style input also works
-  const safeExpr = expr.replace(/\^/g, '**');
+let worker = null;
+let messageId = 0;
+const pending = new Map();
 
-  //  Safely pass string to Pyodide without template injection
-  self.pyodide.globals.set('expr_str', safeExpr);
-  self.pyodide.globals.set('var_name', variable);
+// 'idle' | 'loading' | 'ready' | 'error' | 'unsupported'
+let _status = 'idle';
+const _statusListeners = new Set();
 
-  const script = `
-import sympy as sp
-import json
+function setStatus(s, pct) {
+  _status = s;
+  _statusListeners.forEach(fn => fn(s, pct));
+}
 
-x = sp.Symbol(var_name)
+/** Subscribe to status changes. Returns an unsubscribe fn. */
+export function onCASStatus(fn) {
+  _statusListeners.add(fn);
+  fn(_status); // fire immediately with current value
+  return () => _statusListeners.delete(fn);
+}
 
-try:
-    f = sp.sympify(expr_str, locals={'e': sp.E, 'pi': sp.pi})
+export function getCASStatus() {
+  return _status;
+}
 
-    # ── Simplification ──────────────────────────────────────────
-    simplified = str(sp.simplify(f))
+/** Lazily boot the worker. Safe to call multiple times. */
+function getWorker() {
+  if (worker) return worker;
 
-    # ── Derivative ──────────────────────────────────────────────
-    df = sp.diff(f, x)
+  // ─── 2. Guard: Workers are browser-only ─────────────────────────────────
+  if (!isBrowser || typeof Worker === 'undefined') {
+    setStatus('unsupported');
+    return null;
+  }
 
-    # ── Critical Points ─────────────────────────────────────────
-    critical = []
-    try:
-        sols = sp.solve(sp.Eq(df, 0), x)
-        for s in sols[:8]:  # cap at 8
-            if s.is_real and s.is_finite:
-                try:
-                    yv = float(f.subs(x, s))
-                    if abs(yv) < 1e10:
-                        critical.append({"x": float(s), "y": round(yv, 6)})
-                except:
-                    pass
-    except:
-        pass
+  // ─── 3. Guard: Worker instantiation can fail if the file is missing ────
+  try {
+    // FIX: filename must match exactly: Cas.worker.js (capital C)
+    worker = new Worker(new URL('../workers/Cas.worker.js', import.meta.url), {
+      type: 'classic',
+    });
+  } catch (err) {
+    if (isDev) console.warn('[CAS] Worker instantiation failed:', err);
+    setStatus('error');
+    return null;
+  }
 
-    # ── Singularities / Vertical Asymptotes ─────────────────────
-    singularities = []
-    vertical_asym = []
-    try:
-        poles = sp.singularities(f, x)
-        for p in poles:
-            if p.is_real and p.is_finite:
-                val = float(p)
-                singularities.append(val)
-                try:
-                    lim_val = sp.limit(f, x, p)
-                    if lim_val in [sp.oo, -sp.oo, sp.zoo]:
-                        vertical_asym.append(round(val, 6))
-                except:
-                    vertical_asym.append(round(val, 6))
-    except:
-        pass
+  setStatus('loading');
 
-    # ── Horizontal Asymptotes ────────────────────────────────────
-    horiz_asym = []
-    try:
-        lim_pos = sp.limit(f, x, sp.oo)
-        lim_neg = sp.limit(f, x, -sp.oo)
-        if lim_pos.is_real and lim_pos.is_finite:
-            horiz_asym.append({"side": "right", "y": round(float(lim_pos), 6)})
-        if lim_neg.is_real and lim_neg.is_finite and lim_neg != lim_pos:
-            horiz_asym.append({"side": "left", "y": round(float(lim_neg), 6)})
-    except:
-        pass
+  worker.onmessage = (e) => {
+    const { id, type, result, error, pct } = e.data;
 
-    # ── Symmetry ─────────────────────────────────────────────────
-    f_neg = f.subs(x, -x)
-    is_even = sp.simplify(f_neg - f) == 0
-    is_odd  = sp.simplify(f_neg + f) == 0
-    symmetry = "even" if is_even else "odd" if is_odd else "none"
-
-    # ── Periodicity ──────────────────────────────────────────────
-    period = None
-    try:
-        p = sp.periodicity(f, x)
-        if p and p.is_finite and p.is_real:
-            period = round(float(p), 6)
-    except:
-        pass
-
-    # ── Intercepts ───────────────────────────────────────────────
-    y_intercept = None
-    x_intercepts = []
-    try:
-        y0 = f.subs(x, 0)
-        if y0.is_real and y0.is_finite:
-            y_intercept = round(float(y0), 6)
-    except:
-        pass
-    try:
-        x0s = sp.solve(sp.Eq(f, 0), x)
-        for s in x0s[:6]:
-            if s.is_real and s.is_finite:
-                x_intercepts.append(round(float(s), 6))
-    except:
-        pass
-
-    # ── Domain ───────────────────────────────────────────────────
-    domain_str = "Reals"
-    try:
-        dom = sp.calculus.util.continuous_domain(f, x, sp.S.Reals)
-        domain_str = str(dom)
-    except:
-        pass
-
-    result = {
-        "simplified": simplified,
-        "derivative": str(df),
-        "criticalPoints": critical,
-        "singularities": singularities,
-        "verticalAsymptotes": vertical_asym,
-        "horizontalAsymptotes": horiz_asym,
-        "domain": domain_str,
-        "symmetry": symmetry,
-        "period": period,
-        "intercepts": {"y": y_intercept, "x": x_intercepts},
+    if (type === 'ready') {
+      setStatus('ready');
+      return;
     }
-except Exception as e:
-    result = {"error": str(e)}
 
-json.dumps(result)
-`;
+    if (type === 'progress') {
+      // Broadcast progress so spinner can show a bar
+      _statusListeners.forEach(fn => fn('loading', pct));
+      return;
+    }
 
-  const jsonStr = self.pyodide.runPython(script);
-  return JSON.parse(jsonStr);
+    if (type === 'error' && id === undefined) {
+      setStatus('error');
+      return;
+    }
+
+    const p = pending.get(id);
+    if (!p) return;
+    pending.delete(id);
+
+    if (type === 'success') p.resolve(result);
+    else p.reject(new Error(error));
+  };
+
+  worker.onerror = (err) => {
+    if (isDev) console.warn('[CAS] Worker runtime error:', err);
+    setStatus('error');
+  };
+
+  worker.onmessageerror = (err) => {
+    if (isDev) console.warn('[CAS] Worker message error:', err);
+    setStatus('error');
+  };
+
+  return worker;
 }
 
-// ─── SymPy 3D Analysis (stub — extend as needed) ────────────────────────────
-function analyze3D(expr) {
-  return { mode: '3D', simplified: expr };
+/** Wait until the worker is ready (resolves immediately if already ready). */
+function waitReady(timeoutMs = 45_000) {
+  if (_status === 'ready') return Promise.resolve();
+  if (_status === 'error' || _status === 'unsupported') {
+    return Promise.reject(new Error('CAS failed to load'));
+  }
+
+  // Kick off load if not started yet
+  if (_status === 'idle') getWorker();
+
+  // If getWorker() returned null (SSR / unsupported), fail fast
+  if (!worker) {
+    setStatus('unsupported');
+    return Promise.reject(new Error('CAS not available in this environment'));
+  }
+
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => {
+      unsub();
+      reject(new Error('CAS load timeout'));
+    }, timeoutMs);
+
+    const unsub = onCASStatus((s) => {
+      if (s === 'ready') { clearTimeout(timer); unsub(); resolve(); }
+      if (s === 'error' || s === 'unsupported') {
+        clearTimeout(timer); unsub(); reject(new Error('CAS load failed'));
+      }
+    });
+  });
 }
 
-// ─── Simplify only ──────────────────────────────────────────────────────────
-function simplifyExpr(expr) {
-  const safeExpr = expr.replace(/\^/g, '**');
+// ─── Public API ─────────────────────────────────────────────────────────────
 
-  //  Safely pass string to avoid template injection
-  self.pyodide.globals.set('expr_str', safeExpr);
+export const cas = {
+  /** Boot the worker early (call on page mount so it loads in the background). */
+  preload() {
+    if (_status === 'idle' && isBrowser) getWorker();
+  },
 
-  const script = `
-import sympy as sp
-import json
-try:
-    f = sp.sympify(expr_str)
-    result = {"simplified": str(sp.simplify(f))}
-except Exception as e:
-    result = {"error": str(e)}
-json.dumps(result)
-`;
-  return JSON.parse(self.pyodide.runPython(script));
-}
+  /** Return current status string. */
+  get status() {
+    return _status;
+  },
+
+  /**
+   * Analyse an expression.
+   * Returns the CAS metadata object, or null if Pyodide fails.
+   * Results are cached in IndexedDB keyed by (mode + variable + expr).
+   */
+  async analyze(expr, mode = 'analyze2D', variable = 'x') {
+    const cacheKey = `cas|${mode}|${variable}|${expr}`;
+
+    // 1. Check persistent cache first (instant)
+    try {
+      const cached = await casCache.get(cacheKey);
+      if (cached && !cached.error) return cached;
+    } catch (err) {
+      if (isDev) console.warn('[CAS] Cache read failed:', err);
+    }
+
+    // 2. Wait for Pyodide (may already be ready)
+    try {
+      await waitReady();
+    } catch {
+      return null; // CAS unavailable — caller falls back to numeric
+    }
+
+    // 3. Send to worker
+    const w = getWorker();
+    if (!w) return null; // Defensive: worker died or is unsupported
+
+    return new Promise((resolve, reject) => {
+      const id = ++messageId;
+      pending.set(id, { resolve, reject });
+      w.postMessage({ id, expr, variable, mode });
+    })
+      .then(async (result) => {
+        if (!result.error) {
+          try {
+            await casCache.set(cacheKey, result);
+          } catch (err) {
+            if (isDev) console.warn('[CAS] Cache write failed:', err);
+          }
+        }
+        return result;
+      })
+      .catch((err) => {
+        if (isDev) console.warn('[CAS] Pyodide fallback triggered:', err);
+        return null; // Safe fallback to numeric-only mode
+      });
+  },
+
+  kill() {
+    if (worker) {
+      try {
+        worker.terminate();
+      } catch (err) {
+        if (isDev) console.warn('[CAS] Worker terminate failed:', err);
+      }
+      worker = null;
+      setStatus('idle');
+    }
+  },
+};
