@@ -1,4 +1,4 @@
-// src/services/casCache.js
+
 // Local IndexedDB cache for CAS (SymPy) analysis results.
 // Named casCache (not db) to avoid collision with Firebase's db export.
 // Results are keyed by expression string — purely derived data, no sync needed.
