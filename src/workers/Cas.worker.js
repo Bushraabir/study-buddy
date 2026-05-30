@@ -1,6 +1,6 @@
 // src/workers/Cas.worker.js
 // Web Worker for CAS (SymPy/Pyodide) analysis.
-// This runs in an isolated thread and communicates with casManager.js via postMessage.
+// Runs in an isolated thread and communicates with casManager.js via postMessage.
 
 const isDev = (() => {
   try {
@@ -10,14 +10,7 @@ const isDev = (() => {
   }
 })();
 
-// ─── Protocol expected by casManager.js ───────────────────────────────────────
-// 1. Send { type: 'ready' } when loaded
-// 2. Send { type: 'progress', pct: 0..100 } during loading (optional)
-// 3. Respond to each message with either:
-//    { id, type: 'success', result: {...} }
-//    { id, type: 'error', error: 'string' }
-
-// ─── Stub implementation (replace with Pyodide when ready) ───────────────
+// Tell casManager.js that we are ready
 self.postMessage({ type: 'ready' });
 
 self.onmessage = (e) => {

@@ -42,7 +42,6 @@ function getWorker() {
   }
 
   try {
-    // FIX: Capital C — must match your actual filename exactly
     worker = new Worker(new URL('../workers/Cas.worker.js', import.meta.url), {
       type: 'classic',
     });
