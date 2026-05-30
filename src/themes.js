@@ -949,4 +949,4 @@ export const THEMES = {
 };
 
 export const THEME_IDS     = Object.keys(THEMES);
-export const DEFAULT_THEME = "pookie";
+export const DEFAULT_THEME = "notebook";
