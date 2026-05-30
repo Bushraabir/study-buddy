@@ -3,8 +3,7 @@
 // All analysis results are persisted in IndexedDB so they load instantly
 // on subsequent visits — the 20 MB WASM download only happens once per CDN cache.
 
-import { casCache } from './casCache'; // ← local IndexedDB, not Firebase
-
+import { casCache } from '../services/casCache';
 // ─── 1. Environment guards (safe for Vite, Webpack, Next.js, and SSR) ─────
 const isBrowser = typeof window !== 'undefined' && typeof document !== 'undefined';
 const isDev = (() => {
