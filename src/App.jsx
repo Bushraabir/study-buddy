@@ -8,7 +8,7 @@ import TopBar from './components/TopBar';
 import { ThemeProvider } from './context/ThemeContext';
 import { doc, getDoc }   from 'firebase/firestore';
 import { db }            from './components/firebase';
-
+import { Analytics } from "@vercel/analytics/next"
 
 // eager — always needed on first load
 import Home       from './pages/Home';
@@ -89,6 +89,7 @@ useEffect(() => {
 
   return (
     <ThemeProvider initialThemeId={userTheme} userId={userId}>
+    
     <Router>
       <TopBar user={user} />
       <Helmet>
@@ -158,6 +159,7 @@ useEffect(() => {
         }}
       />
     </Router>
+    <Analytics />
     </ThemeProvider>
   );
 }
