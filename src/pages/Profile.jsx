@@ -981,25 +981,6 @@ function ProfileInsightCards({ userData, streak, avgDailyHours, focusQuality }) 
   );
 }
 
-// ─── Settings Link Banner ─────────────────────────────────────────────────────
-function SettingsBanner({ onNavigate }) {
-  return (
-    <motion.div className="settings-banner" {...fadeUp}>
-      <div className="settings-banner-inner">
-        <div className="settings-banner-left">
-          <span className="settings-banner-icon">⚙️</span>
-          <div>
-            <div className="settings-banner-title">Customize your experience</div>
-            <div className="settings-banner-sub">Change your profile picture, name, theme, and navigation from Settings</div>
-          </div>
-        </div>
-        <button className="settings-banner-btn" onClick={onNavigate}>
-          Go to Settings →
-        </button>
-      </div>
-    </motion.div>
-  );
-}
 
 // ─── Main Profile Component ───────────────────────────────────────────────────
 function Profile() {
@@ -1177,8 +1158,6 @@ function Profile() {
 
       <div className="profile-container">
 
-        {/* ── Settings Banner ──────────────────────────────────────────────── */}
-        <SettingsBanner onNavigate={goToSettings} />
 
         {/* ── Hero Card (READ-ONLY) ──────────────────────────────────────────── */}
         <motion.div className="glass-card profile-hero" {...fadeUp}>
