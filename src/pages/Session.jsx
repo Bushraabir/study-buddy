@@ -142,87 +142,96 @@ async function idbDelete(id) {
   });
 }
 
+// FIX: applySessionChunk now accepts totalDurationForDoc separately from
+// sessionSeconds. sessionSeconds goes to stats (only the uncommitted segment),
+// totalDurationForDoc goes to the sessions collection (full session length).
 async function applySessionChunk(uid, item) {
   const {
     sessionSeconds, dateKey, weekKey, monthKey, field, hourKey,
     isCheckpoint, completedPomodoros, abortedPomodoros,
-    environment, environmentType,
+    environment, environmentType, totalDurationForDoc,
   } = item;
-  if (!uid || sessionSeconds <= 0) return;
-  if (sessionSeconds >= 86400) {
-    console.warn("Skipping session chunk > 24h");
-    return;
+
+  if (!uid) return;
+
+  if (sessionSeconds > 0) {
+    if (sessionSeconds >= 86400) {
+      console.warn("Skipping session chunk > 24h");
+      return;
+    }
+    const userDocRef = doc(db, "users", uid);
+    await runTransaction(db, async (tx) => {
+      const snap = await tx.get(userDocRef);
+      if (!snap.exists()) return;
+      const data            = snap.data();
+      const todayKey        = localYMD();
+      const currentWeekKey  = localISOWeek();
+      const currentMonthKey = localYM();
+      const prevDayTotal    = data.dailyStats?.[dateKey]?.totalTime || 0;
+      const prevDayField    = data.dailyStats?.[dateKey]?.fieldTimes?.[field] || 0;
+      const prevHourSecs    = data.dailyStats?.[dateKey]?.hourly?.[hourKey] || 0;
+      const prevSessions    = data.dailyStats?.[dateKey]?.sessionsCount || 0;
+
+      const updates = {
+        [`fieldTimes.${field}`]:                               (data.fieldTimes?.[field] || 0) + sessionSeconds,
+        totalTimeAllTime:                                      (data.totalTimeAllTime || 0) + sessionSeconds,
+        [`dailyStats.${dateKey}.totalTime`]:                   prevDayTotal + sessionSeconds,
+        [`dailyStats.${dateKey}.fieldTimes.${field}`]:         prevDayField + sessionSeconds,
+        [`dailyStats.${dateKey}.hourly.${hourKey}`]:           prevHourSecs + sessionSeconds,
+        [`dailyStats.${dateKey}.sessionsCount`]:               prevSessions + (isCheckpoint ? 0 : 1),
+        [`weeklyStats.${weekKey}.totalTime`]:                  (data.weeklyStats?.[weekKey]?.totalTime || 0) + sessionSeconds,
+        [`weeklyStats.${weekKey}.fieldTimes.${field}`]:        (data.weeklyStats?.[weekKey]?.fieldTimes?.[field] || 0) + sessionSeconds,
+        [`weeklyStats.${weekKey}.sessionsCount`]:              (data.weeklyStats?.[weekKey]?.sessionsCount || 0) + (isCheckpoint ? 0 : 1),
+        [`monthlyStats.${monthKey}.totalTime`]:                (data.monthlyStats?.[monthKey]?.totalTime || 0) + sessionSeconds,
+        [`monthlyStats.${monthKey}.fieldTimes.${field}`]:      (data.monthlyStats?.[monthKey]?.fieldTimes?.[field] || 0) + sessionSeconds,
+        [`monthlyStats.${monthKey}.sessionsCount`]:            (data.monthlyStats?.[monthKey]?.sessionsCount || 0) + (isCheckpoint ? 0 : 1),
+        lastStudyDate:    serverTimestamp(),
+        lastStudyDateKey: dateKey,
+      };
+      if (completedPomodoros > 0) updates.pomodorosCompleted = (data.pomodorosCompleted || 0) + completedPomodoros;
+      if (abortedPomodoros  > 0) updates.pomodorosAborted   = (data.pomodorosAborted  || 0) + abortedPomodoros;
+      updates.totalTimeToday = dateKey === todayKey
+        ? prevDayTotal + sessionSeconds
+        : (data.dailyStats?.[todayKey]?.totalTime || 0);
+
+      const weekTotal = Object.entries({ ...(data.dailyStats || {}) }).reduce((sum, [dk, ds]) => {
+        if (localISOWeek(new Date(dk + "T12:00:00")) === currentWeekKey)
+          return sum + (dk === dateKey ? prevDayTotal + sessionSeconds : (ds.totalTime || 0));
+        return sum;
+      }, 0);
+      updates.totalTimeWeek = weekTotal;
+
+      const monthTotal = Object.entries({ ...(data.dailyStats || {}) }).reduce((sum, [dk, ds]) => {
+        return sum + (dk.startsWith(currentMonthKey)
+          ? (dk === dateKey ? prevDayTotal + sessionSeconds : (ds.totalTime || 0))
+          : 0);
+      }, 0);
+      updates.totalTimeMonth = monthTotal;
+      tx.update(userDocRef, updates);
+    });
   }
-  const userDocRef = doc(db, "users", uid);
-  await runTransaction(db, async (tx) => {
-    const snap = await tx.get(userDocRef);
-    if (!snap.exists()) return;
-    const data          = snap.data();
-    const todayKey      = localYMD();
-    const currentWeekKey  = localISOWeek();
-    const currentMonthKey = localYM();
-    const prevDayTotal  = data.dailyStats?.[dateKey]?.totalTime || 0;
-    const prevDayField  = data.dailyStats?.[dateKey]?.fieldTimes?.[field] || 0;
-    const prevHourSecs  = data.dailyStats?.[dateKey]?.hourly?.[hourKey] || 0;
-    const prevSessions  = data.dailyStats?.[dateKey]?.sessionsCount || 0;
 
-    const updates = {
-      [`fieldTimes.${field}`]:                                (data.fieldTimes?.[field] || 0) + sessionSeconds,
-      totalTimeAllTime:                                       (data.totalTimeAllTime || 0) + sessionSeconds,
-      [`dailyStats.${dateKey}.totalTime`]:                    prevDayTotal + sessionSeconds,
-      [`dailyStats.${dateKey}.fieldTimes.${field}`]:          prevDayField + sessionSeconds,
-      [`dailyStats.${dateKey}.hourly.${hourKey}`]:            prevHourSecs + sessionSeconds,
-      [`dailyStats.${dateKey}.sessionsCount`]:                prevSessions + (isCheckpoint ? 0 : 1),
-      [`weeklyStats.${weekKey}.totalTime`]:                   (data.weeklyStats?.[weekKey]?.totalTime || 0) + sessionSeconds,
-      [`weeklyStats.${weekKey}.fieldTimes.${field}`]:         (data.weeklyStats?.[weekKey]?.fieldTimes?.[field] || 0) + sessionSeconds,
-      [`weeklyStats.${weekKey}.sessionsCount`]:               (data.weeklyStats?.[weekKey]?.sessionsCount || 0) + (isCheckpoint ? 0 : 1),
-      [`monthlyStats.${monthKey}.totalTime`]:                 (data.monthlyStats?.[monthKey]?.totalTime || 0) + sessionSeconds,
-      [`monthlyStats.${monthKey}.fieldTimes.${field}`]:       (data.monthlyStats?.[monthKey]?.fieldTimes?.[field] || 0) + sessionSeconds,
-      [`monthlyStats.${monthKey}.sessionsCount`]:             (data.monthlyStats?.[monthKey]?.sessionsCount || 0) + (isCheckpoint ? 0 : 1),
-      lastStudyDate:    serverTimestamp(),
-      lastStudyDateKey: dateKey,
-    };
-    if (completedPomodoros > 0) updates.pomodorosCompleted = (data.pomodorosCompleted || 0) + completedPomodoros;
-    if (abortedPomodoros  > 0) updates.pomodorosAborted   = (data.pomodorosAborted  || 0) + abortedPomodoros;
-    updates.totalTimeToday = dateKey === todayKey
-      ? prevDayTotal + sessionSeconds
-      : (data.dailyStats?.[todayKey]?.totalTime || 0);
-
-    const weekTotal = Object.entries({ ...(data.dailyStats || {}) }).reduce((sum, [dk, ds]) => {
-      if (localISOWeek(new Date(dk + "T12:00:00")) === currentWeekKey)
-        return sum + (dk === dateKey ? prevDayTotal + sessionSeconds : (ds.totalTime || 0));
-      return sum;
-    }, 0);
-    updates.totalTimeWeek = weekTotal;
-
-    const monthTotal = Object.entries({ ...(data.dailyStats || {}) }).reduce((sum, [dk, ds]) => {
-      return sum + (dk.startsWith(currentMonthKey)
-        ? (dk === dateKey ? prevDayTotal + sessionSeconds : (ds.totalTime || 0))
-        : 0);
-    }, 0);
-    updates.totalTimeMonth = monthTotal;
-    tx.update(userDocRef, updates);
-  });
-
-  if (!isCheckpoint) {
+  // Write to sessions collection only on final stop, using totalDurationForDoc
+  // (the full session length) rather than just the last segment.
+  if (!isCheckpoint && totalDurationForDoc > 0) {
     try {
       await addDoc(collection(db, "sessions"), {
-        userId:              uid,
-        startedAt:           Timestamp.fromDate(new Date(Date.now() - sessionSeconds * 1000)),
-        endedAt:             serverTimestamp(),
-        duration:            sessionSeconds,
+        userId:             uid,
+        startedAt:          Timestamp.fromDate(new Date(Date.now() - totalDurationForDoc * 1000)),
+        endedAt:            serverTimestamp(),
+        duration:           totalDurationForDoc,
         field,
-        environment:         environment    ?? null,
-        environmentType:     environmentType ?? null,
-        completed:           completedPomodoros > 0 || sessionSeconds >= 60,
-        pomodorosCompleted:  completedPomodoros,
-        pomodorosAborted:    abortedPomodoros,
-        strictMode:          false,
-        deepWork:            false,
-        distractions:        [],
-        notes:               "",
-        date:                dateKey,
-        week:                weekKey,
+        environment:        environment    ?? null,
+        environmentType:    environmentType ?? null,
+        completed:          (completedPomodoros ?? 0) > 0 || totalDurationForDoc >= 60,
+        pomodorosCompleted: completedPomodoros ?? 0,
+        pomodorosAborted:   abortedPomodoros  ?? 0,
+        strictMode:         false,
+        deepWork:           false,
+        distractions:       [],
+        notes:              "",
+        date:               dateKey,
+        week:               weekKey,
       });
     } catch (e) {
       console.warn("Sessions doc write failed (non-critical):", e);
@@ -465,7 +474,7 @@ function useInsights(userData, isRunning, liveSessionSeconds) {
   }, [userData, isRunning, liveSessionSeconds]);
 }
 
-function HourHistogram({ dailyStats, liveSeconds, isRunning, sessionStartHour, todayCommittedSeconds }) {
+function HourHistogram({ dailyStats, liveSeconds, isRunning }) {
   const todayKey  = localYMD();
   const todayData = dailyStats?.[todayKey] || {};
   const curHour   = new Date().getHours();
@@ -476,38 +485,42 @@ function HourHistogram({ dailyStats, liveSeconds, isRunning, sessionStartHour, t
     return Array.from({ length: 24 }, (_, i) => ({
       hour:    i,
       label:   i === 0 ? "12a" : i < 12 ? `${i}a` : i === 12 ? "12p" : `${i - 12}p`,
-      // rawSeconds is the Firestore-accumulated value; may exceed 3600.
-      rawSeconds: hourly[String(i).padStart(2, "0")] || 0,
+      seconds: hourly[String(i).padStart(2, "0")] || 0,
     }));
   }, [todayData]);
 
-  // cappedSeconds[i]: how many seconds to use for bar height (≤ 3600).
-  // For the live hour, add the uncommitted segment then re-cap.
-  const cappedSeconds = useMemo(
+  // liveSeconds is getSegmentSeconds() — only the uncommitted tail (≤ ~60s).
+  // Adding it to the current hour's Firestore value is always safe because
+  // checkpoints have already committed everything older than ~60s.
+  const vals = useMemo(
     () => hours.map((h) => {
-      const base = Math.min(h.rawSeconds, 3600);
-      if (h.hour === curHour && isRunning) return Math.min(base + liveSeconds, 3600);
-      return base;
+      let v = h.seconds;
+      if (h.hour === curHour && isRunning) v += liveSeconds;
+      return Math.min(v, 3600);
     }),
     [hours, curHour, isRunning, liveSeconds],
   );
 
   const MAX_VAL = 3600;
 
-  // totalToday is the source-of-truth committed daily total plus the live
-  // uncommitted segment.  We never sum hourly buckets for this.
-  const totalToday = (todayCommittedSeconds || 0) + (isRunning ? liveSeconds : 0);
+  const totalToday = useMemo(() => {
+    return hours.reduce((a, h) => {
+      let v = h.seconds;
+      if (h.hour === curHour && isRunning) v += liveSeconds;
+      return a + v;
+    }, 0);
+  }, [hours, curHour, isRunning, liveSeconds]);
 
   const peakHour = useMemo(() => {
     let best = -1, bestV = 0;
-    cappedSeconds.forEach((v, i) => { if (v > bestV) { bestV = v; best = i; } });
+    vals.forEach((v, i) => { if (v > bestV) { bestV = v; best = i; } });
     return best;
-  }, [cappedSeconds]);
+  }, [vals]);
 
   return (
     <div className="hv2-wrap">
       <div className="hv2-bars">
-        {cappedSeconds.map((v, i) => {
+        {vals.map((v, i) => {
           const pct       = Math.max((v / MAX_VAL) * 100, v > 0 ? 5 : 0);
           const isLive    = i === curHour && isRunning;
           const isPeak    = i === peakHour && v > 0;
@@ -531,22 +544,19 @@ function HourHistogram({ dailyStats, liveSeconds, isRunning, sessionStartHour, t
         })}
       </div>
       <div className={`hv2-tooltip${hoveredHour !== null ? " visible" : ""}`}>
-        {hoveredHour !== null && (() => {
-          // Tooltip shows the capped value (what the bar represents: ≤60 min
-          // of activity in that hour slot).  This matches what the user sees
-          // visually and avoids the "3h 11m" confusion.
-          const displayVal = cappedSeconds[hoveredHour];
-          return (
-            <>
-              <span className="hv2-tooltip-time">{fmtHourLabel(hoveredHour)}</span>
-              <span className="hv2-tooltip-sep">·</span>
-              <span className="hv2-tooltip-val">
-                {displayVal > 0 ? fmtMins(displayVal) : "no activity"}
-                {hoveredHour === curHour && isRunning ? " · live" : ""}
-              </span>
-            </>
-          );
-        })()}
+        {hoveredHour !== null && (
+          <>
+            <span className="hv2-tooltip-time">{fmtHourLabel(hoveredHour)}</span>
+            <span className="hv2-tooltip-sep">·</span>
+            <span className="hv2-tooltip-val">
+              {(() => {
+                const raw = hours[hoveredHour].seconds + (hoveredHour === curHour && isRunning ? liveSeconds : 0);
+                return raw > 0 ? fmtMins(raw) : "no activity";
+              })()}
+              {hoveredHour === curHour && isRunning ? " · live" : ""}
+            </span>
+          </>
+        )}
       </div>
       <div className="hv2-footer">
         <div className="hv2-footer-item">
@@ -636,12 +646,12 @@ export default function StartSession() {
   const [isSyncing, setIsSyncing] = useState(false);
   const syncLockRef = useRef(false);
 
-  const [displaySeconds, setDisplaySeconds]         = useState(0);
-  const [isRunning, setIsRunning]                   = useState(false);
-  const [pomodoroMode, setPomodoroMode]             = useState(false);
-  const [pomodoroTimeLeft, setPomodoroTimeLeft]     = useState(25 * 60);
-  const [pomodoroRounds, setPomodoroRounds]         = useState(0);
-  const [isBreak, setIsBreak]                       = useState(false);
+  const [displaySeconds, setDisplaySeconds]     = useState(0);
+  const [isRunning, setIsRunning]               = useState(false);
+  const [pomodoroMode, setPomodoroMode]         = useState(false);
+  const [pomodoroTimeLeft, setPomodoroTimeLeft] = useState(25 * 60);
+  const [pomodoroRounds, setPomodoroRounds]     = useState(0);
+  const [isBreak, setIsBreak]                   = useState(false);
 
   const [strictMode, setStrictMode] = useState(false);
 
@@ -772,13 +782,16 @@ export default function StartSession() {
     };
   }, [trySyncQueue, refreshQueueSize]);
 
+  // FIX: saveSessionChunk now accepts totalDurationForDoc as an optional last parameter
+  // and passes it through to applySessionChunk for the sessions collection write.
   const saveSessionChunk = useCallback(async (
     sessionSeconds, dateKey, weekKey, monthKey, field, hourKey,
     isCheckpoint = false, completedPomodoros = 0, abortedPomodoros = 0,
-    meta = {}
+    meta = {}, totalDurationForDoc = null
   ) => {
-    if (!userRef.current || sessionSeconds <= 0) return;
-    if (sessionSeconds >= 86400) {
+    if (!userRef.current) return;
+    if (sessionSeconds <= 0 && !totalDurationForDoc) return;
+    if (isCheckpoint && sessionSeconds >= 86400) {
       toast.error("Session exceeds 24 hours — a day only has 24 hours!");
       return;
     }
@@ -788,6 +801,7 @@ export default function StartSession() {
       isCheckpoint, completedPomodoros, abortedPomodoros,
       environment:     meta.environment     ?? null,
       environmentType: meta.environmentType ?? null,
+      totalDurationForDoc,
     };
     if (!navigator.onLine) {
       await idbEnqueue({ type: "session_chunk", uid, ...payload });
@@ -1209,6 +1223,11 @@ export default function StartSession() {
     if (user && isOnline) fetchRecentSessions();
   }, [user, isOnline, fetchRecentSessions]);
 
+  // FIX: stopTimer now correctly separates the segment seconds from the total
+  // duration. Checkpoints have already written everything committed to Firestore,
+  // so only the remaining uncommitted segment (getSegmentSeconds) goes to stats.
+  // The full duration (getTotalSessionSeconds) is passed as totalDurationForDoc
+  // so the sessions collection record shows the correct total session length.
   const stopTimer = useCallback(async () => {
     if (!isRunningRef.current) return;
     isRunningRef.current = false; setIsRunning(false); await releaseWakeLock();
@@ -1217,15 +1236,17 @@ export default function StartSession() {
     clearInterval(checkpointIntervalRef.current); checkpointIntervalRef.current = null;
     if (!sessionStartWallTimeRef.current) return;
 
-    const sessionSeconds = getTotalSessionSeconds();
-    const dateKey        = sessionStartDateRef.current  || localYMD();
-    const weekKey        = localISOWeek(new Date(dateKey + "T12:00:00"));
-    const monthKey       = localYM(new Date(dateKey     + "T12:00:00"));
-    const hourKey        = String(new Date().getHours()).padStart(2, "0");
-    const field          = selectedFieldRef.current;
-    const env            = currentEnvironmentRef.current;
+    const segmentSeconds = getSegmentSeconds();
+    const totalDuration  = getTotalSessionSeconds();
 
-    if (sessionSeconds >= 86400) {
+    const dateKey  = sessionStartDateRef.current || localYMD();
+    const weekKey  = localISOWeek(new Date(dateKey + "T12:00:00"));
+    const monthKey = localYM(new Date(dateKey     + "T12:00:00"));
+    const hourKey  = String(sessionStartHourRef.current ?? new Date().getHours()).padStart(2, "0");
+    const field    = selectedFieldRef.current;
+    const env      = currentEnvironmentRef.current;
+
+    if (totalDuration >= 86400) {
       toast.error("⏹ You cannot study more than 24 hours — session discarded.");
       sessionStartWallTimeRef.current  = null;
       sessionStartDateRef.current      = null;
@@ -1241,7 +1262,7 @@ export default function StartSession() {
     let completedPomodoros = 0, abortedPomodoros = 0;
     if (pomodoroModeRef.current) {
       completedPomodoros = completedPomodorosInSessionRef.current;
-      const partialProgress = sessionSeconds % (25 * 60);
+      const partialProgress = totalDuration % (25 * 60);
       if (partialProgress > 300 && partialProgress < 25 * 60) abortedPomodoros = 1;
     }
 
@@ -1254,23 +1275,25 @@ export default function StartSession() {
     sessionStorage.removeItem("sb_pomodoro_state");
     sessionStorage.removeItem("sb_active_session");
 
-    if (sessionSeconds > 5) {
+    if (totalDuration > 5) {
       try {
         await saveSessionChunk(
-          sessionSeconds, dateKey, weekKey, monthKey, field, hourKey,
+          segmentSeconds,
+          dateKey, weekKey, monthKey, field, hourKey,
           false, completedPomodoros, abortedPomodoros,
           { environment: env?.name ?? null, environmentType: env?.type ?? null },
+          totalDuration,
         );
         if (isOnline) {
           const envMsg = env ? ` at ${env.name}` : "";
-          toast.success(`✅ Saved! ${fmtTime(sessionSeconds)} for ${field}${envMsg}`);
+          toast.success(`✅ Saved! ${fmtTime(totalDuration)} for ${field}${envMsg}`);
           await fetchRecentSessions();
         } else {
-          toast(`📦 ${fmtTime(sessionSeconds)} queued — syncs when online.`, { icon: "🔌" });
+          toast(`📦 ${fmtTime(totalDuration)} queued — syncs when online.`, { icon: "🔌" });
         }
       } catch (e) { console.error(e); toast.error("Failed to save session"); }
     }
-  }, [getTotalSessionSeconds, releaseWakeLock, saveSessionChunk, isOnline, fetchRecentSessions]);
+  }, [getSegmentSeconds, getTotalSessionSeconds, releaseWakeLock, saveSessionChunk, isOnline, fetchRecentSessions]);
 
   useEffect(() => { stopTimerRef.current = stopTimer; }, [stopTimer]);
 
@@ -1696,7 +1719,7 @@ export default function StartSession() {
       where("weekStart", ">=", cutoffKey), orderBy("weekStart", "desc"),
     );
     dlUnsubWeeklyRef.current = onSnapshot(q, (snap) => {
-      const map = {}; snap.docs forEach((d) => { map[d.id] = d.data(); });
+      const map = {}; snap.docs.forEach((d) => { map[d.id] = d.data(); });
       setDlWeeklySummaries(map);
     }, (err) => console.error("DL weekly error:", err));
     return () => dlUnsubWeeklyRef.current?.();
@@ -1815,8 +1838,14 @@ export default function StartSession() {
 
   const studyFields = useMemo(() => userData?.studyFields || ["General"], [userData?.studyFields]);
 
+  // FIX: liveSessionSeconds is getSegmentSeconds() — the seconds since the last
+  // checkpoint (at most ~60s). Firestore dailyStats.hourly already contains
+  // everything committed by checkpoints, so adding only the uncommitted tail
+  // gives a correct per-hour total without double-counting.
   const liveSessionSeconds = useMemo(
     () => (isRunning ? getSegmentSeconds() : 0),
+    // displaySeconds ticks every second and forces this memo to recompute
+    // each tick, keeping the live overlay smooth without subscribing to refs.
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [isRunning, displaySeconds],
   );
@@ -1860,13 +1889,6 @@ export default function StartSession() {
 
   const insights    = useInsights(userData, isRunning, liveSessionSeconds);
   const displayTime = pomodoroMode ? pomodoroTimeLeft : displaySeconds;
-
-  // todayCommittedSeconds: the authoritative Firestore total for today (no live addition).
-  // Passed to HourHistogram so it can compute "total today" correctly.
-  const todayCommittedSeconds = useMemo(() => {
-    const todayKey = localYMD();
-    return userData?.dailyStats?.[todayKey]?.totalTime || 0;
-  }, [userData]);
 
   if (loading) {
     return (
@@ -2093,7 +2115,6 @@ export default function StartSession() {
         </AnimatePresence>
 
         <motion.div className="ss-main-grid" variants={staggerContainer} initial="initial" animate="animate">
-
           <motion.div className={`ss-card ss-timer-card${deepWorkEnabled ? " dw-mode" : ""}`} variants={cardVariant}>
             <div className="ss-mode-pill">
               {deepWorkEnabled ? (
@@ -2553,8 +2574,6 @@ export default function StartSession() {
                 dailyStats={userData?.dailyStats}
                 liveSeconds={liveSessionSeconds}
                 isRunning={isRunning}
-                sessionStartHour={sessionStartHourRef.current}
-                todayCommittedSeconds={todayCommittedSeconds}
               />
               <div className="ss-section-label" style={{ marginTop: "1.5rem" }}>Study Insights</div>
               <InsightCards insights={insights} />
