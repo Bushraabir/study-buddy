@@ -1,7 +1,9 @@
+import { Helmet } from "react-helmet-async";
 import React, { useState, useCallback, useRef } from "react";
-import { FaEnvelope, FaLock, FaEye, FaEyeSlash, FaArrowLeft, FaShieldAlt } from "react-icons/fa";
+import { FaEnvelope, FaLock, FaEye, FaEyeSlash, FaArrowLeft } from "react-icons/fa";
 import { motion, AnimatePresence } from "framer-motion";
 import Lottie from "lottie-react";
+import loginAnimation from "../assets/login-animation.json";
 import {
   sendPasswordResetEmail,
   confirmPasswordReset,
@@ -14,18 +16,11 @@ import { Formik, Form, Field, ErrorMessage } from "formik";
 import * as Yup from "yup";
 import "./Forgotpass.css";
 
-// ── Validation Schemas 
+// ── Validation Schemas ─────────────────────────────────────────
 const emailSchema = Yup.object({
   email: Yup.string()
     .email("Please enter a valid email address")
     .required("Email is required"),
-});
-
-const otpSchema = Yup.object({
-  otp: Yup.string()
-    .length(6, "OTP must be exactly 6 digits")
-    .matches(/^\d+$/, "OTP must contain only numbers")
-    .required("OTP is required"),
 });
 
 const passwordSchema = Yup.object({
@@ -39,7 +34,7 @@ const passwordSchema = Yup.object({
     .required("Please confirm your password"),
 });
 
-// ── Firebase error → readable message ────────────────────────
+// ── Firebase error → readable message ─────────────────────────
 const getErrorMessage = (code) => {
   switch (code) {
     case "auth/user-not-found":
@@ -59,7 +54,7 @@ const getErrorMessage = (code) => {
   }
 };
 
-// ── Password strength helper ──────────────────────────────────
+// ── Password strength helper ───────────────────────────────────
 const getPasswordStrength = (password) => {
   if (!password) return { score: 0, label: "", color: "" };
   let score = 0;
@@ -76,7 +71,7 @@ const getPasswordStrength = (password) => {
   return { score, label: "Very Strong", color: "#a855f7" };
 };
 
-// ── Animation Variants ────────────────────────────────────────
+// ── Animation Variants ─────────────────────────────────────────
 const pageVariants = {
   hidden: { opacity: 0, y: 24 },
   visible: { opacity: 1, y: 0, transition: { duration: 0.55, ease: "easeOut" } },
@@ -99,57 +94,7 @@ const stepVariants = {
   }),
 };
 
-// ── OTP Input Component ───────────────────────────────────────
-function OTPInput({ value, onChange }) {
-  const inputsRef = useRef([]);
-  const digits = value.split("").concat(Array(6).fill("")).slice(0, 6);
-
-  const handleChange = (e, idx) => {
-    const val = e.target.value.replace(/\D/g, "").slice(-1);
-    const newDigits = [...digits];
-    newDigits[idx] = val;
-    onChange(newDigits.join(""));
-    if (val && idx < 5) inputsRef.current[idx + 1]?.focus();
-  };
-
-  const handleKeyDown = (e, idx) => {
-    if (e.key === "Backspace" && !digits[idx] && idx > 0) {
-      inputsRef.current[idx - 1]?.focus();
-      const newDigits = [...digits];
-      newDigits[idx - 1] = "";
-      onChange(newDigits.join(""));
-    }
-  };
-
-  const handlePaste = (e) => {
-    e.preventDefault();
-    const pasted = e.clipboardData.getData("text").replace(/\D/g, "").slice(0, 6);
-    onChange(pasted.padEnd(6, "").slice(0, 6));
-    inputsRef.current[Math.min(pasted.length, 5)]?.focus();
-  };
-
-  return (
-    <div className="fp-otp-row">
-      {Array.from({ length: 6 }).map((_, idx) => (
-        <input
-          key={idx}
-          ref={(el) => (inputsRef.current[idx] = el)}
-          className={`fp-otp-cell ${digits[idx] ? "fp-otp-cell--filled" : ""}`}
-          type="text"
-          inputMode="numeric"
-          maxLength={1}
-          value={digits[idx] || ""}
-          onChange={(e) => handleChange(e, idx)}
-          onKeyDown={(e) => handleKeyDown(e, idx)}
-          onPaste={handlePaste}
-          autoComplete="one-time-code"
-        />
-      ))}
-    </div>
-  );
-}
-
-// ── Step indicators ───────────────────────────────────────────
+// ── Step Indicators ────────────────────────────────────────────
 const STEPS = ["Email", "Verify", "Reset"];
 
 function StepDots({ current }) {
@@ -157,11 +102,22 @@ function StepDots({ current }) {
     <div className="fp-stepper">
       {STEPS.map((label, i) => (
         <React.Fragment key={i}>
-          <div className={`fp-step ${i < current ? "fp-step--done" : i === current ? "fp-step--active" : ""}`}>
+          <div
+            className={`fp-step ${
+              i < current ? "fp-step--done" : i === current ? "fp-step--active" : ""
+            }`}
+          >
             <div className="fp-step-dot">
               {i < current ? (
                 <svg width="10" height="10" viewBox="0 0 10 10">
-                  <polyline points="1.5,5 4,7.5 8.5,2.5" fill="none" stroke="#fff" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                  <polyline
+                    points="1.5,5 4,7.5 8.5,2.5"
+                    fill="none"
+                    stroke="#fff"
+                    strokeWidth="1.5"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
                 </svg>
               ) : (
                 <span>{i + 1}</span>
@@ -170,7 +126,9 @@ function StepDots({ current }) {
             <span className="fp-step-label">{label}</span>
           </div>
           {i < STEPS.length - 1 && (
-            <div className={`fp-step-line ${i < current ? "fp-step-line--done" : ""}`} />
+            <div
+              className={`fp-step-line ${i < current ? "fp-step-line--done" : ""}`}
+            />
           )}
         </React.Fragment>
       ))}
@@ -178,66 +136,53 @@ function StepDots({ current }) {
   );
 }
 
-// ── Main Component ────────────────────────────────────────────
+// ── Main Component ─────────────────────────────────────────────
 function ForgotPass() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
 
-  // If arriving from Firebase email link (oobCode in URL), skip to step 2
+  // If arriving from Firebase email link (oobCode in URL), jump straight to step 2
   const oobCode = searchParams.get("oobCode");
   const [step, setStep] = useState(oobCode ? 2 : 0);
   const [direction, setDirection] = useState("forward");
   const [email, setEmail] = useState("");
-  const [otp, setOtp] = useState("");
-  const [otpError, setOtpError] = useState("");
   const [pwVisible, setPwVisible] = useState(false);
   const [confirmPwVisible, setConfirmPwVisible] = useState(false);
   const [passwordVal, setPasswordVal] = useState("");
   const [resendCooldown, setResendCooldown] = useState(0);
   const cooldownRef = useRef(null);
 
-  const goForward = () => { setDirection("forward"); setStep((s) => s + 1); };
-  const goBack = () => { setDirection("back"); setStep((s) => s - 1); };
-
-  // ── Step 0: Send reset email ──────────────────────────────
-  const handleSendEmail = useCallback(async (values, { setSubmitting }) => {
-    try {
-      await sendPasswordResetEmail(auth, values.email.trim(), {
-        url: `${window.location.origin}/forgot-password`,
-        handleCodeInApp: false,
-      });
-      setEmail(values.email.trim());
-      toast.success("Reset link sent! Check your inbox.");
-      goForward();
-    } catch (error) {
-      toast.error(getErrorMessage(error.code));
-    } finally {
-      setSubmitting(false);
-    }
+  const goForward = useCallback(() => {
+    setDirection("forward");
+    setStep((s) => s + 1);
   }, []);
 
-  // ── Step 1: Verify OTP (oobCode from email link) ──────────
-  // Since Firebase password reset sends a link (not a numeric OTP),
-  // we guide the user to open the link which appends ?oobCode= to this page.
-  // We auto-advance to step 2 if oobCode is present in the URL.
-  // The "OTP" UX here lets the user paste the code from their email URL manually.
-  const handleVerifyOtp = useCallback(async () => {
-    if (otp.length !== 6) {
-      setOtpError("Please enter the 6-digit code from your email.");
-      return;
-    }
-    setOtpError("");
-    // Since Firebase doesn't send numeric OTPs natively,
-    // we treat the 6-digit entry as a UX step and rely on the oobCode in URL.
-    // If user arrived via the link, oobCode is already set and we skip here.
-    // Otherwise prompt them to click the link in their email.
-    if (!oobCode) {
-      toast("Please click the link in your email to continue. It will bring you back here automatically.", { icon: "📧", duration: 5000 });
-      return;
-    }
-    goForward();
-  }, [otp, oobCode]);
+  const goBack = useCallback(() => {
+    setDirection("back");
+    setStep((s) => s - 1);
+  }, []);
 
+  // ── Step 0: Send reset email ───────────────────────────────
+  const handleSendEmail = useCallback(
+    async (values, { setSubmitting }) => {
+      try {
+        await sendPasswordResetEmail(auth, values.email.trim(), {
+          url: `${window.location.origin}/forgot-password`,
+          handleCodeInApp: false,
+        });
+        setEmail(values.email.trim());
+        toast.success("Reset link sent! Check your inbox.");
+        goForward();
+      } catch (error) {
+        toast.error(getErrorMessage(error.code));
+      } finally {
+        setSubmitting(false);
+      }
+    },
+    [goForward]
+  );
+
+  // ── Resend email ───────────────────────────────────────────
   const handleResend = useCallback(async () => {
     if (!email || resendCooldown > 0) return;
     try {
@@ -246,7 +191,10 @@ function ForgotPass() {
       setResendCooldown(60);
       cooldownRef.current = setInterval(() => {
         setResendCooldown((c) => {
-          if (c <= 1) { clearInterval(cooldownRef.current); return 0; }
+          if (c <= 1) {
+            clearInterval(cooldownRef.current);
+            return 0;
+          }
           return c - 1;
         });
       }, 1000);
@@ -256,51 +204,59 @@ function ForgotPass() {
   }, [email, resendCooldown]);
 
   // ── Step 2: Confirm new password ──────────────────────────
-  const handleResetPassword = useCallback(async (values, { setSubmitting }) => {
-    if (!oobCode) {
-      toast.error("Invalid reset session. Please restart the process.");
-      setSubmitting(false);
-      return;
-    }
-    try {
-      await verifyPasswordResetCode(auth, oobCode);
-      await confirmPasswordReset(auth, oobCode, values.password);
-      toast.success("Password reset successfully! Please log in.");
-      setTimeout(() => navigate("/login"), 1500);
-    } catch (error) {
-      toast.error(getErrorMessage(error.code));
-    } finally {
-      setSubmitting(false);
-    }
-  }, [oobCode, navigate]);
+  const handleResetPassword = useCallback(
+    async (values, { setSubmitting }) => {
+      if (!oobCode) {
+        toast.error("Invalid reset session. Please restart the process.");
+        setSubmitting(false);
+        return;
+      }
+      try {
+        await verifyPasswordResetCode(auth, oobCode);
+        await confirmPasswordReset(auth, oobCode, values.password);
+        toast.success("Password reset successfully! Please log in.");
+        setTimeout(() => navigate("/login"), 1500);
+      } catch (error) {
+        toast.error(getErrorMessage(error.code));
+      } finally {
+        setSubmitting(false);
+      }
+    },
+    [oobCode, navigate]
+  );
 
   const strength = getPasswordStrength(passwordVal);
 
+  // react-helmet-async requires plain strings as <title> children — no JSX expressions
+  const pageTitles = [
+    "Forgot Password · Reset Your Account | StudyBuddy",
+    "Check Your Inbox · Password Reset | StudyBuddy",
+    "Set New Password · Secure Your Account | StudyBuddy",
+  ];
+  const pageDescriptions = [
+    "Enter your email to receive a secure password reset link for your StudyBuddy account.",
+    "We've sent a reset link to your email. Click the link to continue setting your new password.",
+    "Create a strong new password to secure your StudyBuddy account.",
+  ];
+  const pageTitle = pageTitles[step] ?? pageTitles[0];
+  const pageDescription = pageDescriptions[step] ?? pageDescriptions[0];
+
   return (
     <div className="fp-page">
-
       <Helmet>
-       <title>
-         {step === 0 && "Forgot Password · Reset Your Account | StudyBuddy"}
-         {step === 1 && "Check Your Inbox · Password Reset | StudyBuddy"}
-         {step === 2 && "Set New Password · Secure Your Account | StudyBuddy"}
-       </title>
-       <meta 
-         name="description" 
-         content={
-           step === 0
-             ? "Enter your email to receive a secure password reset link for your StudyBuddy account."
-             : step === 1
-             ? "We've sent a reset link to your email. Click the link to continue setting your new password."
-             : "Create a strong new password to secure your StudyBuddy account."
-         } 
-       />
-       <link rel="canonical" href="https://study-buddy-seven-blush.vercel.app/forgot-password" />
-       <meta property="og:title" content="Reset Password | StudyBuddy" />
-       <meta property="og:description" content="Securely reset your StudyBuddy account password." />
-       <meta property="og:type" content="website" />
+        <title>{pageTitle}</title>
+        <meta name="description" content={pageDescription} />
+        <link
+          rel="canonical"
+          href="https://study-buddy-seven-blush.vercel.app/forgot-password"
+        />
+        <meta property="og:title" content="Reset Password | StudyBuddy" />
+        <meta
+          property="og:description"
+          content="Securely reset your StudyBuddy account password."
+        />
+        <meta property="og:type" content="website" />
       </Helmet>
-
 
       <motion.div
         className="fp-card"
@@ -308,10 +264,16 @@ function ForgotPass() {
         initial="hidden"
         animate="visible"
       >
-        {/* ── Header ── */}
+        {/* ── Header with Lottie ── */}
         <div className="fp-card-header">
-          <div className="fp-shield-icon">
-            <FaShieldAlt />
+          {/* BUG FIX: replaced unused FaShieldAlt + fp-shield-icon div with Lottie animation */}
+          <div className="fp-lottie-wrap">
+            <Lottie
+              animationData={loginAnimation}
+              loop={true}
+              autoplay={true}
+              className="fp-lottie"
+            />
           </div>
           <h2 className="fp-title">Reset Password</h2>
           <p className="fp-subtitle">We'll get you back in safely</p>
@@ -336,7 +298,8 @@ function ForgotPass() {
                 className="fp-step-body"
               >
                 <p className="fp-step-desc">
-                  Enter the email address linked to your account and we'll send you a reset link.
+                  Enter the email address linked to your account and we'll send
+                  you a reset link.
                 </p>
                 <Formik
                   initialValues={{ email: "" }}
@@ -357,12 +320,18 @@ function ForgotPass() {
                             type="email"
                             placeholder="you@example.com"
                             autoComplete="email"
-                            className={`fp-input ${errors.email && touched.email ? "fp-input--error" : ""}`}
+                            className={`fp-input ${
+                              errors.email && touched.email
+                                ? "fp-input--error"
+                                : ""
+                            }`}
                           />
                         </div>
                         <ErrorMessage
                           name="email"
-                          render={(msg) => <span className="fp-field-error">⚠ {msg}</span>}
+                          render={(msg) => (
+                            <span className="fp-field-error">⚠ {msg}</span>
+                          )}
                         />
                       </div>
 
@@ -373,7 +342,10 @@ function ForgotPass() {
                         whileTap={{ scale: isSubmitting ? 1 : 0.97 }}
                       >
                         {isSubmitting ? (
-                          <><span className="fp-spinner" />Sending…</>
+                          <>
+                            <span className="fp-spinner" />
+                            Sending…
+                          </>
                         ) : (
                           "Send Reset Link"
                         )}
@@ -384,7 +356,7 @@ function ForgotPass() {
               </motion.div>
             )}
 
-            {/* STEP 1 — Check Email / Verify */}
+            {/* STEP 1 — Check Email */}
             {step === 1 && (
               <motion.div
                 key="step-verify"
@@ -397,7 +369,9 @@ function ForgotPass() {
               >
                 <div className="fp-email-sent-icon">📬</div>
                 <p className="fp-step-desc">
-                  A reset link was sent to <strong>{email}</strong>. Open your inbox and click the link — it will bring you right back here to set your new password.
+                  A reset link was sent to <strong>{email}</strong>. Open your
+                  inbox and click the link — it will bring you right back here
+                  to set your new password.
                 </p>
 
                 <div className="fp-verify-tips">
@@ -407,11 +381,15 @@ function ForgotPass() {
                   </div>
                   <div className="fp-tip">
                     <span className="fp-tip-num">2</span>
-                    <span>Click <strong>"Reset Password"</strong> in the email</span>
+                    <span>
+                      Click <strong>"Reset Password"</strong> in the email
+                    </span>
                   </div>
                   <div className="fp-tip">
                     <span className="fp-tip-num">3</span>
-                    <span>You'll return here automatically to set a new password</span>
+                    <span>
+                      You'll return here automatically to set a new password
+                    </span>
                   </div>
                 </div>
 
@@ -423,7 +401,9 @@ function ForgotPass() {
                     onClick={handleResend}
                     disabled={resendCooldown > 0}
                   >
-                    {resendCooldown > 0 ? `Resend in ${resendCooldown}s` : "Resend Email"}
+                    {resendCooldown > 0
+                      ? `Resend in ${resendCooldown}s`
+                      : "Resend Email"}
                   </button>
                 </div>
 
@@ -474,7 +454,11 @@ function ForgotPass() {
                                 type={pwVisible ? "text" : "password"}
                                 placeholder="Min. 8 characters"
                                 autoComplete="new-password"
-                                className={`fp-input fp-input--pw ${errors.password && touched.password ? "fp-input--error" : ""}`}
+                                className={`fp-input fp-input--pw ${
+                                  errors.password && touched.password
+                                    ? "fp-input--error"
+                                    : ""
+                                }`}
                                 onChange={(e) => {
                                   field.onChange(e);
                                   setPasswordVal(e.target.value);
@@ -486,11 +470,14 @@ function ForgotPass() {
                             type="button"
                             className="fp-pw-toggle"
                             onClick={() => setPwVisible((v) => !v)}
-                            aria-label={pwVisible ? "Hide password" : "Show password"}
+                            aria-label={
+                              pwVisible ? "Hide password" : "Show password"
+                            }
                           >
                             {pwVisible ? <FaEyeSlash /> : <FaEye />}
                           </button>
                         </div>
+
                         {/* Strength bar */}
                         {passwordVal && (
                           <div className="fp-strength">
@@ -500,18 +487,29 @@ function ForgotPass() {
                                   key={n}
                                   className="fp-strength-seg"
                                   style={{
-                                    background: n <= strength.score ? strength.color : "rgba(255,255,255,0.08)",
+                                    background:
+                                      n <= strength.score
+                                        ? strength.color
+                                        : "rgba(255,255,255,0.08)",
                                     transition: "background 0.3s ease",
                                   }}
                                 />
                               ))}
                             </div>
-                            <span className="fp-strength-label" style={{ color: strength.color }}>
+                            <span
+                              className="fp-strength-label"
+                              style={{ color: strength.color }}
+                            >
                               {strength.label}
                             </span>
                           </div>
                         )}
-                        <ErrorMessage name="password" render={(msg) => <span className="fp-field-error">⚠ {msg}</span>} />
+                        <ErrorMessage
+                          name="password"
+                          render={(msg) => (
+                            <span className="fp-field-error">⚠ {msg}</span>
+                          )}
+                        />
                       </div>
 
                       {/* Confirm Password */}
@@ -527,7 +525,11 @@ function ForgotPass() {
                             type={confirmPwVisible ? "text" : "password"}
                             placeholder="Repeat your password"
                             autoComplete="new-password"
-                            className={`fp-input fp-input--pw ${errors.confirmPassword && touched.confirmPassword ? "fp-input--error" : ""}`}
+                            className={`fp-input fp-input--pw ${
+                              errors.confirmPassword && touched.confirmPassword
+                                ? "fp-input--error"
+                                : ""
+                            }`}
                           />
                           <button
                             type="button"
@@ -538,7 +540,12 @@ function ForgotPass() {
                             {confirmPwVisible ? <FaEyeSlash /> : <FaEye />}
                           </button>
                         </div>
-                        <ErrorMessage name="confirmPassword" render={(msg) => <span className="fp-field-error">⚠ {msg}</span>} />
+                        <ErrorMessage
+                          name="confirmPassword"
+                          render={(msg) => (
+                            <span className="fp-field-error">⚠ {msg}</span>
+                          )}
+                        />
                       </div>
 
                       <motion.button
@@ -548,7 +555,10 @@ function ForgotPass() {
                         whileTap={{ scale: isSubmitting ? 1 : 0.97 }}
                       >
                         {isSubmitting ? (
-                          <><span className="fp-spinner" />Resetting…</>
+                          <>
+                            <span className="fp-spinner" />
+                            Resetting…
+                          </>
                         ) : (
                           "Set New Password"
                         )}
@@ -558,7 +568,6 @@ function ForgotPass() {
                 </Formik>
               </motion.div>
             )}
-
           </AnimatePresence>
         </div>
 

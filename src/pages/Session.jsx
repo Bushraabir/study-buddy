@@ -19,6 +19,7 @@ import Lottie from "lottie-react";
 import clockAnimation from "../assets/3d-clock-animation.json";
 import "./Session.css";
 
+// ─── animation variants ───────────────────────────────────────────────────────
 const staggerContainer = { animate: { transition: { staggerChildren: 0.07 } } };
 const cardVariant = {
   initial: { opacity: 0, y: 20, scale: 0.98 },
@@ -30,6 +31,7 @@ const overlayVariant = {
   exit: { opacity: 0, y: 16, scale: 0.97, transition: { duration: 0.18 } },
 };
 
+// ─── formatters ───────────────────────────────────────────────────────────────
 function fmtTime(s) {
   if (!s || s <= 0) return "00:00:00";
   const h = Math.floor(s / 3600);
@@ -86,6 +88,7 @@ function formatTimerDisplay(seconds) {
   return `${m}:${s}`;
 }
 
+// ─── environment helpers ──────────────────────────────────────────────────────
 const ENV_TYPE_MAP = {
   library: { color: "#a855f7", emoji: "📚" },
   cafe:    { color: "#f472b6", emoji: "☕" },
@@ -97,6 +100,7 @@ function envTypeInfo(type) {
   return ENV_TYPE_MAP[type] ?? ENV_TYPE_MAP.other;
 }
 
+// ─── IndexedDB offline queue ──────────────────────────────────────────────────
 const IDB_NAME    = "studybuddy_offline";
 const IDB_VERSION = 1;
 const IDB_STORE   = "sync_queue";
@@ -142,6 +146,7 @@ async function idbDelete(id) {
   });
 }
 
+// ─── Firestore session chunk writer ──────────────────────────────────────────
 async function applySessionChunk(uid, item) {
   const {
     sessionSeconds, dateKey, weekKey, monthKey, field, hourKey,
@@ -262,6 +267,7 @@ async function drainSyncQueue(uid, onProgress) {
   return synced;
 }
 
+// ─── distraction types ────────────────────────────────────────────────────────
 const DISTRACTION_TYPES = [
   { id: "phone",   label: "Phone",       emoji: "📱", color: "#f472b6", bg: "rgba(244,114,182,0.14)", tip: "Put it face-down in another room" },
   { id: "social",  label: "Social",      emoji: "📲", color: "#a855f7", bg: "rgba(168,85,247,0.14)",  tip: "Use app timers or greyscale mode" },
@@ -296,6 +302,7 @@ async function upsertWeeklySummary(uid, typeId) {
   }
 }
 
+// ─── deep work constants ──────────────────────────────────────────────────────
 const DW_DURATIONS       = [15, 25, 45, 60, 90, 120];
 const SHIELD_MILESTONES  = [1, 3, 7, 14, 21, 30, 50, 75, 100];
 const DEEP_WORK_QUOTES   = [
@@ -337,6 +344,7 @@ function nextMilestone(streak) {
   return SHIELD_MILESTONES.find((m) => m > streak) ?? null;
 }
 
+// ─── sub-components ───────────────────────────────────────────────────────────
 function ShieldMini({ streak, size = 32 }) {
   const { color } = dwShieldTier(streak);
   return (
@@ -409,6 +417,7 @@ function DWCircularTimer({ elapsed, total, active, paused }) {
   );
 }
 
+// ─── useInsights hook ─────────────────────────────────────────────────────────
 function useInsights(userData, isRunning, liveSessionSeconds) {
   return useMemo(() => {
     const ds      = userData?.dailyStats || {};
@@ -453,11 +462,11 @@ function useInsights(userData, isRunning, liveSessionSeconds) {
     const total       = completed + aborted;
     const focusScore  = total > 0 ? Math.round((completed / total) * 100) : null;
     return {
-      bestHour:              bestHour >= 0 ? fmtHourLabel(bestHour) : null,
-      bestHourAvg:           bestHourAvg / 3600,
-      mostProductiveDay:     bestDow >= 0 ? dayNames[bestDow] : null,
-      mostProductiveDayShort:bestDow >= 0 ? dayShort[bestDow] : null,
-      mostProductiveDayAvg:  bestDowAvg / 3600,
+      bestHour:               bestHour >= 0 ? fmtHourLabel(bestHour) : null,
+      bestHourAvg:            bestHourAvg / 3600,
+      mostProductiveDay:      bestDow >= 0 ? dayNames[bestDow] : null,
+      mostProductiveDayShort: bestDow >= 0 ? dayShort[bestDow] : null,
+      mostProductiveDayAvg:   bestDowAvg / 3600,
       focusScore,
       pomodorosCompleted: completed,
       pomodorosAborted:   aborted,
@@ -465,11 +474,15 @@ function useInsights(userData, isRunning, liveSessionSeconds) {
   }, [userData, isRunning, liveSessionSeconds]);
 }
 
-function HourHistogram({ dailyStats, liveSeconds, isRunning }) {
+// ─── HourHistogram ────────────────────────────────────────────────────────────
+// BUG FIX #3: maxVal is hard-coded to 3600 (60 min). Each bar slot represents
+// exactly 0–60 min, so a 2-hour session produces two full-height bars.
+function HourHistogram({ dailyStats, liveSeconds, isRunning, sessionStartHour }) {
   const todayKey  = localYMD();
   const todayData = dailyStats?.[todayKey] || {};
   const curHour   = new Date().getHours();
   const [hoveredHour, setHoveredHour] = useState(null);
+
   const hours = useMemo(() => {
     const hourly = todayData?.hourly || {};
     return Array.from({ length: 24 }, (_, i) => ({
@@ -478,25 +491,48 @@ function HourHistogram({ dailyStats, liveSeconds, isRunning }) {
       seconds: hourly[String(i).padStart(2, "0")] || 0,
     }));
   }, [todayData]);
+
+  // BUG FIX #3: live overlay goes on the bar for the hour the segment started,
+  // not necessarily the current hour (though for display purposes curHour is fine —
+  // the hourly Firestore data is what matters; the overlay is just a visual hint).
   const vals = useMemo(
-    () => hours.map((h) => (h.hour === curHour && isRunning ? h.seconds + liveSeconds : h.seconds)),
+    () => hours.map((h) => {
+      let v = h.seconds;
+      // Show live uncommitted seconds on the current hour bar only.
+      // These are the segment seconds since the last checkpoint (≤ ~60 s).
+      if (h.hour === curHour && isRunning) v += liveSeconds;
+      // Cap at 3600 so a single bar never exceeds 60 min visually.
+      return Math.min(v, 3600);
+    }),
     [hours, curHour, isRunning, liveSeconds],
   );
-  const maxVal   = useMemo(() => Math.max(...vals, 1), [vals]);
-  const totalToday = useMemo(() => vals.reduce((a, b) => a + b, 0), [vals]);
-  const peakHour   = useMemo(() => {
+
+  // FIX: fixed scale — 3600 s = 60 min per bar, no dynamic max.
+  const MAX_VAL = 3600;
+
+  const totalToday = useMemo(() => {
+    // Sum raw (uncapped) values for the footer total.
+    return hours.reduce((a, h) => {
+      let v = h.seconds;
+      if (h.hour === curHour && isRunning) v += liveSeconds;
+      return a + v;
+    }, 0);
+  }, [hours, curHour, isRunning, liveSeconds]);
+
+  const peakHour = useMemo(() => {
     let best = -1, bestV = 0;
     vals.forEach((v, i) => { if (v > bestV) { bestV = v; best = i; } });
     return best;
   }, [vals]);
+
   return (
     <div className="hv2-wrap">
       <div className="hv2-bars">
         {vals.map((v, i) => {
-          const pct       = Math.max((v / maxVal) * 100, v > 0 ? 5 : 0);
+          const pct       = Math.max((v / MAX_VAL) * 100, v > 0 ? 5 : 0);
           const isLive    = i === curHour && isRunning;
           const isPeak    = i === peakHour && v > 0;
-          const intensity = v / maxVal;
+          const intensity = v / MAX_VAL;
           let barBg;
           if (isLive)     barBg = "linear-gradient(to top, #059669, #34d399)";
           else if (v > 0) barBg = `rgba(192,132,252,${(0.22 + intensity * 0.68).toFixed(2)})`;
@@ -521,7 +557,11 @@ function HourHistogram({ dailyStats, liveSeconds, isRunning }) {
             <span className="hv2-tooltip-time">{fmtHourLabel(hoveredHour)}</span>
             <span className="hv2-tooltip-sep">·</span>
             <span className="hv2-tooltip-val">
-              {vals[hoveredHour] > 0 ? fmtMins(vals[hoveredHour]) : "no activity"}
+              {/* Show raw (uncapped) value for accurate display */}
+              {(() => {
+                const raw = hours[hoveredHour].seconds + (hoveredHour === curHour && isRunning ? liveSeconds : 0);
+                return raw > 0 ? fmtMins(raw) : "no activity";
+              })()}
               {hoveredHour === curHour && isRunning ? " · live" : ""}
             </span>
           </>
@@ -605,53 +645,54 @@ function InsightCards({ insights }) {
   );
 }
 
+// ─── Main component ───────────────────────────────────────────────────────────
 export default function StartSession() {
   const [user, setUser]         = useState(null);
   const [userData, setUserData] = useState(null);
   const [loading, setLoading]   = useState(true);
 
-  const [isOnline, setIsOnline] = useState(navigator.onLine);
+  const [isOnline, setIsOnline]   = useState(navigator.onLine);
   const [queueSize, setQueueSize] = useState(0);
   const [isSyncing, setIsSyncing] = useState(false);
   const syncLockRef = useRef(false);
 
-  const [displaySeconds, setDisplaySeconds] = useState(0);
-  const [isRunning, setIsRunning]           = useState(false);
-  const [pomodoroMode, setPomodoroMode]     = useState(false);
-  const [pomodoroTimeLeft, setPomodoroTimeLeft] = useState(25 * 60);
-  const [pomodoroRounds, setPomodoroRounds] = useState(0);
-  const [isBreak, setIsBreak]               = useState(false);
+  const [displaySeconds, setDisplaySeconds]         = useState(0);
+  const [isRunning, setIsRunning]                   = useState(false);
+  const [pomodoroMode, setPomodoroMode]             = useState(false);
+  const [pomodoroTimeLeft, setPomodoroTimeLeft]     = useState(25 * 60);
+  const [pomodoroRounds, setPomodoroRounds]         = useState(0);
+  const [isBreak, setIsBreak]                       = useState(false);
 
   const [strictMode, setStrictMode] = useState(false);
 
-  const [deepWorkEnabled, setDeepWorkEnabled] = useState(false);
-  const [dwDuration, setDwDuration]           = useState(25);
-  const [dwElapsed, setDwElapsed]             = useState(0);
-  const [dwActive, setDwActive]               = useState(false);
-  const [dwPaused, setDwPaused]               = useState(false);
-  const [dwShowInterrupt, setDwShowInterrupt] = useState(false);
-  const [dwShowHistory, setDwShowHistory]     = useState(false);
-  const [dwDndEnabled, setDwDndEnabled]       = useState(false);
-  const [dwSessions, setDwSessions]           = useState([]);
-  const [dwUserData, setDwUserData]           = useState(null);
-  const [dwLoading, setDwLoading]             = useState(false);
-  const [dwTabSwitches, setDwTabSwitches]     = useState(0);
+  const [deepWorkEnabled, setDeepWorkEnabled]           = useState(false);
+  const [dwDuration, setDwDuration]                     = useState(25);
+  const [dwElapsed, setDwElapsed]                       = useState(0);
+  const [dwActive, setDwActive]                         = useState(false);
+  const [dwPaused, setDwPaused]                         = useState(false);
+  const [dwShowInterrupt, setDwShowInterrupt]           = useState(false);
+  const [dwShowHistory, setDwShowHistory]               = useState(false);
+  const [dwDndEnabled, setDwDndEnabled]                 = useState(false);
+  const [dwSessions, setDwSessions]                     = useState([]);
+  const [dwUserData, setDwUserData]                     = useState(null);
+  const [dwLoading, setDwLoading]                       = useState(false);
+  const [dwTabSwitches, setDwTabSwitches]               = useState(0);
   const [dwShowDurationPicker, setDwShowDurationPicker] = useState(false);
   const dwSessionIdRef    = useRef(null);
   const dwSessionStartRef = useRef(null);
   const dwTabSwitchRef    = useRef(0);
   const dwQuoteRef        = useRef(DEEP_WORK_QUOTES[0]);
 
-  const [inactivityModal, setInactivityModal] = useState(false);
-  const lastInteractionRef   = useRef(Date.now());
-  const inactivityCheckRef   = useRef(null);
-  const modalAutoStopRef     = useRef(null);
-  const INACTIVITY_LIMIT_MS  = 6 * 60 * 60 * 1000;
-  const MODAL_RESPONSE_MS    = 60 * 1000;
+  const [inactivityModal, setInactivityModal]   = useState(false);
+  const lastInteractionRef  = useRef(Date.now());
+  const inactivityCheckRef  = useRef(null);
+  const modalAutoStopRef    = useRef(null);
+  const INACTIVITY_LIMIT_MS = 6 * 60 * 60 * 1000;
+  const MODAL_RESPONSE_MS   = 60 * 1000;
 
-  const [selectedField, setSelectedField]   = useState("General");
-  const [newFieldName, setNewFieldName]     = useState("");
-  const [removeModal, setRemoveModal]       = useState({ open: false, field: null, keepTime: false });
+  const [selectedField, setSelectedField] = useState("General");
+  const [newFieldName, setNewFieldName]   = useState("");
+  const [removeModal, setRemoveModal]     = useState({ open: false, field: null, keepTime: false });
 
   const [todoList, setTodoList]         = useState([]);
   const [newTaskText, setNewTaskText]   = useState("");
@@ -662,15 +703,15 @@ export default function StartSession() {
   const [lastDeleted, setLastDeleted]   = useState(null);
 
   const [recentSessions, setRecentSessions] = useState([]);
-  const [editingSession, setEditingSession]   = useState(null);
+  const [editingSession, setEditingSession] = useState(null);
 
-  const [dlLogs, setDlLogs]                   = useState([]);
-  const [dlDailySummaries, setDlDailySummaries] = useState({});
+  const [dlLogs, setDlLogs]                       = useState([]);
+  const [dlDailySummaries, setDlDailySummaries]   = useState({});
   const [dlWeeklySummaries, setDlWeeklySummaries] = useState({});
-  const [dlLogging, setDlLogging]             = useState(false);
-  const [dlLastLogged, setDlLastLogged]       = useState(null);
-  const [dlTab, setDlTab]                     = useState("log");
-  const [dlFilterType, setDlFilterType]       = useState(null);
+  const [dlLogging, setDlLogging]                 = useState(false);
+  const [dlLastLogged, setDlLastLogged]           = useState(null);
+  const [dlTab, setDlTab]                         = useState("log");
+  const [dlFilterType, setDlFilterType]           = useState(null);
   const dlUnsubLogsRef   = useRef(null);
   const dlUnsubDailyRef  = useRef(null);
   const dlUnsubWeeklyRef = useRef(null);
@@ -684,42 +725,56 @@ export default function StartSession() {
   const [showEnvPicker, setShowEnvPicker]           = useState(false);
   const [envSuggestion, setEnvSuggestion]           = useState(null);
 
-  const sessionStartWallTimeRef  = useRef(null);
-  const sessionStartDateRef      = useRef(null);
-  const accumulatedSecondsRef    = useRef(0);
-  const isRunningRef             = useRef(false);
-  const pomodoroModeRef          = useRef(false);
-  const selectedFieldRef         = useRef("General");
-  const strictModeRef            = useRef(false);
-  const userRef                  = useRef(null);
-  const unsubRef                 = useRef(null);
-  const wakeLockRef              = useRef(null);
-  const timerIntervalRef         = useRef(null);
-  const checkpointIntervalRef    = useRef(null);
+  // ─── timer refs ─────────────────────────────────────────────────────────────
+  const sessionStartWallTimeRef = useRef(null);
+  const sessionStartDateRef     = useRef(null);
+
+  // BUG FIX #1: track the hour the current wall-clock segment began.
+  // Checkpoints use this as hourKey so minutes crossing an hour boundary
+  // are attributed to the correct hour bucket (e.g. 2:58–3:00 → hour 14).
+  const sessionStartHourRef     = useRef(null);
+
+  const accumulatedSecondsRef   = useRef(0);
+  const isRunningRef            = useRef(false);
+  const pomodoroModeRef         = useRef(false);
+  const selectedFieldRef        = useRef("General");
+  const strictModeRef           = useRef(false);
+  const userRef                 = useRef(null);
+  const unsubRef                = useRef(null);
+  const wakeLockRef             = useRef(null);
+  const timerIntervalRef        = useRef(null);
+  const checkpointIntervalRef   = useRef(null);
   const completedPomodorosInSessionRef = useRef(0);
-  const isSavingDayBoundaryRef   = useRef(false);
-  const checkpointBackoffRef     = useRef(1000);
-  const currentEnvironmentRef    = useRef(null);
+  const isSavingDayBoundaryRef  = useRef(false);
+  const checkpointBackoffRef    = useRef(1000);
+  const currentEnvironmentRef   = useRef(null);
 
   const saveSessionChunkRef  = useRef(null);
   const getSegmentSecondsRef = useRef(null);
 
-  useEffect(() => { isRunningRef.current  = isRunning;  }, [isRunning]);
-  useEffect(() => { pomodoroModeRef.current = pomodoroMode; }, [pomodoroMode]);
-  useEffect(() => { selectedFieldRef.current = selectedField; }, [selectedField]);
-  useEffect(() => { strictModeRef.current = strictMode; }, [strictMode]);
+  // keep refs in sync with state
+  useEffect(() => { isRunningRef.current      = isRunning;      }, [isRunning]);
+  useEffect(() => { pomodoroModeRef.current   = pomodoroMode;   }, [pomodoroMode]);
+  useEffect(() => { selectedFieldRef.current  = selectedField;  }, [selectedField]);
+  useEffect(() => { strictModeRef.current     = strictMode;     }, [strictMode]);
   useEffect(() => { currentEnvironmentRef.current = currentEnvironment; }, [currentEnvironment]);
 
+  // ─── segment-second helpers ──────────────────────────────────────────────────
+  // getSegmentSeconds: seconds since the last checkpoint (resets to 0 after each
+  // checkpoint because sessionStartWallTimeRef is updated there).
   const getSegmentSeconds = useCallback(() => {
     if (!sessionStartWallTimeRef.current) return 0;
     return Math.floor((Date.now() - sessionStartWallTimeRef.current) / 1000);
   }, []);
+
+  // getTotalSessionSeconds: accumulated committed seconds + current segment.
   const getTotalSessionSeconds = useCallback(() => {
     return accumulatedSecondsRef.current + getSegmentSeconds();
   }, [getSegmentSeconds]);
 
   useEffect(() => { getSegmentSecondsRef.current = getSegmentSeconds; }, [getSegmentSeconds]);
 
+  // ─── offline queue helpers ───────────────────────────────────────────────────
   const refreshQueueSize = useCallback(async () => {
     try { const items = await idbGetAll(); setQueueSize(items.length); } catch (_) {}
   }, []);
@@ -749,6 +804,7 @@ export default function StartSession() {
     };
   }, [trySyncQueue, refreshQueueSize]);
 
+  // ─── saveSessionChunk ────────────────────────────────────────────────────────
   const saveSessionChunk = useCallback(async (
     sessionSeconds, dateKey, weekKey, monthKey, field, hourKey,
     isCheckpoint = false, completedPomodoros = 0, abortedPomodoros = 0,
@@ -784,6 +840,7 @@ export default function StartSession() {
 
   useEffect(() => { saveSessionChunkRef.current = saveSessionChunk; }, [saveSessionChunk]);
 
+  // ─── wake lock ───────────────────────────────────────────────────────────────
   const requestWakeLock = useCallback(async () => {
     if ("wakeLock" in navigator) {
       try { wakeLockRef.current = await navigator.wakeLock.request("screen"); } catch (_) {}
@@ -803,6 +860,7 @@ export default function StartSession() {
     return () => document.removeEventListener("visibilitychange", onVisible);
   }, [requestWakeLock]);
 
+  // ─── beforeunload guard ──────────────────────────────────────────────────────
   useEffect(() => {
     const onBeforeUnload = (e) => {
       if (isRunningRef.current) {
@@ -815,6 +873,7 @@ export default function StartSession() {
     return () => window.removeEventListener("beforeunload", onBeforeUnload);
   }, []);
 
+  // ─── strict mode visibility guard ───────────────────────────────────────────
   const stopTimerRef        = useRef(null);
   const strictGraceTimerRef = useRef(null);
   useEffect(() => {
@@ -840,6 +899,7 @@ export default function StartSession() {
 
   const recordInteraction = useCallback(() => { lastInteractionRef.current = Date.now(); }, []);
 
+  // ─── inactivity check ────────────────────────────────────────────────────────
   useEffect(() => {
     const checkInactivity = () => {
       if (!isRunningRef.current || inactivityModal) return;
@@ -857,6 +917,7 @@ export default function StartSession() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [inactivityModal]);
 
+  // ─── environment listeners ───────────────────────────────────────────────────
   useEffect(() => {
     if (!user) return;
     const q = query(
@@ -885,15 +946,13 @@ export default function StartSession() {
     if (!currentEnvironment || !userData) { setEnvSuggestion(null); return; }
     const envStats = userData.environmentStats?.[currentEnvironment.name];
     if (!envStats) {
-      const score    = currentEnvironment.focusScore ?? 0;
-      const avgDur   = currentEnvironment.avgDuration ?? 0;
+      const score  = currentEnvironment.focusScore ?? 0;
+      const avgDur = currentEnvironment.avgDuration ?? 0;
       if (score >= 80 && avgDur > 45 * 60) {
         setEnvSuggestion({ text: "🔥 You crush deep work here — try 90 min?", mode: "dw" });
       } else if (score > 0 && score < 50) {
         setEnvSuggestion({ text: "⚠️ Focus tends to drop here — stick to 25 min pomodoros", mode: "pomo" });
-      } else {
-        setEnvSuggestion(null);
-      }
+      } else { setEnvSuggestion(null); }
       return;
     }
     const avgFocus = envStats.avgFocusScore || 0;
@@ -902,20 +961,18 @@ export default function StartSession() {
       setEnvSuggestion({ text: "🔥 You crush deep work here — try 90 min?", mode: "dw" });
     } else if (avgFocus < 50) {
       setEnvSuggestion({ text: "⚠️ Focus drops here — stick to 25 min pomodoros", mode: "pomo" });
-    } else {
-      setEnvSuggestion(null);
-    }
+    } else { setEnvSuggestion(null); }
   }, [currentEnvironment, userData]);
 
+  // ─── Firestore user listener ─────────────────────────────────────────────────
   const listenerRef = useRef({ unsub: null, uid: null });
-
   const setupListener = useCallback((uid) => {
     if (listenerRef.current.uid === uid) return;
     listenerRef.current.unsub?.();
     const ref   = doc(db, "users", uid);
     const unsub = onSnapshot(ref, (snap) => {
       if (snap.exists()) {
-        const data   = snap.data();
+        const data = snap.data();
         setUserData(data);
         setTodoList(data.todoList || []);
         const fields = data.studyFields || ["General"];
@@ -965,80 +1022,58 @@ export default function StartSession() {
     };
   }, [setupListener, trySyncQueue]);
 
+  // ─── session recovery ────────────────────────────────────────────────────────
   useEffect(() => {
     if (loading || !user) return;
-    const saved = sessionStorage.getItem('sb_active_session');
+    const saved = sessionStorage.getItem("sb_active_session");
     if (saved && !isRunning) {
       try {
-        const { startTime, field, mode, accumulated, pomodoroMode: savedPomo, deepWorkEnabled: savedDw, dwDuration: savedDwDur } = JSON.parse(saved);
+        const { startTime, field, accumulated, pomodoroMode: savedPomo, deepWorkEnabled: savedDw, dwDuration: savedDwDur } = JSON.parse(saved);
         const elapsed = Math.floor((Date.now() - startTime) / 1000) + (accumulated || 0);
         if (elapsed > 30 && elapsed < 8 * 3600) {
           toast((t) => (
             <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
-              <span style={{ fontSize: "0.85rem", fontWeight: 700 }}>
-                ⏱️ Recover {fmtMins(elapsed)} session?
-              </span>
+              <span style={{ fontSize: "0.85rem", fontWeight: 700 }}>⏱️ Recover {fmtMins(elapsed)} session?</span>
               <div style={{ display: "flex", gap: "0.4rem" }}>
-                <button
-                  style={{
-                    background: "rgba(52,211,153,0.18)", border: "1px solid rgba(52,211,153,0.35)",
-                    color: "#34d399", borderRadius: "999px", padding: "0.3rem 0.8rem",
-                    fontSize: "0.76rem", fontWeight: 700, cursor: "pointer"
-                  }}
+                <button style={{ background: "rgba(52,211,153,0.18)", border: "1px solid rgba(52,211,153,0.35)", color: "#34d399", borderRadius: "999px", padding: "0.3rem 0.8rem", fontSize: "0.76rem", fontWeight: 700, cursor: "pointer" }}
                   onClick={() => {
-                    accumulatedSecondsRef.current = accumulated || 0;
-                    sessionStartWallTimeRef.current = startTime;
-                    sessionStartDateRef.current = localYMD(new Date(startTime));
+                    accumulatedSecondsRef.current          = accumulated || 0;
+                    sessionStartWallTimeRef.current        = startTime;
+                    sessionStartDateRef.current            = localYMD(new Date(startTime));
+                    sessionStartHourRef.current            = new Date(startTime).getHours();
                     setSelectedField(field || "General");
-                    selectedFieldRef.current = field || "General";
-                    if (savedDw) {
-                      setDeepWorkEnabled(true);
-                      setDwDuration(savedDwDur || 25);
-                    } else if (savedPomo) {
-                      setPomodoroMode(true);
-                    }
-                    setIsRunning(true);
-                    isRunningRef.current = true;
+                    selectedFieldRef.current               = field || "General";
+                    if (savedDw) { setDeepWorkEnabled(true); setDwDuration(savedDwDur || 25); }
+                    else if (savedPomo) { setPomodoroMode(true); }
+                    setIsRunning(true); isRunningRef.current = true;
                     requestWakeLock();
                     toast.dismiss(t.id);
                     toast.success("✅ Session recovered — keep going!");
-                  }}
-                >
-                  Resume
-                </button>
-                <button
-                  style={{
-                    background: "transparent", border: "1px solid rgba(255,255,255,0.15)",
-                    color: "#94a3b8", borderRadius: "999px", padding: "0.3rem 0.8rem",
-                    fontSize: "0.76rem", cursor: "pointer"
-                  }}
-                  onClick={() => {
-                    sessionStorage.removeItem('sb_active_session');
-                    toast.dismiss(t.id);
-                  }}
-                >
-                  Discard
-                </button>
+                  }}>Resume</button>
+                <button style={{ background: "transparent", border: "1px solid rgba(255,255,255,0.15)", color: "#94a3b8", borderRadius: "999px", padding: "0.3rem 0.8rem", fontSize: "0.76rem", cursor: "pointer" }}
+                  onClick={() => { sessionStorage.removeItem("sb_active_session"); toast.dismiss(t.id); }}>Discard</button>
               </div>
             </div>
-          ), { duration: 15000, id: 'session-recovery' });
-        } else {
-          sessionStorage.removeItem('sb_active_session');
-        }
-      } catch (_) {
-        sessionStorage.removeItem('sb_active_session');
-      }
+          ), { duration: 15000, id: "session-recovery" });
+        } else { sessionStorage.removeItem("sb_active_session"); }
+      } catch (_) { sessionStorage.removeItem("sb_active_session"); }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loading, user]);
 
+  // ─── startTimerInternal ──────────────────────────────────────────────────────
+  // BUG FIX #1: record the starting hour so the first checkpoint uses the
+  // correct bucket even if the clock ticks past the hour during the segment.
   const startTimerInternal = useCallback(() => {
-    sessionStartWallTimeRef.current  = Date.now();
-    sessionStartDateRef.current      = localYMD();
-    accumulatedSecondsRef.current    = 0;
-    isRunningRef.current             = true;
+    const now = Date.now();
+    sessionStartWallTimeRef.current = now;
+    sessionStartDateRef.current     = localYMD();
+    sessionStartHourRef.current     = new Date(now).getHours(); // ← FIX #1
+    accumulatedSecondsRef.current   = 0;
+    isRunningRef.current            = true;
   }, []);
 
+  // ─── midnight boundary handler ───────────────────────────────────────────────
   const checkDayBoundary = useCallback(async () => {
     if (!isRunningRef.current || !sessionStartDateRef.current) return;
     const todayKey = localYMD();
@@ -1050,7 +1085,8 @@ export default function StartSession() {
       const dateKey  = sessionStartDateRef.current;
       const weekKey  = localISOWeek(new Date(dateKey + "T12:00:00"));
       const monthKey = localYM(new Date(dateKey   + "T12:00:00"));
-      const hourKey  = String(new Date(sessionStartWallTimeRef.current).getHours()).padStart(2, "00");
+      // Use the tracked segment-start hour for accurate bucketing.
+      const hourKey  = String(sessionStartHourRef.current ?? new Date(sessionStartWallTimeRef.current).getHours()).padStart(2, "0");
       const env      = currentEnvironmentRef.current;
       try {
         await saveSessionChunkRef.current?.(
@@ -1061,11 +1097,16 @@ export default function StartSession() {
         accumulatedSecondsRef.current   += segSecs;
         sessionStartWallTimeRef.current  = Date.now();
         sessionStartDateRef.current      = todayKey;
+        sessionStartHourRef.current      = new Date().getHours(); // ← FIX #1
       } catch (e) { console.error("Midnight save failed:", e); }
-    } else { sessionStartDateRef.current = todayKey; }
+    } else {
+      sessionStartDateRef.current      = todayKey;
+      sessionStartHourRef.current      = new Date().getHours();
+    }
     isSavingDayBoundaryRef.current = false;
   }, []);
 
+  // ─── 1-second display timer ──────────────────────────────────────────────────
   useEffect(() => {
     if (timerIntervalRef.current) { clearInterval(timerIntervalRef.current); timerIntervalRef.current = null; }
     timerIntervalRef.current = setInterval(() => {
@@ -1087,24 +1128,20 @@ export default function StartSession() {
           setIsBreak(true);
           stopTimerRef.current?.();
         }
-      } else { setDisplaySeconds(total); }
+      } else {
+        // Display the full elapsed time (for the clock display only).
+        setDisplaySeconds(total);
+      }
 
       checkDayBoundary();
 
-      if (pomodoroModeRef.current && isRunningRef.current) {
-        sessionStorage.setItem('sb_pomodoro_state', JSON.stringify({
-          completed: completedPomodorosInSessionRef.current,
-          startTime: sessionStartWallTimeRef.current,
-        }));
-      }
-
       if (isRunningRef.current && sessionStartWallTimeRef.current) {
-        sessionStorage.setItem('sb_active_session', JSON.stringify({
-          startTime: sessionStartWallTimeRef.current,
-          field: selectedFieldRef.current,
-          mode: pomodoroModeRef.current ? 'pomodoro' : deepWorkEnabled ? 'deepwork' : 'stopwatch',
-          accumulated: accumulatedSecondsRef.current,
-          pomodoroMode: pomodoroModeRef.current,
+        sessionStorage.setItem("sb_active_session", JSON.stringify({
+          startTime:        sessionStartWallTimeRef.current,
+          field:            selectedFieldRef.current,
+          mode:             pomodoroModeRef.current ? "pomodoro" : deepWorkEnabled ? "deepwork" : "stopwatch",
+          accumulated:      accumulatedSecondsRef.current,
+          pomodoroMode:     pomodoroModeRef.current,
           deepWorkEnabled,
           dwDuration,
         }));
@@ -1113,6 +1150,7 @@ export default function StartSession() {
     return () => { if (timerIntervalRef.current) { clearInterval(timerIntervalRef.current); timerIntervalRef.current = null; } };
   }, [getTotalSessionSeconds, checkDayBoundary, deepWorkEnabled, dwDuration]);
 
+  // expose timer API to other components / router guards
   const timerApiRef = useRef({});
   useEffect(() => {
     timerApiRef.current = {
@@ -1127,48 +1165,34 @@ export default function StartSession() {
   }, [isRunning, selectedField, getTotalSessionSeconds]);
   useEffect(() => () => { delete window.studyBuddyTimerState; }, []);
 
+  // ─── env picker toast ────────────────────────────────────────────────────────
   const showEnvPickerToast = useCallback(() => {
     if (currentEnvironmentRef.current || userEnvironments.length === 0) return;
-    toast(
-      (t) => (
-        <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
-          <span style={{ fontSize: "0.85rem", fontWeight: 700 }}>📍 Where are you studying?</span>
-          <div style={{ display: "flex", flexWrap: "wrap", gap: "0.35rem" }}>
-            {userEnvironments.slice(0, 4).map((env) => {
-              const { color, emoji } = envTypeInfo(env.type);
-              return (
-                <button
-                  key={env.id}
-                  style={{
-                    background: `${color}18`, border: `1px solid ${color}40`,
-                    color, borderRadius: "999px", padding: "0.28rem 0.75rem",
-                    fontSize: "0.78rem", fontWeight: 700, cursor: "pointer",
-                    display: "flex", alignItems: "center", gap: "0.3rem",
-                  }}
-                  onClick={() => {
-                    setCurrentEnvironment(env);
-                    currentEnvironmentRef.current = env;
-                    toast.dismiss(t.id);
-                    toast.success(`📍 ${env.name} — let's focus!`);
-                  }}
-                >
-                  {emoji} {env.name}
-                </button>
-              );
-            })}
-            <button
-              style={{ background: "transparent", border: "1px solid rgba(255,255,255,0.15)", color: "#94a3b8", borderRadius: "999px", padding: "0.28rem 0.75rem", fontSize: "0.78rem", cursor: "pointer" }}
-              onClick={() => toast.dismiss(t.id)}
-            >
-              Skip
-            </button>
-          </div>
+    toast((t) => (
+      <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
+        <span style={{ fontSize: "0.85rem", fontWeight: 700 }}>📍 Where are you studying?</span>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: "0.35rem" }}>
+          {userEnvironments.slice(0, 4).map((env) => {
+            const { color, emoji } = envTypeInfo(env.type);
+            return (
+              <button key={env.id}
+                style={{ background: `${color}18`, border: `1px solid ${color}40`, color, borderRadius: "999px", padding: "0.28rem 0.75rem", fontSize: "0.78rem", fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", gap: "0.3rem" }}
+                onClick={() => {
+                  setCurrentEnvironment(env); currentEnvironmentRef.current = env;
+                  toast.dismiss(t.id); toast.success(`📍 ${env.name} — let's focus!`);
+                }}>
+                {emoji} {env.name}
+              </button>
+            );
+          })}
+          <button style={{ background: "transparent", border: "1px solid rgba(255,255,255,0.15)", color: "#94a3b8", borderRadius: "999px", padding: "0.28rem 0.75rem", fontSize: "0.78rem", cursor: "pointer" }}
+            onClick={() => toast.dismiss(t.id)}>Skip</button>
         </div>
-      ),
-      { duration: 8000 },
-    );
+      </div>
+    ), { duration: 8000 });
   }, [userEnvironments]);
 
+  // ─── startTimer ──────────────────────────────────────────────────────────────
   const startTimer = useCallback(async () => {
     if (!userRef.current) return toast.error("Please log in first");
     completedPomodorosInSessionRef.current = 0;
@@ -1177,13 +1201,14 @@ export default function StartSession() {
     setIsRunning(true); setIsBreak(false);
     startTimerInternal(); await requestWakeLock();
 
-    const savedPomo = sessionStorage.getItem('sb_pomodoro_state');
+    const savedPomo = sessionStorage.getItem("sb_pomodoro_state");
     if (savedPomo) {
       try {
         const { completed, startTime } = JSON.parse(savedPomo);
         completedPomodorosInSessionRef.current = completed || 0;
         if (startTime && !sessionStartWallTimeRef.current) {
           sessionStartWallTimeRef.current = startTime;
+          sessionStartHourRef.current     = new Date(startTime).getHours();
         }
       } catch (_) {}
     }
@@ -1192,45 +1217,30 @@ export default function StartSession() {
     const offlineStr = !isOnline ? " · 📦 Offline" : "";
     const envStr     = currentEnvironmentRef.current ? ` · 📍 ${currentEnvironmentRef.current.name}` : "";
     toast.success(`📚 Studying: ${selectedFieldRef.current}${strictModeRef.current ? " · 🔒" : ""}${modeStr}${envStr}${offlineStr}`, { duration: 2500 });
-
     showEnvPickerToast();
 
     if (envSuggestion) {
       setTimeout(() => {
-        toast(
-          (t) => (
-            <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
-              <span style={{ fontSize: "0.83rem" }}>{envSuggestion.text}</span>
-              {envSuggestion.mode === "dw" && !deepWorkEnabled && (
-                <button
-                  style={{ background: "rgba(168,85,247,0.18)", border: "1px solid rgba(168,85,247,0.35)", color: "#a855f7", borderRadius: "999px", padding: "0.25rem 0.75rem", fontSize: "0.76rem", fontWeight: 700, cursor: "pointer" }}
-                  onClick={() => { setDeepWorkEnabled(true); toast.dismiss(t.id); }}
-                >
-                  Switch to Deep Work
-                </button>
-              )}
-              {envSuggestion.mode === "pomo" && !pomodoroMode && (
-                <button
-                  style={{ background: "rgba(244,114,182,0.14)", border: "1px solid rgba(244,114,182,0.32)", color: "#f472b6", borderRadius: "999px", padding: "0.25rem 0.75rem", fontSize: "0.76rem", fontWeight: 700, cursor: "pointer" }}
-                  onClick={() => { setPomodoroMode(true); toast.dismiss(t.id); }}
-                >
-                  Switch to Pomodoro
-                </button>
-              )}
-              <button
-                style={{ background: "transparent", border: "none", color: "#94a3b8", fontSize: "0.72rem", cursor: "pointer", textAlign: "left" }}
-                onClick={() => toast.dismiss(t.id)}
-              >
-                Dismiss
-              </button>
-            </div>
-          ),
-          { duration: 10000 },
-        );
+        toast((t) => (
+          <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
+            <span style={{ fontSize: "0.83rem" }}>{envSuggestion.text}</span>
+            {envSuggestion.mode === "dw" && !deepWorkEnabled && (
+              <button style={{ background: "rgba(168,85,247,0.18)", border: "1px solid rgba(168,85,247,0.35)", color: "#a855f7", borderRadius: "999px", padding: "0.25rem 0.75rem", fontSize: "0.76rem", fontWeight: 700, cursor: "pointer" }}
+                onClick={() => { setDeepWorkEnabled(true); toast.dismiss(t.id); }}>Switch to Deep Work</button>
+            )}
+            {envSuggestion.mode === "pomo" && !pomodoroMode && (
+              <button style={{ background: "rgba(244,114,182,0.14)", border: "1px solid rgba(244,114,182,0.32)", color: "#f472b6", borderRadius: "999px", padding: "0.25rem 0.75rem", fontSize: "0.76rem", fontWeight: 700, cursor: "pointer" }}
+                onClick={() => { setPomodoroMode(true); toast.dismiss(t.id); }}>Switch to Pomodoro</button>
+            )}
+            <button style={{ background: "transparent", border: "none", color: "#94a3b8", fontSize: "0.72rem", cursor: "pointer", textAlign: "left" }}
+              onClick={() => toast.dismiss(t.id)}>Dismiss</button>
+          </div>
+        ), { duration: 10000 });
       }, 1500);
     }
   }, [requestWakeLock, startTimerInternal, deepWorkEnabled, pomodoroMode, isOnline, envSuggestion, showEnvPickerToast]);
 
+  // ─── recent sessions ─────────────────────────────────────────────────────────
   const fetchRecentSessions = useCallback(async () => {
     const uid = userRef.current?.uid;
     if (!uid || !isOnline) return;
@@ -1239,19 +1249,18 @@ export default function StartSession() {
         collection(db, "sessions"),
         where("userId", "==", uid),
         orderBy("endedAt", "desc"),
-        limit(3)
+        limit(3),
       );
       const snap = await getDocs(q);
       setRecentSessions(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
-    } catch (err) {
-      console.error("Recent sessions fetch error:", err);
-    }
+    } catch (err) { console.error("Recent sessions fetch error:", err); }
   }, [isOnline]);
 
   useEffect(() => {
     if (user && isOnline) fetchRecentSessions();
   }, [user, isOnline, fetchRecentSessions]);
 
+  // ─── stopTimer ───────────────────────────────────────────────────────────────
   const stopTimer = useCallback(async () => {
     if (!isRunningRef.current) return;
     isRunningRef.current = false; setIsRunning(false); await releaseWakeLock();
@@ -1260,28 +1269,29 @@ export default function StartSession() {
     clearInterval(checkpointIntervalRef.current); checkpointIntervalRef.current = null;
     if (!sessionStartWallTimeRef.current) return;
 
-    const sessionSeconds    = getTotalSessionSeconds();
-    const dateKey           = sessionStartDateRef.current  || localYMD();
-    const weekKey           = localISOWeek(new Date(dateKey + "T12:00:00"));
-    const monthKey          = localYM(new Date(dateKey     + "T12:00:00"));
-    const hourKey           = String(new Date().getHours()).padStart(2, "0");
-    const field             = selectedFieldRef.current;
-    const env               = currentEnvironmentRef.current;
+    const sessionSeconds = getTotalSessionSeconds();
+    const dateKey        = sessionStartDateRef.current  || localYMD();
+    const weekKey        = localISOWeek(new Date(dateKey + "T12:00:00"));
+    const monthKey       = localYM(new Date(dateKey     + "T12:00:00"));
+    // Final segment: use current hour (segment since last checkpoint → current moment).
+    const hourKey        = String(new Date().getHours()).padStart(2, "0");
+    const field          = selectedFieldRef.current;
+    const env            = currentEnvironmentRef.current;
 
     if (sessionSeconds >= 86400) {
-      toast.error("⏹ You cannot study more than 24 hours — there are only 24 hours in a day! Session discarded.");
+      toast.error("⏹ You cannot study more than 24 hours — session discarded.");
       sessionStartWallTimeRef.current  = null;
       sessionStartDateRef.current      = null;
+      sessionStartHourRef.current      = null;
       accumulatedSecondsRef.current    = 0;
       completedPomodorosInSessionRef.current = 0;
-      setDisplaySeconds(0);
-      setPomodoroTimeLeft(25 * 60);
-      sessionStorage.removeItem('sb_pomodoro_state');
-      sessionStorage.removeItem('sb_active_session');
+      setDisplaySeconds(0); setPomodoroTimeLeft(25 * 60);
+      sessionStorage.removeItem("sb_pomodoro_state");
+      sessionStorage.removeItem("sb_active_session");
       return;
     }
 
-    let completedPomodoros  = 0, abortedPomodoros = 0;
+    let completedPomodoros = 0, abortedPomodoros = 0;
     if (pomodoroModeRef.current) {
       completedPomodoros = completedPomodorosInSessionRef.current;
       const partialProgress = sessionSeconds % (25 * 60);
@@ -1290,12 +1300,12 @@ export default function StartSession() {
 
     sessionStartWallTimeRef.current  = null;
     sessionStartDateRef.current      = null;
+    sessionStartHourRef.current      = null;
     accumulatedSecondsRef.current    = 0;
     completedPomodorosInSessionRef.current = 0;
     setDisplaySeconds(0); setPomodoroTimeLeft(25 * 60);
-
-    sessionStorage.removeItem('sb_pomodoro_state');
-    sessionStorage.removeItem('sb_active_session');
+    sessionStorage.removeItem("sb_pomodoro_state");
+    sessionStorage.removeItem("sb_active_session");
 
     if (sessionSeconds > 5) {
       try {
@@ -1317,6 +1327,10 @@ export default function StartSession() {
 
   useEffect(() => { stopTimerRef.current = stopTimer; }, [stopTimer]);
 
+  // ─── checkpoint interval ─────────────────────────────────────────────────────
+  // BUG FIX #1: hourKey uses sessionStartHourRef (the hour the segment began),
+  // not new Date().getHours() (the current hour at fire time).
+  // After saving, update sessionStartHourRef to the new current hour.
   useEffect(() => {
     if (!isRunning) { clearInterval(checkpointIntervalRef.current); checkpointIntervalRef.current = null; return; }
     checkpointIntervalRef.current = setInterval(async () => {
@@ -1326,7 +1340,9 @@ export default function StartSession() {
       const dateKey  = sessionStartDateRef.current || localYMD();
       const weekKey  = localISOWeek(new Date(dateKey + "T12:00:00"));
       const monthKey = localYM(new Date(dateKey     + "T12:00:00"));
-      const hourKey  = String(new Date().getHours()).padStart(2, "0");
+
+      // ↓ FIX #1: attribute to the hour this segment STARTED in, not "now".
+      const hourKey  = String(sessionStartHourRef.current ?? new Date().getHours()).padStart(2, "0");
       const env      = currentEnvironmentRef.current;
       try {
         await saveSessionChunk(
@@ -1336,6 +1352,8 @@ export default function StartSession() {
         );
         accumulatedSecondsRef.current   += segSecs;
         sessionStartWallTimeRef.current  = Date.now();
+        // ↓ FIX #1: new segment starts now → update hour ref to current hour.
+        sessionStartHourRef.current      = new Date().getHours();
         checkpointBackoffRef.current     = 1000;
       } catch (e) {
         console.error("Checkpoint failed:", e);
@@ -1345,6 +1363,7 @@ export default function StartSession() {
     return () => { clearInterval(checkpointIntervalRef.current); checkpointIntervalRef.current = null; };
   }, [isRunning, getSegmentSeconds, saveSessionChunk]);
 
+  // ─── reset timer ─────────────────────────────────────────────────────────────
   const resetTimer = useCallback(async () => {
     clearInterval(checkpointIntervalRef.current); checkpointIntervalRef.current = null;
     clearTimeout(modalAutoStopRef.current); modalAutoStopRef.current = null;
@@ -1353,14 +1372,16 @@ export default function StartSession() {
     setDisplaySeconds(0); setPomodoroTimeLeft(25 * 60); setPomodoroRounds(0); setIsBreak(false);
     sessionStartWallTimeRef.current  = null;
     sessionStartDateRef.current      = null;
+    sessionStartHourRef.current      = null;
     accumulatedSecondsRef.current    = 0;
     completedPomodorosInSessionRef.current = 0;
     checkpointBackoffRef.current     = 1000;
-    sessionStorage.removeItem('sb_pomodoro_state');
-    sessionStorage.removeItem('sb_active_session');
+    sessionStorage.removeItem("sb_pomodoro_state");
+    sessionStorage.removeItem("sb_active_session");
     toast("Timer reset");
   }, [releaseWakeLock]);
 
+  // ─── daily totalTimeToday sync ────────────────────────────────────────────────
   useEffect(() => {
     if (!userData || !userRef.current || !isOnline) return;
     const todayKey = localYMD();
@@ -1369,7 +1390,7 @@ export default function StartSession() {
       const todayTotal = userData.dailyStats?.[todayKey]?.totalTime || 0;
       if (userData.totalTimeToday !== todayTotal) {
         const weekKey  = localISOWeek(); const monthKey = localYM();
-        const weekTotal  = Object.entries(userData.dailyStats || {}).reduce((sum, [dk, ds]) => {
+        const weekTotal = Object.entries(userData.dailyStats || {}).reduce((sum, [dk, ds]) => {
           if (localISOWeek(new Date(dk + "T12:00:00")) === weekKey) return sum + (ds.totalTime || 0);
           return sum;
         }, 0);
@@ -1384,6 +1405,7 @@ export default function StartSession() {
     }
   }, [userData, isOnline]);
 
+  // ─── study fields ─────────────────────────────────────────────────────────────
   const addField = async () => {
     const name = newFieldName.trim();
     if (!name) return toast.error("Enter a field name");
@@ -1392,12 +1414,8 @@ export default function StartSession() {
     if (!userRef.current) return toast.error("Please log in first");
     try {
       await updateDoc(doc(db, "users", userRef.current.uid), { studyFields: [...fields, name] });
-      setNewFieldName("");
-      toast.success(`📚 "${name}" added`);
-    } catch (e) {
-      console.error("Add field error:", e);
-      toast.error("Failed to add field: " + e.message);
-    }
+      setNewFieldName(""); toast.success(`📚 "${name}" added`);
+    } catch (e) { console.error("Add field error:", e); toast.error("Failed to add field: " + e.message); }
   };
 
   const openRemoveModal = useCallback((field) => {
@@ -1412,16 +1430,11 @@ export default function StartSession() {
     const uid    = userRef.current.uid;
     const fields = (userData?.studyFields || []).filter((f) => f !== field);
     try {
-      const batch = writeBatch(db);
-      const uRef  = doc(db, "users", uid);
-      const updates = {
-        studyFields:                          fields,
-        [`fieldTimes.${field}`]:              deleteField(),
-      };
+      const batch   = writeBatch(db);
+      const uRef    = doc(db, "users", uid);
+      const updates = { studyFields: fields, [`fieldTimes.${field}`]: deleteField() };
       if (!keepTime) {
-        const todayKey  = localYMD();
-        const weekKey   = localISOWeek();
-        const monthKey  = localYM();
+        const todayKey = localYMD(); const weekKey = localISOWeek(); const monthKey = localYM();
         let todayNew = 0, weekNew = 0, monthNew = 0, allTimeNew = 0;
         Object.entries(userData?.dailyStats || {}).forEach(([dk, ds]) => {
           const remaining = Object.entries(ds.fieldTimes || {}).filter(([f]) => f !== field);
@@ -1446,6 +1459,7 @@ export default function StartSession() {
     } catch (e) { console.error(e); toast.error("Failed to remove field"); }
   }, [removeModal, userData, selectedField]);
 
+  // ─── tasks ───────────────────────────────────────────────────────────────────
   const userDocRef = useCallback(() => userRef.current ? doc(db, "users", userRef.current.uid) : null, []);
 
   const addTask = useCallback(async () => {
@@ -1508,98 +1522,81 @@ export default function StartSession() {
 
   useEffect(() => { if (activePanel !== "tasks") setLastDeleted(null); }, [activePanel]);
 
+  // ─── session delete / update ─────────────────────────────────────────────────
   const handleDeleteSession = useCallback(async (sessionId, sessionData) => {
     if (!userRef.current) return;
     try {
       await deleteDoc(doc(db, "sessions", sessionId));
       const { duration, field, date, week, month } = sessionData;
       if (duration > 0) {
-        const userDocRef2 = doc(db, "users", userRef.current.uid);
-        const updates = {};
-        const todayKey = localYMD();
-        const currentWeekKey = localISOWeek();
-        const currentMonthKey = localYM();
-
+        const userDocRef2    = doc(db, "users", userRef.current.uid);
+        const todayKey       = localYMD(); const currentWeekKey = localISOWeek(); const currentMonthKey = localYM();
+        const updates        = {};
         updates[`fieldTimes.${field}`] = increment(-duration);
-        updates.totalTimeAllTime = increment(-duration);
-
+        updates.totalTimeAllTime       = increment(-duration);
         if (date) {
-          updates[`dailyStats.${date}.totalTime`] = increment(-duration);
-          updates[`dailyStats.${date}.fieldTimes.${field}`] = increment(-duration);
-          updates[`dailyStats.${date}.sessionsCount`] = increment(-1);
-          if (date === todayKey) updates.totalTimeToday = increment(-duration);
+          updates[`dailyStats.${date}.totalTime`]              = increment(-duration);
+          updates[`dailyStats.${date}.fieldTimes.${field}`]   = increment(-duration);
+          updates[`dailyStats.${date}.sessionsCount`]          = increment(-1);
+          if (date === todayKey) updates.totalTimeToday        = increment(-duration);
         }
-        if (week === currentWeekKey) updates.totalTimeWeek = increment(-duration);
-        if (month === currentMonthKey) updates.totalTimeMonth = increment(-duration);
+        if (week === currentWeekKey)    updates.totalTimeWeek  = increment(-duration);
+        if (month === currentMonthKey)  updates.totalTimeMonth = increment(-duration);
         if (week) {
-          updates[`weeklyStats.${week}.totalTime`] = increment(-duration);
-          updates[`weeklyStats.${week}.fieldTimes.${field}`] = increment(-duration);
-          updates[`weeklyStats.${week}.sessionsCount`] = increment(-1);
+          updates[`weeklyStats.${week}.totalTime`]             = increment(-duration);
+          updates[`weeklyStats.${week}.fieldTimes.${field}`]  = increment(-duration);
+          updates[`weeklyStats.${week}.sessionsCount`]         = increment(-1);
         }
         if (month) {
-          updates[`monthlyStats.${month}.totalTime`] = increment(-duration);
+          updates[`monthlyStats.${month}.totalTime`]           = increment(-duration);
           updates[`monthlyStats.${month}.fieldTimes.${field}`] = increment(-duration);
-          updates[`monthlyStats.${month}.sessionsCount`] = increment(-1);
+          updates[`monthlyStats.${month}.sessionsCount`]        = increment(-1);
         }
         await updateDoc(userDocRef2, updates);
       }
       toast.success("Session deleted");
       setRecentSessions((prev) => prev.filter((s) => s.id !== sessionId));
-    } catch (err) {
-      console.error(err);
-      toast.error("Failed to delete session");
-    }
+    } catch (err) { console.error(err); toast.error("Failed to delete session"); }
   }, []);
 
   const handleUpdateSession = useCallback(async (sessionId, newField, newEnv) => {
     if (!userRef.current) return;
     try {
-      const sessionRef = doc(db, "sessions", sessionId);
+      const sessionRef  = doc(db, "sessions", sessionId);
       const sessionSnap = await getDoc(sessionRef);
       if (!sessionSnap.exists()) return;
-      const oldData = sessionSnap.data();
-      const oldField = oldData.field;
-      const duration = oldData.duration || 0;
-      const newFieldName = newField || oldField;
-      const newEnvName = newEnv?.name ?? oldData.environment;
-      const newEnvType = newEnv?.type ?? oldData.environmentType;
-
-      await updateDoc(sessionRef, {
-        field: newFieldName,
-        environment: newEnvName,
-        environmentType: newEnvType,
-      });
-
-      if (newFieldName !== oldField && duration > 0) {
+      const oldData       = sessionSnap.data();
+      const oldField      = oldData.field;
+      const duration      = oldData.duration || 0;
+      const newFieldName2 = newField || oldField;
+      const newEnvName    = newEnv?.name ?? oldData.environment;
+      const newEnvType    = newEnv?.type ?? oldData.environmentType;
+      await updateDoc(sessionRef, { field: newFieldName2, environment: newEnvName, environmentType: newEnvType });
+      if (newFieldName2 !== oldField && duration > 0) {
         const userDocRef2 = doc(db, "users", userRef.current.uid);
         const { date, week, month } = oldData;
         const updates = {};
-        updates[`fieldTimes.${oldField}`] = increment(-duration);
-        updates[`fieldTimes.${newFieldName}`] = increment(duration);
+        updates[`fieldTimes.${oldField}`]    = increment(-duration);
+        updates[`fieldTimes.${newFieldName2}`] = increment(duration);
         if (date) {
-          updates[`dailyStats.${date}.fieldTimes.${oldField}`] = increment(-duration);
-          updates[`dailyStats.${date}.fieldTimes.${newFieldName}`] = increment(duration);
+          updates[`dailyStats.${date}.fieldTimes.${oldField}`]    = increment(-duration);
+          updates[`dailyStats.${date}.fieldTimes.${newFieldName2}`] = increment(duration);
         }
         if (week) {
-          updates[`weeklyStats.${week}.fieldTimes.${oldField}`] = increment(-duration);
-          updates[`weeklyStats.${week}.fieldTimes.${newFieldName}`] = increment(duration);
+          updates[`weeklyStats.${week}.fieldTimes.${oldField}`]    = increment(-duration);
+          updates[`weeklyStats.${week}.fieldTimes.${newFieldName2}`] = increment(duration);
         }
         if (month) {
-          updates[`monthlyStats.${month}.fieldTimes.${oldField}`] = increment(-duration);
-          updates[`monthlyStats.${month}.fieldTimes.${newFieldName}`] = increment(duration);
+          updates[`monthlyStats.${month}.fieldTimes.${oldField}`]    = increment(-duration);
+          updates[`monthlyStats.${month}.fieldTimes.${newFieldName2}`] = increment(duration);
         }
         await updateDoc(userDocRef2, updates);
       }
-
-      toast.success("Session updated");
-      setEditingSession(null);
-      await fetchRecentSessions();
-    } catch (err) {
-      console.error(err);
-      toast.error("Failed to update session");
-    }
+      toast.success("Session updated"); setEditingSession(null); await fetchRecentSessions();
+    } catch (err) { console.error(err); toast.error("Failed to update session"); }
   }, [fetchRecentSessions]);
 
+  // ─── deep work ───────────────────────────────────────────────────────────────
   const fetchDWData = useCallback(async () => {
     const uid = userRef.current?.uid;
     if (!uid || !isOnline) return;
@@ -1627,10 +1624,7 @@ export default function StartSession() {
       const elapsed = Math.floor((Date.now() - dwSessionStartRef.current) / 1000);
       const clamped = Math.min(elapsed, dwDuration * 60);
       setDwElapsed(clamped);
-      if (clamped >= dwDuration * 60) {
-        handleDWComplete();
-        return;
-      }
+      if (clamped >= dwDuration * 60) { handleDWComplete(); return; }
       rafId = requestAnimationFrame(tick);
     };
     rafId = requestAnimationFrame(tick);
@@ -1642,8 +1636,7 @@ export default function StartSession() {
     if (!dwDndEnabled || !dwActive) return;
     function onVis() {
       if (document.hidden && !dwPaused) {
-        dwTabSwitchRef.current += 1;
-        setDwTabSwitches(dwTabSwitchRef.current);
+        dwTabSwitchRef.current += 1; setDwTabSwitches(dwTabSwitchRef.current);
         toast("🛡️ Deep work active — stay focused!", { icon: "⚠️" });
       }
     }
@@ -1651,9 +1644,9 @@ export default function StartSession() {
     return () => document.removeEventListener("visibilitychange", onVis);
   }, [dwDndEnabled, dwActive, dwPaused]);
 
-  const dwStreak        = useMemo(() => calcDWStreak(dwSessions), [dwSessions]);
-  const dwLongestStreak = useMemo(() => dwUserData?.longestStreak ?? 0, [dwUserData]);
-  const dwTotalHours    = useMemo(() => {
+  const dwStreak         = useMemo(() => calcDWStreak(dwSessions), [dwSessions]);
+  const dwLongestStreak  = useMemo(() => dwUserData?.longestStreak ?? 0, [dwUserData]);
+  const dwTotalHours     = useMemo(() => {
     const secs = dwSessions.filter((s) => s.completed).reduce((a, s) => a + (s.duration ?? 0), 0);
     return parseFloat((secs / 3600).toFixed(1));
   }, [dwSessions]);
@@ -1718,8 +1711,7 @@ export default function StartSession() {
     }
     dwSessionIdRef.current = null; dwSessionStartRef.current = null;
     setDwActive(false); setDwPaused(false); setDwElapsed(0); setDwShowInterrupt(false);
-    toast("Session ended — rest up 💜", { icon: "🌙" });
-    fetchDWData();
+    toast("Session ended — rest up 💜", { icon: "🌙" }); fetchDWData();
   }, [fetchDWData]);
 
   const handleDWAttemptStop = useCallback(() => {
@@ -1727,6 +1719,7 @@ export default function StartSession() {
     setDwPaused(true); setDwShowInterrupt(true);
   }, [dwElapsed, handleDWStop]);
 
+  // ─── distraction listeners ───────────────────────────────────────────────────
   useEffect(() => {
     if (!user || !isOnline) { if (!isOnline) return; setDlLogs([]); return; }
     if (dlUnsubLogsRef.current) dlUnsubLogsRef.current();
@@ -1789,27 +1782,19 @@ export default function StartSession() {
     setDlLogging(true); setDlLastLogged(typeId);
     const type = getDType(typeId);
     const now  = new Date();
-    const logEntry = {
-      userId: user.uid, type: typeId,
-      timestamp: now.toISOString(),
-      date: localYMD(), week: weekKeyStr(),
-    };
+    const logEntry = { userId: user.uid, type: typeId, timestamp: now.toISOString(), date: localYMD(), week: weekKeyStr() };
     if (!isOnline) {
       await idbEnqueue({ type: "distraction", dlType: typeId, ...logEntry });
       await refreshQueueSize();
       setDlLogs((prev) => [{ id: `offline_${Date.now()}`, ...logEntry, timestamp: { toDate: () => now } }, ...prev]);
       toast.success(`${type.emoji} ${type.label} logged (offline)`, { duration: 1500 });
       setTimeout(() => setDlLastLogged(null), 1000);
-      setDlLogging(false);
-      return;
+      setDlLogging(false); return;
     }
     try {
       const logRef = doc(collection(db, "distractions"));
       const batch  = writeBatch(db);
-      batch.set(logRef, {
-        userId: user.uid, type: typeId, timestamp: serverTimestamp(),
-        date: localYMD(), week: weekKeyStr(),
-      });
+      batch.set(logRef, { userId: user.uid, type: typeId, timestamp: serverTimestamp(), date: localYMD(), week: weekKeyStr() });
       await batch.commit();
       await Promise.all([upsertDailySummary(user.uid, typeId), upsertWeeklySummary(user.uid, typeId)]);
       toast.success(`${type.emoji} ${type.label} logged`, { duration: 1500 });
@@ -1842,6 +1827,7 @@ export default function StartSession() {
     } catch (err) { console.error(err); toast.error("Delete failed"); }
   }, [dlLogs, user]);
 
+  // ─── derived state (memos) ───────────────────────────────────────────────────
   const dlTodayLogs = useMemo(() => {
     const start = startOfDay();
     return dlLogs.filter((l) => getTimestamp(l) >= start);
@@ -1895,11 +1881,31 @@ export default function StartSession() {
     return result.slice(0, 3);
   }, [dlTodayLogs, dlTodayBreakdown]);
 
-  const studyFields    = useMemo(() => userData?.studyFields || ["General"], [userData?.studyFields]);
-  const liveSessionSeconds = useMemo(() => isRunning ? displaySeconds : 0, [isRunning, displaySeconds]);
-  const timeStats      = useMemo(() => {
+  const studyFields     = useMemo(() => userData?.studyFields || ["General"], [userData?.studyFields]);
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // BUG FIX #2: liveSessionSeconds = getSegmentSeconds(), NOT displaySeconds.
+  //
+  // displaySeconds = getTotalSessionSeconds() = accumulated + segmentSecs.
+  // dailyStats[today].totalTime already contains everything the checkpoints
+  // committed (i.e. accumulated).  Adding displaySeconds on top double-counts
+  // the committed portion → 1+2=3 bug.
+  //
+  // getSegmentSeconds() = only the time since the last checkpoint (≤ ~60 s).
+  // dailyStats.totalTime + segmentSecs is always correct.
+  // ─────────────────────────────────────────────────────────────────────────────
+  const liveSessionSeconds = useMemo(
+    () => (isRunning ? getSegmentSeconds() : 0),
+    // displaySeconds ticks every second; using it as a dep makes the memo
+    // recompute each tick without needing to subscribe to a ref directly.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [isRunning, displaySeconds],
+  );
+
+  const timeStats = useMemo(() => {
     const todayKey = localYMD(); const weekKey = localISOWeek(); const monthKey = localYM();
     const ds       = userData?.dailyStats || {};
+    // today = committed Firestore total + uncommitted segment (≤ 60 s)
     const today    = (ds[todayKey]?.totalTime || 0) + liveSessionSeconds;
     const week     = Object.entries(ds).reduce((sum, [dk, d]) => {
       return sum + (localISOWeek(new Date(dk + "T12:00:00")) === weekKey ? (dk === todayKey ? today : (d.totalTime || 0)) : 0);
@@ -1909,29 +1915,35 @@ export default function StartSession() {
     }, 0);
     return { today, week, month, allTime: (userData?.totalTimeAllTime || 0) + liveSessionSeconds };
   }, [userData, liveSessionSeconds]);
-  const filteredTasks  = useMemo(() => todoList.filter((t) => {
+
+  const filteredTasks = useMemo(() => todoList.filter((t) => {
     if (filterOption === "All")       return true;
     if (filterOption === "Completed") return t.completed;
     if (filterOption === "Pending")   return !t.completed;
     return t.priority === filterOption;
   }), [todoList, filterOption]);
-  const taskStats      = useMemo(() => {
+
+  const taskStats = useMemo(() => {
     const total     = todoList.length;
     const completed = todoList.filter((t) => t.completed).length;
     return { total, completed, pending: total - completed, high: todoList.filter((t) => t.priority === "High").length };
   }, [todoList]);
+
   const todayFieldTimes = useMemo(() => {
     const todayKey = localYMD();
     const base     = { ...(userData?.dailyStats?.[todayKey]?.fieldTimes || {}) };
     if (isRunning && selectedField) base[selectedField] = (base[selectedField] || 0) + liveSessionSeconds;
     return base;
   }, [userData, isRunning, selectedField, liveSessionSeconds]);
+
   const todaySortedFields = useMemo(() =>
     Object.entries(todayFieldTimes).filter(([, v]) => typeof v === "number" && v > 0).sort(([, a], [, b]) => b - a),
     [todayFieldTimes]);
-  const insights      = useInsights(userData, isRunning, liveSessionSeconds);
-  const displayTime   = pomodoroMode ? pomodoroTimeLeft : displaySeconds;
 
+  const insights    = useInsights(userData, isRunning, liveSessionSeconds);
+  const displayTime = pomodoroMode ? pomodoroTimeLeft : displaySeconds;
+
+  // ─── loading / auth gates ────────────────────────────────────────────────────
   if (loading) {
     return (
       <div className="ss-page">
@@ -1954,31 +1966,27 @@ export default function StartSession() {
     );
   }
 
+  // ─── render ──────────────────────────────────────────────────────────────────
   return (
     <div
       className={`ss-page${strictMode && isRunning ? " strict-active" : ""}${deepWorkEnabled && dwActive ? " dw-active-page" : ""}`}
       onMouseMove={recordInteraction} onKeyDown={recordInteraction}
       onTouchStart={recordInteraction} onClick={recordInteraction}
     >
-
       <Helmet>
         <title>Study Session | StudyBuddy</title>
         <meta name="description" content="Start a Pomodoro or Deep Work session. Track tasks, distractions, and field-specific study time with real-time analytics." />
-        
         <meta property="og:title" content="Study Session | StudyBuddy" />
         <meta property="og:description" content="Focus timer with Pomodoro, Deep Work, task tracking, distraction logging, and environment optimization." />
         <meta property="og:type" content="website" />
         <meta property="og:url" content="https://study-buddy-seven-blush.vercel.app/session" />
         <meta property="og:image" content="https://study-buddy-seven-blush.vercel.app/og-image.png" />
-        
         <meta name="twitter:card" content="summary_large_image" />
         <meta name="twitter:image" content="https://study-buddy-seven-blush.vercel.app/og-image.png" />
-        
         <link rel="canonical" href="https://study-buddy-seven-blush.vercel.app/session" />
       </Helmet>
 
-
-      
+      {/* ── modals ─────────────────────────────────────────────────────────── */}
       <AnimatePresence>
         {inactivityModal && (
           <motion.div className="ss-modal-backdrop" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
@@ -2081,23 +2089,14 @@ export default function StartSession() {
                       const { color, emoji } = envTypeInfo(env.type);
                       const isSelected = currentEnvironment?.id === env.id;
                       return (
-                        <button
-                          key={env.id}
-                          style={{
-                            display: "flex", alignItems: "center", gap: "0.75rem",
-                            padding: "0.85rem 1rem",
-                            background: isSelected ? `${color}18` : "rgba(255,255,255,0.03)",
-                            border: `1.5px solid ${isSelected ? color : "rgba(255,255,255,0.08)"}`,
-                            borderRadius: "14px", cursor: "pointer", textAlign: "left",
-                            transition: "all 0.18s",
-                          }}
+                        <button key={env.id}
+                          style={{ display: "flex", alignItems: "center", gap: "0.75rem", padding: "0.85rem 1rem", background: isSelected ? `${color}18` : "rgba(255,255,255,0.03)", border: `1.5px solid ${isSelected ? color : "rgba(255,255,255,0.08)"}`, borderRadius: "14px", cursor: "pointer", textAlign: "left", transition: "all 0.18s" }}
                           onClick={() => {
                             setCurrentEnvironment(isSelected ? null : env);
                             currentEnvironmentRef.current = isSelected ? null : env;
                             setShowEnvPicker(false);
                             if (!isSelected) toast.success(`📍 ${env.name} set!`);
-                          }}
-                        >
+                          }}>
                           <span style={{ fontSize: "1.3rem" }}>{emoji}</span>
                           <div style={{ flex: 1 }}>
                             <div style={{ fontWeight: 700, color: "var(--t1)", fontSize: "0.9rem" }}>{env.name}</div>
@@ -2141,9 +2140,7 @@ export default function StartSession() {
                 }}>
                   <option value="">No location</option>
                   {userEnvironments.map((env) => (
-                    <option key={env.id} value={env.name}>
-                      {envTypeInfo(env.type).emoji} {env.name}
-                    </option>
+                    <option key={env.id} value={env.name}>{envTypeInfo(env.type).emoji} {env.name}</option>
                   ))}
                 </select>
               </div>
@@ -2156,6 +2153,7 @@ export default function StartSession() {
         )}
       </AnimatePresence>
 
+      {/* ── main layout ────────────────────────────────────────────────────── */}
       <div className="ss-container">
         <AnimatePresence>
           {!isOnline && (
@@ -2175,6 +2173,7 @@ export default function StartSession() {
 
         <motion.div className="ss-main-grid" variants={staggerContainer} initial="initial" animate="animate">
 
+          {/* ── timer card ──────────────────────────────────────────────────── */}
           <motion.div className={`ss-card ss-timer-card${deepWorkEnabled ? " dw-mode" : ""}`} variants={cardVariant}>
             <div className="ss-mode-pill">
               {deepWorkEnabled ? (
@@ -2226,12 +2225,10 @@ export default function StartSession() {
 
             <AnimatePresence>
               {bestEnvironment && !currentEnvironment && !isRunning && (
-                <motion.div
-                  className="ss-best-env-banner"
+                <motion.div className="ss-best-env-banner"
                   initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }}
                   onClick={() => { setCurrentEnvironment(bestEnvironment); currentEnvironmentRef.current = bestEnvironment; toast.success(`📍 ${bestEnvironment.name} set!`); }}
-                  style={{ cursor: "pointer" }}
-                >
+                  style={{ cursor: "pointer" }}>
                   <span style={{ fontSize: "1.1rem" }}>👑</span>
                   <div style={{ flex: 1 }}>
                     <div style={{ fontSize: "0.7rem", color: "var(--t3)" }}>Your best focus spot</div>
@@ -2246,22 +2243,16 @@ export default function StartSession() {
 
             <AnimatePresence>
               {envSuggestion && !isRunning && (
-                <motion.div
-                  className="ss-env-suggestion"
-                  initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }}
-                >
+                <motion.div className="ss-env-suggestion"
+                  initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }}>
                   <span>{envSuggestion.text}</span>
                   {envSuggestion.mode === "dw" && (
                     <button className="ss-btn-sm ss-btn-ghost" style={{ fontSize: "0.72rem", padding: "0.25rem 0.65rem" }}
-                      onClick={() => { setDeepWorkEnabled(true); setPomodoroMode(false); }}>
-                      Try Deep Work
-                    </button>
+                      onClick={() => { setDeepWorkEnabled(true); setPomodoroMode(false); }}>Try Deep Work</button>
                   )}
                   {envSuggestion.mode === "pomo" && (
                     <button className="ss-btn-sm ss-btn-ghost" style={{ fontSize: "0.72rem", padding: "0.25rem 0.65rem" }}
-                      onClick={() => { setPomodoroMode(true); setDeepWorkEnabled(false); }}>
-                      Try Pomodoro
-                    </button>
+                      onClick={() => { setPomodoroMode(true); setDeepWorkEnabled(false); }}>Try Pomodoro</button>
                   )}
                 </motion.div>
               )}
@@ -2276,7 +2267,7 @@ export default function StartSession() {
                     </motion.button>
                   ) : (
                     <>
-                      <button className="ss-btn ss-btn-stop" onClick={handleDWAttemptStop}>⏹ Stop</button>
+                      <button className="ss-btn ss-btn-stop"  onClick={handleDWAttemptStop}>⏹ Stop</button>
                       <button className="ss-btn ss-btn-reset" onClick={() => setDwPaused((p) => !p)}>{dwPaused ? "▶" : "⏸"}</button>
                     </>
                   )}
@@ -2284,7 +2275,7 @@ export default function StartSession() {
               ) : (
                 <>
                   {isRunning
-                    ? <button className="ss-btn ss-btn-stop"  onClick={stopTimer}  aria-label="Stop study session"  aria-pressed={true}>⏹ Stop</button>
+                    ? <button className="ss-btn ss-btn-stop"  onClick={stopTimer}  aria-label="Stop study session"  aria-pressed>⏹ Stop</button>
                     : <button className="ss-btn ss-btn-start" onClick={startTimer} aria-label="Start study session" aria-pressed={false}>▶ Start</button>
                   }
                   <button className="ss-btn ss-btn-reset" onClick={resetTimer} aria-label="Reset timer">↺</button>
@@ -2435,26 +2426,19 @@ export default function StartSession() {
             </AnimatePresence>
           </motion.div>
 
+          {/* ── side column ─────────────────────────────────────────────────── */}
           <div className="ss-side-col">
             <div className="ss-field-env-row">
               {currentEnvironment ? (
-                <button
-                  className="ss-env-pill"
-                  style={{ "--env-color": envTypeInfo(currentEnvironment.type).color }}
-                  onClick={() => setShowEnvPicker(true)}
-                  title="Click to change location"
-                >
+                <button className="ss-env-pill" style={{ "--env-color": envTypeInfo(currentEnvironment.type).color }}
+                  onClick={() => setShowEnvPicker(true)} title="Click to change location">
                   {envTypeInfo(currentEnvironment.type).emoji} {currentEnvironment.name}
-                  <span
-                    style={{ marginLeft: "0.3rem", opacity: 0.6, fontSize: "0.75rem" }}
+                  <span style={{ marginLeft: "0.3rem", opacity: 0.6, fontSize: "0.75rem" }}
                     onClick={(e) => { e.stopPropagation(); setCurrentEnvironment(null); currentEnvironmentRef.current = null; }}
-                    title="Remove location"
-                  >×</span>
+                    title="Remove location">×</span>
                 </button>
               ) : (
-                <button className="ss-env-pill ss-env-pill--empty" onClick={() => setShowEnvPicker(true)}>
-                  📍 Add location
-                </button>
+                <button className="ss-env-pill ss-env-pill--empty" onClick={() => setShowEnvPicker(true)}>📍 Add location</button>
               )}
               <div className="ss-field-chips" style={{ marginBottom: 0 }}>
                 {studyFields.map((f) => (
@@ -2499,7 +2483,8 @@ export default function StartSession() {
 
             <AnimatePresence>
               {isRunning && (
-                <motion.div className="ss-card ss-quick-distract" variants={cardVariant} initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }}>
+                <motion.div className="ss-card ss-quick-distract" variants={cardVariant}
+                  initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }}>
                   <div className="ss-card-title"><span className="ss-card-icon">⚡</span>Quick Log</div>
                   <p className="qdl-hint">Tap to log a distraction instantly</p>
                   <div className="qdl-grid">
@@ -2520,6 +2505,7 @@ export default function StartSession() {
           </div>
         </motion.div>
 
+        {/* ── tab bar ─────────────────────────────────────────────────────── */}
         <motion.div className="ss-tab-bar" initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.35, duration: 0.4 }}>
           {[
             { key: "tasks",    icon: "📋", label: "Tasks",        badge: taskStats.pending > 0 ? taskStats.pending : null },
@@ -2538,6 +2524,7 @@ export default function StartSession() {
           ))}
         </motion.div>
 
+        {/* ── panels ──────────────────────────────────────────────────────── */}
         <AnimatePresence>
           {activePanel === "tasks" && (
             <motion.div className="ss-panel" variants={overlayVariant} initial="initial" animate="animate" exit="exit">
@@ -2645,7 +2632,13 @@ export default function StartSession() {
               <div className="ss-section-label" style={{ marginTop: "1.5rem" }}>
                 Hourly Activity {isRunning && <span className="ss-live-tag">live</span>}
               </div>
-              <HourHistogram dailyStats={userData?.dailyStats} liveSeconds={liveSessionSeconds} isRunning={isRunning} />
+              {/* Pass sessionStartHour so the histogram knows which bar is "live" */}
+              <HourHistogram
+                dailyStats={userData?.dailyStats}
+                liveSeconds={liveSessionSeconds}
+                isRunning={isRunning}
+                sessionStartHour={sessionStartHourRef.current}
+              />
               <div className="ss-section-label" style={{ marginTop: "1.5rem" }}>Study Insights</div>
               <InsightCards insights={insights} />
               <div className="ss-section-label" style={{ marginTop: "1.5rem" }}>Recent Sessions</div>
@@ -2664,14 +2657,8 @@ export default function StartSession() {
                       </div>
                       <div className="ss-recent-session-actions">
                         <button className="ss-task-btn"
-                          onClick={() => setEditingSession({
-                            id: s.id,
-                            field: s.field,
-                            environment: s.environment,
-                            environmentType: s.environmentType,
-                          })}>✎</button>
-                        <button className="ss-task-btn danger"
-                          onClick={() => handleDeleteSession(s.id, s)}>🗑</button>
+                          onClick={() => setEditingSession({ id: s.id, field: s.field, environment: s.environment, environmentType: s.environmentType })}>✎</button>
+                        <button className="ss-task-btn danger" onClick={() => handleDeleteSession(s.id, s)}>🗑</button>
                       </div>
                     </motion.div>
                   ))

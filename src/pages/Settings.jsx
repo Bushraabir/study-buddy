@@ -1,8 +1,3 @@
-// src/pages/Settings.jsx
-// ─── Settings Page ────────────────────────────────────────────────────────────
-// Handles: profile pic upload, display name, theme selection,
-//          navigation visibility toggles, account deletion.
-// ─────────────────────────────────────────────────────────────────────────────
 
 import React, {
   useState,

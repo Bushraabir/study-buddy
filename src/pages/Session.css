@@ -1378,7 +1378,7 @@
 .fb-bar-track { height: 4px; background: color-mix(in srgb,var(--ss-text) 4%,transparent); border-radius: 999px; overflow: hidden; }
 .fb-bar       { height: 100%; border-radius: 999px; opacity: .85; }
 
-.hv2-wrap  { padding: 0 clamp(1.1rem,3vw,1.65rem) 1.2rem; display: flex; flex-direction: column; gap: 0; }
+.hv2-wrap  { padding: 0 clamp(1.1rem,3vw,1.65rem) 1.2rem; display: flex; flex-direction: column; gap: 0; position: relative; }
 .hv2-bars  { display: flex; align-items: flex-end; gap: 3px; height: 108px; padding-bottom: 24px; position: relative; }
 .hv2-col   { flex: 1; display: flex; flex-direction: column; align-items: center; height: 100%; position: relative; cursor: default; }
 .hv2-track { flex: 1; width: 100%; display: flex; align-items: flex-end; }
@@ -1396,6 +1396,19 @@
 .hv2-footer-item { display: flex; flex-direction: column; gap: .08rem; }
 .hv2-footer-label { font-size: .53rem; text-transform: uppercase; letter-spacing: .1em; color: var(--ss-muted); font-family: var(--ss-mono); font-weight: 700; }
 .hv2-footer-val   { font-size: .87rem; font-weight: 700; color: var(--ss-text); font-family: var(--ss-mono); }
+.hv2-wrap::before {
+  content: "60m";
+  position: absolute;
+  top: 0;
+  left: 0;
+  font-size: .48rem;
+  font-weight: 700;
+  color: var(--ss-muted);
+  font-family: var(--ss-mono);
+  opacity: .55;
+  pointer-events: none;
+}
+
 .hv2-legend { margin-left: auto; display: flex; align-items: center; gap: .3rem; font-size: .62rem; color: var(--ss-muted); font-family: var(--ss-mono); font-weight: 600; }
 .hv2-leg-dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
 
