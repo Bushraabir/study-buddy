@@ -8,7 +8,7 @@ import TopBar from './components/TopBar';
 import { ThemeProvider } from './context/ThemeContext';
 import { doc, getDoc }   from 'firebase/firestore';
 import { db }            from './components/firebase';
-import { Analytics } from "@vercel/analytics/next"
+import { Analytics } from "@vercel/analytics/react"
 
 // eager — always needed on first load
 import Home       from './pages/Home';
