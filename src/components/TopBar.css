@@ -10,7 +10,7 @@
 }
 
 .sb-bar {
-  position: sticky;
+  position: fixed;
   top: 0;
   width: 100%;
   height: var(--tb-h-sm);
