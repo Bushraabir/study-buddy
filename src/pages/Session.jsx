@@ -19,7 +19,6 @@ import Lottie from "lottie-react";
 import clockAnimation from "../assets/3d-clock-animation.json";
 import "./Session.css";
 
-// ─── animation variants ───────────────────────────────────────────────────────
 const staggerContainer = { animate: { transition: { staggerChildren: 0.07 } } };
 const cardVariant = {
   initial: { opacity: 0, y: 20, scale: 0.98 },
@@ -31,7 +30,6 @@ const overlayVariant = {
   exit: { opacity: 0, y: 16, scale: 0.97, transition: { duration: 0.18 } },
 };
 
-// ─── formatters ───────────────────────────────────────────────────────────────
 function fmtTime(s) {
   if (!s || s <= 0) return "00:00:00";
   const h = Math.floor(s / 3600);
@@ -88,7 +86,6 @@ function formatTimerDisplay(seconds) {
   return `${m}:${s}`;
 }
 
-// ─── environment helpers ──────────────────────────────────────────────────────
 const ENV_TYPE_MAP = {
   library: { color: "#a855f7", emoji: "📚" },
   cafe:    { color: "#f472b6", emoji: "☕" },
@@ -100,7 +97,6 @@ function envTypeInfo(type) {
   return ENV_TYPE_MAP[type] ?? ENV_TYPE_MAP.other;
 }
 
-// ─── IndexedDB offline queue ──────────────────────────────────────────────────
 const IDB_NAME    = "studybuddy_offline";
 const IDB_VERSION = 1;
 const IDB_STORE   = "sync_queue";
@@ -146,7 +142,6 @@ async function idbDelete(id) {
   });
 }
 
-// ─── Firestore session chunk writer ──────────────────────────────────────────
 async function applySessionChunk(uid, item) {
   const {
     sessionSeconds, dateKey, weekKey, monthKey, field, hourKey,
@@ -267,7 +262,6 @@ async function drainSyncQueue(uid, onProgress) {
   return synced;
 }
 
-// ─── distraction types ────────────────────────────────────────────────────────
 const DISTRACTION_TYPES = [
   { id: "phone",   label: "Phone",       emoji: "📱", color: "#f472b6", bg: "rgba(244,114,182,0.14)", tip: "Put it face-down in another room" },
   { id: "social",  label: "Social",      emoji: "📲", color: "#a855f7", bg: "rgba(168,85,247,0.14)",  tip: "Use app timers or greyscale mode" },
@@ -302,7 +296,6 @@ async function upsertWeeklySummary(uid, typeId) {
   }
 }
 
-// ─── deep work constants ──────────────────────────────────────────────────────
 const DW_DURATIONS       = [15, 25, 45, 60, 90, 120];
 const SHIELD_MILESTONES  = [1, 3, 7, 14, 21, 30, 50, 75, 100];
 const DEEP_WORK_QUOTES   = [
@@ -344,7 +337,6 @@ function nextMilestone(streak) {
   return SHIELD_MILESTONES.find((m) => m > streak) ?? null;
 }
 
-// ─── sub-components ───────────────────────────────────────────────────────────
 function ShieldMini({ streak, size = 32 }) {
   const { color } = dwShieldTier(streak);
   return (
@@ -417,7 +409,6 @@ function DWCircularTimer({ elapsed, total, active, paused }) {
   );
 }
 
-// ─── useInsights hook ─────────────────────────────────────────────────────────
 function useInsights(userData, isRunning, liveSessionSeconds) {
   return useMemo(() => {
     const ds      = userData?.dailyStats || {};
@@ -474,10 +465,7 @@ function useInsights(userData, isRunning, liveSessionSeconds) {
   }, [userData, isRunning, liveSessionSeconds]);
 }
 
-// ─── HourHistogram ────────────────────────────────────────────────────────────
-// BUG FIX #3: maxVal is hard-coded to 3600 (60 min). Each bar slot represents
-// exactly 0–60 min, so a 2-hour session produces two full-height bars.
-function HourHistogram({ dailyStats, liveSeconds, isRunning, sessionStartHour }) {
+function HourHistogram({ dailyStats, liveSeconds, isRunning, sessionStartHour, todayCommittedSeconds }) {
   const todayKey  = localYMD();
   const todayData = dailyStats?.[todayKey] || {};
   const curHour   = new Date().getHours();
@@ -488,47 +476,38 @@ function HourHistogram({ dailyStats, liveSeconds, isRunning, sessionStartHour })
     return Array.from({ length: 24 }, (_, i) => ({
       hour:    i,
       label:   i === 0 ? "12a" : i < 12 ? `${i}a` : i === 12 ? "12p" : `${i - 12}p`,
-      seconds: hourly[String(i).padStart(2, "0")] || 0,
+      // rawSeconds is the Firestore-accumulated value; may exceed 3600.
+      rawSeconds: hourly[String(i).padStart(2, "0")] || 0,
     }));
   }, [todayData]);
 
-  // BUG FIX #3: live overlay goes on the bar for the hour the segment started,
-  // not necessarily the current hour (though for display purposes curHour is fine —
-  // the hourly Firestore data is what matters; the overlay is just a visual hint).
-  const vals = useMemo(
+  // cappedSeconds[i]: how many seconds to use for bar height (≤ 3600).
+  // For the live hour, add the uncommitted segment then re-cap.
+  const cappedSeconds = useMemo(
     () => hours.map((h) => {
-      let v = h.seconds;
-      // Show live uncommitted seconds on the current hour bar only.
-      // These are the segment seconds since the last checkpoint (≤ ~60 s).
-      if (h.hour === curHour && isRunning) v += liveSeconds;
-      // Cap at 3600 so a single bar never exceeds 60 min visually.
-      return Math.min(v, 3600);
+      const base = Math.min(h.rawSeconds, 3600);
+      if (h.hour === curHour && isRunning) return Math.min(base + liveSeconds, 3600);
+      return base;
     }),
     [hours, curHour, isRunning, liveSeconds],
   );
 
-  // FIX: fixed scale — 3600 s = 60 min per bar, no dynamic max.
   const MAX_VAL = 3600;
 
-  const totalToday = useMemo(() => {
-    // Sum raw (uncapped) values for the footer total.
-    return hours.reduce((a, h) => {
-      let v = h.seconds;
-      if (h.hour === curHour && isRunning) v += liveSeconds;
-      return a + v;
-    }, 0);
-  }, [hours, curHour, isRunning, liveSeconds]);
+  // totalToday is the source-of-truth committed daily total plus the live
+  // uncommitted segment.  We never sum hourly buckets for this.
+  const totalToday = (todayCommittedSeconds || 0) + (isRunning ? liveSeconds : 0);
 
   const peakHour = useMemo(() => {
     let best = -1, bestV = 0;
-    vals.forEach((v, i) => { if (v > bestV) { bestV = v; best = i; } });
+    cappedSeconds.forEach((v, i) => { if (v > bestV) { bestV = v; best = i; } });
     return best;
-  }, [vals]);
+  }, [cappedSeconds]);
 
   return (
     <div className="hv2-wrap">
       <div className="hv2-bars">
-        {vals.map((v, i) => {
+        {cappedSeconds.map((v, i) => {
           const pct       = Math.max((v / MAX_VAL) * 100, v > 0 ? 5 : 0);
           const isLive    = i === curHour && isRunning;
           const isPeak    = i === peakHour && v > 0;
@@ -552,20 +531,22 @@ function HourHistogram({ dailyStats, liveSeconds, isRunning, sessionStartHour })
         })}
       </div>
       <div className={`hv2-tooltip${hoveredHour !== null ? " visible" : ""}`}>
-        {hoveredHour !== null && (
-          <>
-            <span className="hv2-tooltip-time">{fmtHourLabel(hoveredHour)}</span>
-            <span className="hv2-tooltip-sep">·</span>
-            <span className="hv2-tooltip-val">
-              {/* Show raw (uncapped) value for accurate display */}
-              {(() => {
-                const raw = hours[hoveredHour].seconds + (hoveredHour === curHour && isRunning ? liveSeconds : 0);
-                return raw > 0 ? fmtMins(raw) : "no activity";
-              })()}
-              {hoveredHour === curHour && isRunning ? " · live" : ""}
-            </span>
-          </>
-        )}
+        {hoveredHour !== null && (() => {
+          // Tooltip shows the capped value (what the bar represents: ≤60 min
+          // of activity in that hour slot).  This matches what the user sees
+          // visually and avoids the "3h 11m" confusion.
+          const displayVal = cappedSeconds[hoveredHour];
+          return (
+            <>
+              <span className="hv2-tooltip-time">{fmtHourLabel(hoveredHour)}</span>
+              <span className="hv2-tooltip-sep">·</span>
+              <span className="hv2-tooltip-val">
+                {displayVal > 0 ? fmtMins(displayVal) : "no activity"}
+                {hoveredHour === curHour && isRunning ? " · live" : ""}
+              </span>
+            </>
+          );
+        })()}
       </div>
       <div className="hv2-footer">
         <div className="hv2-footer-item">
@@ -645,7 +626,6 @@ function InsightCards({ insights }) {
   );
 }
 
-// ─── Main component ───────────────────────────────────────────────────────────
 export default function StartSession() {
   const [user, setUser]         = useState(null);
   const [userData, setUserData] = useState(null);
@@ -725,15 +705,9 @@ export default function StartSession() {
   const [showEnvPicker, setShowEnvPicker]           = useState(false);
   const [envSuggestion, setEnvSuggestion]           = useState(null);
 
-  // ─── timer refs ─────────────────────────────────────────────────────────────
   const sessionStartWallTimeRef = useRef(null);
   const sessionStartDateRef     = useRef(null);
-
-  // BUG FIX #1: track the hour the current wall-clock segment began.
-  // Checkpoints use this as hourKey so minutes crossing an hour boundary
-  // are attributed to the correct hour bucket (e.g. 2:58–3:00 → hour 14).
   const sessionStartHourRef     = useRef(null);
-
   const accumulatedSecondsRef   = useRef(0);
   const isRunningRef            = useRef(false);
   const pomodoroModeRef         = useRef(false);
@@ -752,29 +726,23 @@ export default function StartSession() {
   const saveSessionChunkRef  = useRef(null);
   const getSegmentSecondsRef = useRef(null);
 
-  // keep refs in sync with state
   useEffect(() => { isRunningRef.current      = isRunning;      }, [isRunning]);
   useEffect(() => { pomodoroModeRef.current   = pomodoroMode;   }, [pomodoroMode]);
   useEffect(() => { selectedFieldRef.current  = selectedField;  }, [selectedField]);
   useEffect(() => { strictModeRef.current     = strictMode;     }, [strictMode]);
   useEffect(() => { currentEnvironmentRef.current = currentEnvironment; }, [currentEnvironment]);
 
-  // ─── segment-second helpers ──────────────────────────────────────────────────
-  // getSegmentSeconds: seconds since the last checkpoint (resets to 0 after each
-  // checkpoint because sessionStartWallTimeRef is updated there).
   const getSegmentSeconds = useCallback(() => {
     if (!sessionStartWallTimeRef.current) return 0;
     return Math.floor((Date.now() - sessionStartWallTimeRef.current) / 1000);
   }, []);
 
-  // getTotalSessionSeconds: accumulated committed seconds + current segment.
   const getTotalSessionSeconds = useCallback(() => {
     return accumulatedSecondsRef.current + getSegmentSeconds();
   }, [getSegmentSeconds]);
 
   useEffect(() => { getSegmentSecondsRef.current = getSegmentSeconds; }, [getSegmentSeconds]);
 
-  // ─── offline queue helpers ───────────────────────────────────────────────────
   const refreshQueueSize = useCallback(async () => {
     try { const items = await idbGetAll(); setQueueSize(items.length); } catch (_) {}
   }, []);
@@ -804,7 +772,6 @@ export default function StartSession() {
     };
   }, [trySyncQueue, refreshQueueSize]);
 
-  // ─── saveSessionChunk ────────────────────────────────────────────────────────
   const saveSessionChunk = useCallback(async (
     sessionSeconds, dateKey, weekKey, monthKey, field, hourKey,
     isCheckpoint = false, completedPomodoros = 0, abortedPomodoros = 0,
@@ -840,7 +807,6 @@ export default function StartSession() {
 
   useEffect(() => { saveSessionChunkRef.current = saveSessionChunk; }, [saveSessionChunk]);
 
-  // ─── wake lock ───────────────────────────────────────────────────────────────
   const requestWakeLock = useCallback(async () => {
     if ("wakeLock" in navigator) {
       try { wakeLockRef.current = await navigator.wakeLock.request("screen"); } catch (_) {}
@@ -860,7 +826,6 @@ export default function StartSession() {
     return () => document.removeEventListener("visibilitychange", onVisible);
   }, [requestWakeLock]);
 
-  // ─── beforeunload guard ──────────────────────────────────────────────────────
   useEffect(() => {
     const onBeforeUnload = (e) => {
       if (isRunningRef.current) {
@@ -873,7 +838,6 @@ export default function StartSession() {
     return () => window.removeEventListener("beforeunload", onBeforeUnload);
   }, []);
 
-  // ─── strict mode visibility guard ───────────────────────────────────────────
   const stopTimerRef        = useRef(null);
   const strictGraceTimerRef = useRef(null);
   useEffect(() => {
@@ -899,7 +863,6 @@ export default function StartSession() {
 
   const recordInteraction = useCallback(() => { lastInteractionRef.current = Date.now(); }, []);
 
-  // ─── inactivity check ────────────────────────────────────────────────────────
   useEffect(() => {
     const checkInactivity = () => {
       if (!isRunningRef.current || inactivityModal) return;
@@ -917,7 +880,6 @@ export default function StartSession() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [inactivityModal]);
 
-  // ─── environment listeners ───────────────────────────────────────────────────
   useEffect(() => {
     if (!user) return;
     const q = query(
@@ -964,7 +926,6 @@ export default function StartSession() {
     } else { setEnvSuggestion(null); }
   }, [currentEnvironment, userData]);
 
-  // ─── Firestore user listener ─────────────────────────────────────────────────
   const listenerRef = useRef({ unsub: null, uid: null });
   const setupListener = useCallback((uid) => {
     if (listenerRef.current.uid === uid) return;
@@ -1022,7 +983,6 @@ export default function StartSession() {
     };
   }, [setupListener, trySyncQueue]);
 
-  // ─── session recovery ────────────────────────────────────────────────────────
   useEffect(() => {
     if (loading || !user) return;
     const saved = sessionStorage.getItem("sb_active_session");
@@ -1061,19 +1021,15 @@ export default function StartSession() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loading, user]);
 
-  // ─── startTimerInternal ──────────────────────────────────────────────────────
-  // BUG FIX #1: record the starting hour so the first checkpoint uses the
-  // correct bucket even if the clock ticks past the hour during the segment.
   const startTimerInternal = useCallback(() => {
     const now = Date.now();
     sessionStartWallTimeRef.current = now;
     sessionStartDateRef.current     = localYMD();
-    sessionStartHourRef.current     = new Date(now).getHours(); // ← FIX #1
+    sessionStartHourRef.current     = new Date(now).getHours();
     accumulatedSecondsRef.current   = 0;
     isRunningRef.current            = true;
   }, []);
 
-  // ─── midnight boundary handler ───────────────────────────────────────────────
   const checkDayBoundary = useCallback(async () => {
     if (!isRunningRef.current || !sessionStartDateRef.current) return;
     const todayKey = localYMD();
@@ -1085,7 +1041,6 @@ export default function StartSession() {
       const dateKey  = sessionStartDateRef.current;
       const weekKey  = localISOWeek(new Date(dateKey + "T12:00:00"));
       const monthKey = localYM(new Date(dateKey   + "T12:00:00"));
-      // Use the tracked segment-start hour for accurate bucketing.
       const hourKey  = String(sessionStartHourRef.current ?? new Date(sessionStartWallTimeRef.current).getHours()).padStart(2, "0");
       const env      = currentEnvironmentRef.current;
       try {
@@ -1097,7 +1052,7 @@ export default function StartSession() {
         accumulatedSecondsRef.current   += segSecs;
         sessionStartWallTimeRef.current  = Date.now();
         sessionStartDateRef.current      = todayKey;
-        sessionStartHourRef.current      = new Date().getHours(); // ← FIX #1
+        sessionStartHourRef.current      = new Date().getHours();
       } catch (e) { console.error("Midnight save failed:", e); }
     } else {
       sessionStartDateRef.current      = todayKey;
@@ -1106,7 +1061,6 @@ export default function StartSession() {
     isSavingDayBoundaryRef.current = false;
   }, []);
 
-  // ─── 1-second display timer ──────────────────────────────────────────────────
   useEffect(() => {
     if (timerIntervalRef.current) { clearInterval(timerIntervalRef.current); timerIntervalRef.current = null; }
     timerIntervalRef.current = setInterval(() => {
@@ -1129,7 +1083,6 @@ export default function StartSession() {
           stopTimerRef.current?.();
         }
       } else {
-        // Display the full elapsed time (for the clock display only).
         setDisplaySeconds(total);
       }
 
@@ -1150,7 +1103,6 @@ export default function StartSession() {
     return () => { if (timerIntervalRef.current) { clearInterval(timerIntervalRef.current); timerIntervalRef.current = null; } };
   }, [getTotalSessionSeconds, checkDayBoundary, deepWorkEnabled, dwDuration]);
 
-  // expose timer API to other components / router guards
   const timerApiRef = useRef({});
   useEffect(() => {
     timerApiRef.current = {
@@ -1165,7 +1117,6 @@ export default function StartSession() {
   }, [isRunning, selectedField, getTotalSessionSeconds]);
   useEffect(() => () => { delete window.studyBuddyTimerState; }, []);
 
-  // ─── env picker toast ────────────────────────────────────────────────────────
   const showEnvPickerToast = useCallback(() => {
     if (currentEnvironmentRef.current || userEnvironments.length === 0) return;
     toast((t) => (
@@ -1192,7 +1143,6 @@ export default function StartSession() {
     ), { duration: 8000 });
   }, [userEnvironments]);
 
-  // ─── startTimer ──────────────────────────────────────────────────────────────
   const startTimer = useCallback(async () => {
     if (!userRef.current) return toast.error("Please log in first");
     completedPomodorosInSessionRef.current = 0;
@@ -1240,7 +1190,6 @@ export default function StartSession() {
     }
   }, [requestWakeLock, startTimerInternal, deepWorkEnabled, pomodoroMode, isOnline, envSuggestion, showEnvPickerToast]);
 
-  // ─── recent sessions ─────────────────────────────────────────────────────────
   const fetchRecentSessions = useCallback(async () => {
     const uid = userRef.current?.uid;
     if (!uid || !isOnline) return;
@@ -1260,7 +1209,6 @@ export default function StartSession() {
     if (user && isOnline) fetchRecentSessions();
   }, [user, isOnline, fetchRecentSessions]);
 
-  // ─── stopTimer ───────────────────────────────────────────────────────────────
   const stopTimer = useCallback(async () => {
     if (!isRunningRef.current) return;
     isRunningRef.current = false; setIsRunning(false); await releaseWakeLock();
@@ -1273,7 +1221,6 @@ export default function StartSession() {
     const dateKey        = sessionStartDateRef.current  || localYMD();
     const weekKey        = localISOWeek(new Date(dateKey + "T12:00:00"));
     const monthKey       = localYM(new Date(dateKey     + "T12:00:00"));
-    // Final segment: use current hour (segment since last checkpoint → current moment).
     const hourKey        = String(new Date().getHours()).padStart(2, "0");
     const field          = selectedFieldRef.current;
     const env            = currentEnvironmentRef.current;
@@ -1327,10 +1274,6 @@ export default function StartSession() {
 
   useEffect(() => { stopTimerRef.current = stopTimer; }, [stopTimer]);
 
-  // ─── checkpoint interval ─────────────────────────────────────────────────────
-  // BUG FIX #1: hourKey uses sessionStartHourRef (the hour the segment began),
-  // not new Date().getHours() (the current hour at fire time).
-  // After saving, update sessionStartHourRef to the new current hour.
   useEffect(() => {
     if (!isRunning) { clearInterval(checkpointIntervalRef.current); checkpointIntervalRef.current = null; return; }
     checkpointIntervalRef.current = setInterval(async () => {
@@ -1340,8 +1283,6 @@ export default function StartSession() {
       const dateKey  = sessionStartDateRef.current || localYMD();
       const weekKey  = localISOWeek(new Date(dateKey + "T12:00:00"));
       const monthKey = localYM(new Date(dateKey     + "T12:00:00"));
-
-      // ↓ FIX #1: attribute to the hour this segment STARTED in, not "now".
       const hourKey  = String(sessionStartHourRef.current ?? new Date().getHours()).padStart(2, "0");
       const env      = currentEnvironmentRef.current;
       try {
@@ -1352,7 +1293,6 @@ export default function StartSession() {
         );
         accumulatedSecondsRef.current   += segSecs;
         sessionStartWallTimeRef.current  = Date.now();
-        // ↓ FIX #1: new segment starts now → update hour ref to current hour.
         sessionStartHourRef.current      = new Date().getHours();
         checkpointBackoffRef.current     = 1000;
       } catch (e) {
@@ -1363,7 +1303,6 @@ export default function StartSession() {
     return () => { clearInterval(checkpointIntervalRef.current); checkpointIntervalRef.current = null; };
   }, [isRunning, getSegmentSeconds, saveSessionChunk]);
 
-  // ─── reset timer ─────────────────────────────────────────────────────────────
   const resetTimer = useCallback(async () => {
     clearInterval(checkpointIntervalRef.current); checkpointIntervalRef.current = null;
     clearTimeout(modalAutoStopRef.current); modalAutoStopRef.current = null;
@@ -1381,7 +1320,6 @@ export default function StartSession() {
     toast("Timer reset");
   }, [releaseWakeLock]);
 
-  // ─── daily totalTimeToday sync ────────────────────────────────────────────────
   useEffect(() => {
     if (!userData || !userRef.current || !isOnline) return;
     const todayKey = localYMD();
@@ -1405,7 +1343,6 @@ export default function StartSession() {
     }
   }, [userData, isOnline]);
 
-  // ─── study fields ─────────────────────────────────────────────────────────────
   const addField = async () => {
     const name = newFieldName.trim();
     if (!name) return toast.error("Enter a field name");
@@ -1459,7 +1396,6 @@ export default function StartSession() {
     } catch (e) { console.error(e); toast.error("Failed to remove field"); }
   }, [removeModal, userData, selectedField]);
 
-  // ─── tasks ───────────────────────────────────────────────────────────────────
   const userDocRef = useCallback(() => userRef.current ? doc(db, "users", userRef.current.uid) : null, []);
 
   const addTask = useCallback(async () => {
@@ -1522,7 +1458,6 @@ export default function StartSession() {
 
   useEffect(() => { if (activePanel !== "tasks") setLastDeleted(null); }, [activePanel]);
 
-  // ─── session delete / update ─────────────────────────────────────────────────
   const handleDeleteSession = useCallback(async (sessionId, sessionData) => {
     if (!userRef.current) return;
     try {
@@ -1596,7 +1531,6 @@ export default function StartSession() {
     } catch (err) { console.error(err); toast.error("Failed to update session"); }
   }, [fetchRecentSessions]);
 
-  // ─── deep work ───────────────────────────────────────────────────────────────
   const fetchDWData = useCallback(async () => {
     const uid = userRef.current?.uid;
     if (!uid || !isOnline) return;
@@ -1719,7 +1653,6 @@ export default function StartSession() {
     setDwPaused(true); setDwShowInterrupt(true);
   }, [dwElapsed, handleDWStop]);
 
-  // ─── distraction listeners ───────────────────────────────────────────────────
   useEffect(() => {
     if (!user || !isOnline) { if (!isOnline) return; setDlLogs([]); return; }
     if (dlUnsubLogsRef.current) dlUnsubLogsRef.current();
@@ -1763,7 +1696,7 @@ export default function StartSession() {
       where("weekStart", ">=", cutoffKey), orderBy("weekStart", "desc"),
     );
     dlUnsubWeeklyRef.current = onSnapshot(q, (snap) => {
-      const map = {}; snap.docs.forEach((d) => { map[d.id] = d.data(); });
+      const map = {}; snap.docs forEach((d) => { map[d.id] = d.data(); });
       setDlWeeklySummaries(map);
     }, (err) => console.error("DL weekly error:", err));
     return () => dlUnsubWeeklyRef.current?.();
@@ -1827,7 +1760,6 @@ export default function StartSession() {
     } catch (err) { console.error(err); toast.error("Delete failed"); }
   }, [dlLogs, user]);
 
-  // ─── derived state (memos) ───────────────────────────────────────────────────
   const dlTodayLogs = useMemo(() => {
     const start = startOfDay();
     return dlLogs.filter((l) => getTimestamp(l) >= start);
@@ -1881,23 +1813,10 @@ export default function StartSession() {
     return result.slice(0, 3);
   }, [dlTodayLogs, dlTodayBreakdown]);
 
-  const studyFields     = useMemo(() => userData?.studyFields || ["General"], [userData?.studyFields]);
+  const studyFields = useMemo(() => userData?.studyFields || ["General"], [userData?.studyFields]);
 
-  // ─────────────────────────────────────────────────────────────────────────────
-  // BUG FIX #2: liveSessionSeconds = getSegmentSeconds(), NOT displaySeconds.
-  //
-  // displaySeconds = getTotalSessionSeconds() = accumulated + segmentSecs.
-  // dailyStats[today].totalTime already contains everything the checkpoints
-  // committed (i.e. accumulated).  Adding displaySeconds on top double-counts
-  // the committed portion → 1+2=3 bug.
-  //
-  // getSegmentSeconds() = only the time since the last checkpoint (≤ ~60 s).
-  // dailyStats.totalTime + segmentSecs is always correct.
-  // ─────────────────────────────────────────────────────────────────────────────
   const liveSessionSeconds = useMemo(
     () => (isRunning ? getSegmentSeconds() : 0),
-    // displaySeconds ticks every second; using it as a dep makes the memo
-    // recompute each tick without needing to subscribe to a ref directly.
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [isRunning, displaySeconds],
   );
@@ -1905,7 +1824,6 @@ export default function StartSession() {
   const timeStats = useMemo(() => {
     const todayKey = localYMD(); const weekKey = localISOWeek(); const monthKey = localYM();
     const ds       = userData?.dailyStats || {};
-    // today = committed Firestore total + uncommitted segment (≤ 60 s)
     const today    = (ds[todayKey]?.totalTime || 0) + liveSessionSeconds;
     const week     = Object.entries(ds).reduce((sum, [dk, d]) => {
       return sum + (localISOWeek(new Date(dk + "T12:00:00")) === weekKey ? (dk === todayKey ? today : (d.totalTime || 0)) : 0);
@@ -1943,7 +1861,13 @@ export default function StartSession() {
   const insights    = useInsights(userData, isRunning, liveSessionSeconds);
   const displayTime = pomodoroMode ? pomodoroTimeLeft : displaySeconds;
 
-  // ─── loading / auth gates ────────────────────────────────────────────────────
+  // todayCommittedSeconds: the authoritative Firestore total for today (no live addition).
+  // Passed to HourHistogram so it can compute "total today" correctly.
+  const todayCommittedSeconds = useMemo(() => {
+    const todayKey = localYMD();
+    return userData?.dailyStats?.[todayKey]?.totalTime || 0;
+  }, [userData]);
+
   if (loading) {
     return (
       <div className="ss-page">
@@ -1966,7 +1890,6 @@ export default function StartSession() {
     );
   }
 
-  // ─── render ──────────────────────────────────────────────────────────────────
   return (
     <div
       className={`ss-page${strictMode && isRunning ? " strict-active" : ""}${deepWorkEnabled && dwActive ? " dw-active-page" : ""}`}
@@ -1986,7 +1909,6 @@ export default function StartSession() {
         <link rel="canonical" href="https://study-buddy-seven-blush.vercel.app/session" />
       </Helmet>
 
-      {/* ── modals ─────────────────────────────────────────────────────────── */}
       <AnimatePresence>
         {inactivityModal && (
           <motion.div className="ss-modal-backdrop" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
@@ -2153,7 +2075,6 @@ export default function StartSession() {
         )}
       </AnimatePresence>
 
-      {/* ── main layout ────────────────────────────────────────────────────── */}
       <div className="ss-container">
         <AnimatePresence>
           {!isOnline && (
@@ -2173,7 +2094,6 @@ export default function StartSession() {
 
         <motion.div className="ss-main-grid" variants={staggerContainer} initial="initial" animate="animate">
 
-          {/* ── timer card ──────────────────────────────────────────────────── */}
           <motion.div className={`ss-card ss-timer-card${deepWorkEnabled ? " dw-mode" : ""}`} variants={cardVariant}>
             <div className="ss-mode-pill">
               {deepWorkEnabled ? (
@@ -2426,7 +2346,6 @@ export default function StartSession() {
             </AnimatePresence>
           </motion.div>
 
-          {/* ── side column ─────────────────────────────────────────────────── */}
           <div className="ss-side-col">
             <div className="ss-field-env-row">
               {currentEnvironment ? (
@@ -2505,7 +2424,6 @@ export default function StartSession() {
           </div>
         </motion.div>
 
-        {/* ── tab bar ─────────────────────────────────────────────────────── */}
         <motion.div className="ss-tab-bar" initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.35, duration: 0.4 }}>
           {[
             { key: "tasks",    icon: "📋", label: "Tasks",        badge: taskStats.pending > 0 ? taskStats.pending : null },
@@ -2524,7 +2442,6 @@ export default function StartSession() {
           ))}
         </motion.div>
 
-        {/* ── panels ──────────────────────────────────────────────────────── */}
         <AnimatePresence>
           {activePanel === "tasks" && (
             <motion.div className="ss-panel" variants={overlayVariant} initial="initial" animate="animate" exit="exit">
@@ -2632,12 +2549,12 @@ export default function StartSession() {
               <div className="ss-section-label" style={{ marginTop: "1.5rem" }}>
                 Hourly Activity {isRunning && <span className="ss-live-tag">live</span>}
               </div>
-              {/* Pass sessionStartHour so the histogram knows which bar is "live" */}
               <HourHistogram
                 dailyStats={userData?.dailyStats}
                 liveSeconds={liveSessionSeconds}
                 isRunning={isRunning}
                 sessionStartHour={sessionStartHourRef.current}
+                todayCommittedSeconds={todayCommittedSeconds}
               />
               <div className="ss-section-label" style={{ marginTop: "1.5rem" }}>Study Insights</div>
               <InsightCards insights={insights} />
