@@ -1,7 +1,7 @@
 // Each theme ships with:
 //   • CSS vars injected onto <html>
 //   • bodyClass applied to <body>
-//   • overlayHTML injected into #theme-overlay (fixed, z:0, pointer-events:none)
+//   • overlayHTML injected into #theme-overlay (absolute, z:0, pointer-events:none)
 //   • overlayScript: JS run once after overlay mounts (visual only)
 //   • cursorScript: JS for the per-theme custom cursor
 //   • typography: per-theme type scale, rhythm, and weight tokens (NEW v4.1)
@@ -80,7 +80,7 @@ export const THEMES = {
     },
 
     overlayHTML: [
-      '<canvas id="pookie-stars" style="position:fixed;inset:0;width:100%;height:100%;pointer-events:none;z-index:0;"></canvas>',
+      '<canvas id="pookie-stars" style="position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:0;"></canvas>',
       '<div class="pookie-aurora pookie-aurora--1"></div>',
       '<div class="pookie-aurora pookie-aurora--2"></div>',
       '<div class="pookie-aurora pookie-aurora--3"></div>',
@@ -428,7 +428,7 @@ export const THEMES = {
     },
 
     overlayHTML: [
-      '<canvas id="steller-space" style="position:fixed;inset:0;width:100%;height:100%;pointer-events:none;z-index:0;"></canvas>',
+      '<canvas id="steller-space" style="position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:0;"></canvas>',
       '<div class="steller-scanlines"></div>',
       '<div class="steller-planet">',
       '  <div class="steller-planet-ring steller-planet-ring--3"></div>',
